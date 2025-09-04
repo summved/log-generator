@@ -140,20 +140,82 @@ generators:
     frequency: 60    # IoT device communications
 ```
 
-### 🚨 **Security Incident** (300 logs/min)
-Focus on security events:
+### 🚨 **Security Incident Simulation** (400+ logs/min)
+Focus on security events across all security-related sources:
 ```yaml
 generators:
+  # Core infrastructure (moderate)
   endpoint:
-    frequency: 30
+    frequency: 40    # API under attack
   application:
-    frequency: 20
+    frequency: 30    # Application alerts
   server:
-    frequency: 50    # High system alerts
+    frequency: 25    # System stress
   firewall:
-    frequency: 180   # Heavy attack simulation
+    frequency: 120   # Heavy attack simulation
   cloud:
-    frequency: 20
+    frequency: 15    # Cloud security events
+  
+  # Security sources (high activity)
+  authentication:
+    frequency: 80    # Brute force attacks
+  webserver:
+    frequency: 60    # Web attacks, DDoS
+  
+  # Data sources (monitoring attacks)
+  database:
+    frequency: 50    # SQL injection attempts
+  backup:
+    frequency: 5     # Backup integrity checks
+  
+  # Modern architecture (under attack)
+  microservices:
+    frequency: 40    # Service disruption
+  email:
+    frequency: 25    # Phishing campaigns
+  iot:
+    frequency: 15    # IoT botnet activity
+```
+
+### 🧪 **Tested Configuration: Selective Sources**
+Based on actual testing - only enable specific source types:
+```yaml
+generators:
+  # ENABLED sources (tested working)
+  endpoint:
+    enabled: true
+    frequency: 20    # Increased rate
+  application:
+    enabled: true
+    frequency: 25    # Increased rate
+  authentication:
+    enabled: true
+    frequency: 30    # High auth activity
+  firewall:
+    enabled: true
+    frequency: 15    # Moderate security
+  database:
+    enabled: true
+    frequency: 40    # High DB activity
+  microservices:
+    enabled: true
+    frequency: 50    # High service activity
+  
+  # DISABLED sources (for focused testing)
+  server:
+    enabled: false
+  cloud:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  iot:
+    enabled: false
+    
+# Result: ~180 logs/min from 6 sources (tested working)
 ```
 
 ### ⚡ **Load Testing** (1000+ logs/min)

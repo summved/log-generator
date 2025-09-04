@@ -2,7 +2,15 @@
 
 ## Overview
 
-The log generator supports **multiple output formats and destinations**, making it compatible with virtually any SIEM system. You can send logs directly to your SIEM via various methods.
+The log generator supports **multiple output formats and destinations** with **12 comprehensive log source types**, making it compatible with virtually any SIEM system. You can send logs directly to your SIEM via various methods.
+
+### 🆕 **Enhanced Coverage (12 Source Types)**
+- **🏗️ Infrastructure**: Endpoint, Application, Server, Firewall, Cloud
+- **🔐 Security**: Authentication, Web Server  
+- **💾 Data**: Database, Backup
+- **🚀 Modern**: Microservices, Email, IoT
+
+**Total Rate**: 238 logs/min (14,280 logs/hour) providing comprehensive enterprise coverage.
 
 ## 📤 Supported Output Methods
 

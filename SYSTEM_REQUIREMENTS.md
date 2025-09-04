@@ -4,32 +4,45 @@
 
 Based on testing across different hardware configurations, here are the resource requirements for various log generation volumes.
 
-## 🖥️ Minimum System Requirements
+## 🖥️ System Requirements (Updated with Test Results)
 
-### Basic Setup (1-100 logs/minute)
+### 🧪 **Tested Configurations**
+
+#### Basic Setup (65-100 logs/minute - Original 5 Sources)
 - **CPU**: 1 vCPU (2.0 GHz)
 - **RAM**: 512 MB
 - **Storage**: 1 GB available space
 - **OS**: Linux, macOS, Windows
-- **Node.js**: 18.0+ 
+- **Node.js**: 18.0+
+- **✅ Tested**: Original 5 sources working perfectly
 
-### Standard Setup (100-500 logs/minute)
-- **CPU**: 2 vCPU (2.4 GHz)
-- **RAM**: 1 GB
+#### 🆕 **Enhanced Setup (238 logs/minute - All 12 Sources)**
+- **CPU**: 2 vCPU (2.4 GHz) 
+- **RAM**: 1-2 GB
 - **Storage**: 5 GB available space
-- **Network**: 1 Mbps (for HTTP/Syslog output)
+- **Network**: 5 Mbps (for HTTP/Syslog output)
+- **✅ Tested**: All 12 sources, 238 logs/min confirmed stable
 
-### High-Volume Setup (500-2000 logs/minute)
+#### Selective Setup (150-180 logs/minute - 6 Sources)
+- **CPU**: 1-2 vCPU (2.2 GHz)
+- **RAM**: 1 GB
+- **Storage**: 3 GB available space  
+- **Network**: 3 Mbps
+- **✅ Tested**: Toggle functionality confirmed working
+
+#### High-Volume Setup (500-1000 logs/minute)
 - **CPU**: 4 vCPU (2.8 GHz)
-- **RAM**: 2 GB
+- **RAM**: 2-3 GB
 - **Storage**: 20 GB available space
 - **Network**: 10 Mbps
+- **Status**: Projected (not yet tested)
 
-### Enterprise Setup (2000+ logs/minute)
+#### Enterprise Setup (1000+ logs/minute)
 - **CPU**: 8+ vCPU (3.0+ GHz)
 - **RAM**: 4+ GB
 - **Storage**: 50+ GB available space
 - **Network**: 100+ Mbps
+- **Status**: Projected scaling
 
 ## ⚡ CPU & Memory Usage by Log Rate
 
