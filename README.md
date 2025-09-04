@@ -170,39 +170,45 @@ du -sh logs/
 ls -la logs/historical/
 ```
 
-## Configuration
+## ⚙️ Configuration
 
-The system uses a YAML configuration file. Here's a basic example:
+The system uses a YAML configuration file and is **fully customizable** for different testing scenarios.
 
+> 📋 **[Complete Configuration Guide →](CONFIGURATION.md)**  
+> *Detailed guide for customizing log rates, creating presets, and advanced configuration options*
+
+### Quick Configuration Overview
+
+**Default Rates** (65 logs/minute total):
 ```yaml
 generators:
   endpoint:
     enabled: true
-    frequency: 10  # logs per minute
-    templates:
-      - level: INFO
-        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms - IP: {clientIP}"
-        probability: 0.6
-        
+    frequency: 10    # ← EASILY CUSTOMIZABLE (1-1000+ logs/min)
+  application:
+    frequency: 15    # ← Change to any rate you need
+  server:
+    frequency: 8     # ← Perfect for your testing scenario
   firewall:
-    enabled: true
-    frequency: 20
-    templates:
-      - level: WARN
-        messageTemplate: "DROP {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Rule: {ruleId}"
-        probability: 0.25
+    frequency: 20    # ← Adjust for security testing
+  cloud:
+    frequency: 12    # ← Enable/disable as needed
+```
 
-output:
-  format: "wazuh"  # json, syslog, cef, wazuh
-  destination: "file"  # file, syslog, http, stdout
-  file:
-    path: "./logs/current/logs.json"
-    rotation: true
+**🎯 Quick Customization Examples:**
+- **Light Testing**: Set all frequencies to 1-5 (total: 5-25 logs/min)
+- **Heavy Load**: Set all frequencies to 100-200 (total: 500-1000 logs/min)  
+- **Security Focus**: Disable endpoint/app, set firewall to 100+ logs/min
+- **Development**: Use 2-10 logs/min per source for easy debugging
 
-replay:
-  enabled: false
-  speed: 1.0
-  loop: false
+**📝 How to Customize:**
+```bash
+# Method 1: Edit default config
+nano src/config/default.yaml
+
+# Method 2: Create custom config  
+npx ts-node src/cli.ts init --output my-rates.yaml
+npm run generate -- --config my-rates.yaml
 ```
 
 ### Log Sources
