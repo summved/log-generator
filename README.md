@@ -209,6 +209,16 @@ nano src/config/default.yaml
 # Method 2: Create custom config  
 npx ts-node src/cli.ts init --output my-rates.yaml
 npm run generate -- --config my-rates.yaml
+
+# Method 3: Quick JSON output for any SIEM
+cat > siem-config.yaml << EOF
+output:
+  format: "json"
+  destination: "file"  
+  file:
+    path: "/var/log/siem/logs.json"
+EOF
+npm run generate -- --config siem-config.yaml
 ```
 
 ### Log Sources
@@ -230,7 +240,65 @@ The system supports various template variables that are automatically replaced:
 - `{protocol}`, `{ruleId}`, `{attackType}`
 - `{service}`, `{operation}`, `{region}` (for cloud logs)
 
+## 🛡️ SIEM Integration
+
+The log generator supports **direct integration** with any SIEM system through multiple output methods:
+
+> 🔗 **[Complete SIEM Integration Guide →](SIEM_INTEGRATION.md)**  
+> *Detailed setup for Splunk, Elastic, QRadar, ArcSight, Wazuh, Sentinel, and more*
+
+### Quick SIEM Setup
+
+**Generic JSON Output** (works with any SIEM):
+```yaml
+output:
+  format: "json"          # Universal format
+  destination: "file"     # File monitoring (most compatible)
+  file:
+    path: "/var/log/siem/logs.json"
+```
+
+**Direct HTTP Integration**:
+```yaml
+output:
+  format: "json"
+  destination: "http"
+  http:
+    url: "https://your-siem.com/api/events"
+    headers:
+      "Authorization": "Bearer your-token"
+```
+
+**Syslog Integration**:
+```yaml
+output:
+  format: "syslog"
+  destination: "syslog"
+  syslog:
+    host: "siem-server.com"
+    port: 514
+```
+
 ## Output Formats
+
+### JSON Format (Recommended for SIEM)
+Universal format compatible with all SIEM systems:
+```json
+{
+  "timestamp": "2025-09-04T10:30:00.000Z",
+  "level": "WARN",
+  "source": {
+    "type": "firewall",
+    "name": "pfsense-fw",
+    "host": "firewall-01"
+  },
+  "message": "DROP TCP 192.168.1.100 -> 10.0.0.5 - Rule: 403",
+  "metadata": {
+    "environment": "production",
+    "correlationId": "uuid-here"
+  }
+}
+```
 
 ### Wazuh Format
 Optimized for Wazuh ingestion with proper agent and rule mapping:
