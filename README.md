@@ -15,15 +15,47 @@ A comprehensive multi-source log generator designed for SIEM solutions like Wazu
 - **🎭 Incident Simulation**: Recreate attack scenarios for analysis and response training
 - **🔄 Continuous Testing**: Automated log generation for CI/CD pipelines
 
+## 📋 What Logs Are Generated?
+
+The log generator creates **realistic logs from 12 different enterprise sources**:
+
+### 🏗️ **Infrastructure** (65 logs/min)
+- **🌐 API Gateway**: HTTP requests, rate limiting, errors
+- **📱 Applications**: User actions, cache ops, database connections  
+- **🖥️ Linux Servers**: System metrics, service management, alerts
+- **🛡️ Firewalls**: Traffic filtering, intrusion detection
+- **☁️ Cloud Services**: AWS API calls, auto-scaling, Lambda
+
+### 🔐 **Security & Identity** (40 logs/min)  
+- **🔑 Authentication**: Login/logout, failed attempts, lockouts
+- **🌐 Web Servers**: Access logs, SSL certificates, timeouts
+
+### 💾 **Data & Storage** (38 logs/min)
+- **🗄️ Databases**: Query execution, transactions, performance
+- **💾 Backup Systems**: Operations, storage monitoring, cleanup
+
+### 🚀 **Modern Architecture** (95 logs/min)
+- **🔄 Microservices**: Service calls, circuit breakers, scaling
+- **📧 Email Systems**: SMTP operations, spam detection
+- **📱 IoT Devices**: Connectivity, sensors, firmware updates
+
+> **📋 [Complete Log Types Reference →](LOG_TYPES_REFERENCE.md)**  
+> *Detailed breakdown of every log type with examples*
+
 ## 📚 Documentation Quick Links
 
-| **[⚙️ Configuration](CONFIGURATION.md)** | **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | **[💻 System Requirements](SYSTEM_REQUIREMENTS.md)** | **[🔬 Technical Analysis](LOG_ANALYSIS.md)** |
+| **[📋 Log Types](LOG_TYPES_REFERENCE.md)** | **[⚙️ Configuration](CONFIGURATION.md)** | **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | **[💻 System Requirements](SYSTEM_REQUIREMENTS.md)** |
 |---|---|---|---|
-| Customize log rates & settings | Connect to any SIEM system | Hardware & resource planning | Deep technical documentation |
+| **What logs are generated** | Customize log rates & settings | Connect to any SIEM system | Hardware & resource planning |
+
+| **[🔬 Technical Analysis](LOG_ANALYSIS.md)** | **[🏗️ Code Architecture](CODE_ARCHITECTURE.md)** |
+|---|---|
+| Deep technical documentation | Code structure & implementation |
 
 ## 📋 Table of Contents
 
 - [🎯 Why Use This Tool?](#-why-use-this-tool)
+- [📋 What Logs Are Generated?](#-what-logs-are-generated)
 - [🚀 Quick Start](#-quick-start)
 - [💻 CLI Usage](#-cli-usage)
 - [⚙️ Configuration](#️-configuration)
@@ -568,6 +600,7 @@ We chose GPL-3.0 to prevent commercial exploitation while encouraging community 
 ### 📖 User Guides
 | Guide | Purpose | Target Audience |
 |-------|---------|-----------------|
+| **[📋 Log Types Reference](LOG_TYPES_REFERENCE.md)** | **Detailed breakdown of all 12 log types with examples** | **All users - start here!** |
 | **[Configuration Guide](CONFIGURATION.md)** | Customize log rates, create presets, advanced settings | All users who need custom configurations |
 | **[SIEM Integration](SIEM_INTEGRATION.md)** | Connect to Splunk, Elastic, QRadar, ArcSight, etc. | SIEM administrators, security teams |
 | **[System Requirements](SYSTEM_REQUIREMENTS.md)** | Hardware sizing, performance benchmarks, capacity planning | Infrastructure teams, DevOps |
