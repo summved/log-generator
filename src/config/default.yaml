@@ -124,6 +124,237 @@ generators:
         metadata:
           component: "aws-lambda"
 
+  # New log source types
+  authentication:
+    enabled: true
+    frequency: 25
+    templates:
+      - level: INFO
+        messageTemplate: "User {username} login successful from {clientIP} - Session: {sessionId}"
+        probability: 0.6
+        metadata:
+          component: "auth-service"
+      - level: WARN
+        messageTemplate: "Failed login attempt for {username} from {clientIP} - Attempts: {attemptCount}"
+        probability: 0.2
+        metadata:
+          component: "auth-service"
+      - level: ERROR
+        messageTemplate: "Account {username} locked due to multiple failed attempts from {clientIP}"
+        probability: 0.05
+        metadata:
+          component: "auth-service"
+      - level: INFO
+        messageTemplate: "Password changed for user {username} from {clientIP}"
+        probability: 0.05
+        metadata:
+          component: "auth-service"
+      - level: WARN
+        messageTemplate: "Suspicious login: {username} from unusual location {location} ({clientIP})"
+        probability: 0.08
+        metadata:
+          component: "security-monitor"
+      - level: INFO
+        messageTemplate: "User {username} logout - Session duration: {duration}min"
+        probability: 0.02
+        metadata:
+          component: "auth-service"
+
+  database:
+    enabled: true
+    frequency: 30
+    templates:
+      - level: INFO
+        messageTemplate: "Query executed: {queryType} on table {tableName} - Duration: {duration}ms"
+        probability: 0.5
+        metadata:
+          component: "query-engine"
+      - level: WARN
+        messageTemplate: "Slow query detected: {query} - Duration: {duration}ms (threshold: 1000ms)"
+        probability: 0.15
+        metadata:
+          component: "performance-monitor"
+      - level: ERROR
+        messageTemplate: "Database connection failed: {errorMessage} - Pool: {poolName}"
+        probability: 0.05
+        metadata:
+          component: "connection-pool"
+      - level: INFO
+        messageTemplate: "Transaction {transactionId} committed - Tables: {tableCount}"
+        probability: 0.2
+        metadata:
+          component: "transaction-manager"
+      - level: ERROR
+        messageTemplate: "Deadlock detected: Transaction {transactionId} rolled back"
+        probability: 0.02
+        metadata:
+          component: "deadlock-detector"
+      - level: WARN
+        messageTemplate: "High connection count: {connectionCount}/{maxConnections} - Database: {dbName}"
+        probability: 0.08
+        metadata:
+          component: "connection-monitor"
+
+  webserver:
+    enabled: true
+    frequency: 40
+    templates:
+      - level: INFO
+        messageTemplate: "{clientIP} - {method} {path} {status} {responseSize} \"{userAgent}\""
+        probability: 0.6
+        metadata:
+          component: "access-log"
+      - level: WARN
+        messageTemplate: "Rate limiting activated for {clientIP} - Requests: {requestCount}/min"
+        probability: 0.1
+        metadata:
+          component: "rate-limiter"
+      - level: ERROR
+        messageTemplate: "Backend server {backendHost} unreachable - Error: {errorCode}"
+        probability: 0.05
+        metadata:
+          component: "load-balancer"
+      - level: INFO
+        messageTemplate: "SSL certificate {certName} expires in {daysToExpiry} days"
+        probability: 0.02
+        metadata:
+          component: "ssl-monitor"
+      - level: WARN
+        messageTemplate: "Large response detected: {responseSize}MB for {path} - Client: {clientIP}"
+        probability: 0.08
+        metadata:
+          component: "performance-monitor"
+      - level: ERROR
+        messageTemplate: "Request timeout: {path} exceeded {timeout}s - Client: {clientIP}"
+        probability: 0.15
+        metadata:
+          component: "timeout-monitor"
+
+  email:
+    enabled: true
+    frequency: 15
+    templates:
+      - level: INFO
+        messageTemplate: "Email sent: From {sender} to {recipient} - Subject: {subject} - MessageId: {messageId}"
+        probability: 0.5
+        metadata:
+          component: "smtp-server"
+      - level: WARN
+        messageTemplate: "Email delivery delayed: {messageId} to {recipient} - Retry attempt {retryCount}"
+        probability: 0.2
+        metadata:
+          component: "delivery-queue"
+      - level: ERROR
+        messageTemplate: "Email delivery failed: {messageId} to {recipient} - Error: {errorMessage}"
+        probability: 0.1
+        metadata:
+          component: "delivery-engine"
+      - level: WARN
+        messageTemplate: "Spam detected: From {sender} to {recipient} - Score: {spamScore}"
+        probability: 0.15
+        metadata:
+          component: "spam-filter"
+      - level: ERROR
+        messageTemplate: "Email quota exceeded: {sender} - Limit: {quotaLimit}MB"
+        probability: 0.05
+        metadata:
+          component: "quota-manager"
+
+  backup:
+    enabled: true
+    frequency: 8
+    templates:
+      - level: INFO
+        messageTemplate: "Backup completed: {backupName} - Size: {backupSize}GB - Duration: {duration}min"
+        probability: 0.4
+        metadata:
+          component: "backup-engine"
+      - level: WARN
+        messageTemplate: "Backup size increased: {backupName} - Current: {currentSize}GB - Previous: {previousSize}GB"
+        probability: 0.2
+        metadata:
+          component: "size-monitor"
+      - level: ERROR
+        messageTemplate: "Backup failed: {backupName} - Error: {errorMessage}"
+        probability: 0.1
+        metadata:
+          component: "backup-engine"
+      - level: INFO
+        messageTemplate: "Backup retention cleanup: Removed {deletedCount} old backups"
+        probability: 0.15
+        metadata:
+          component: "cleanup-service"
+      - level: WARN
+        messageTemplate: "Storage space low: {availableSpace}GB remaining on {storagePath}"
+        probability: 0.15
+        metadata:
+          component: "storage-monitor"
+
+  microservices:
+    enabled: true
+    frequency: 35
+    templates:
+      - level: INFO
+        messageTemplate: "Service {serviceName} called {targetService} - Method: {method} - Duration: {duration}ms"
+        probability: 0.4
+        metadata:
+          component: "service-mesh"
+      - level: WARN
+        messageTemplate: "Circuit breaker opened for service {serviceName} - Failure rate: {failureRate}%"
+        probability: 0.1
+        metadata:
+          component: "circuit-breaker"
+      - level: ERROR
+        messageTemplate: "Service {serviceName} health check failed - Endpoint: {healthEndpoint}"
+        probability: 0.05
+        metadata:
+          component: "health-monitor"
+      - level: INFO
+        messageTemplate: "Service {serviceName} scaled: {oldInstances} -> {newInstances} instances"
+        probability: 0.15
+        metadata:
+          component: "auto-scaler"
+      - level: WARN
+        messageTemplate: "High latency detected: {serviceName} -> {targetService} - {latency}ms"
+        probability: 0.2
+        metadata:
+          component: "latency-monitor"
+      - level: INFO
+        messageTemplate: "Service discovery: {serviceName} registered at {serviceUrl}"
+        probability: 0.1
+        metadata:
+          component: "service-registry"
+
+  iot:
+    enabled: true
+    frequency: 20
+    templates:
+      - level: INFO
+        messageTemplate: "Device {deviceId} connected - IP: {deviceIP} - Type: {deviceType}"
+        probability: 0.3
+        metadata:
+          component: "device-manager"
+      - level: WARN
+        messageTemplate: "Device {deviceId} battery low: {batteryLevel}% - Location: {location}"
+        probability: 0.2
+        metadata:
+          component: "battery-monitor"
+      - level: ERROR
+        messageTemplate: "Device {deviceId} offline - Last seen: {lastSeen}"
+        probability: 0.1
+        metadata:
+          component: "connectivity-monitor"
+      - level: INFO
+        messageTemplate: "Sensor data: Device {deviceId} - Temperature: {temperature}°C - Humidity: {humidity}%"
+        probability: 0.25
+        metadata:
+          component: "sensor-collector"
+      - level: WARN
+        messageTemplate: "Device {deviceId} firmware outdated - Current: {currentVersion} - Latest: {latestVersion}"
+        probability: 0.15
+        metadata:
+          component: "firmware-manager"
+
 replay:
   enabled: false
   speed: 1.0

@@ -4,7 +4,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-A comprehensive multi-source log generator designed for SIEM solutions like Wazuh. This tool can generate realistic logs from various sources including endpoints, applications, servers, firewalls, and cloud services, with the ability to replay historical logs.
+A comprehensive multi-source log generator designed for SIEM solutions like Wazuh. Generate realistic logs from **12 different sources** including endpoints, applications, servers, firewalls, cloud services, authentication systems, databases, web servers, email services, backup systems, microservices, and IoT devices - with the ability to replay historical logs.
 
 ## 🎯 Why Use This Tool?
 
@@ -36,7 +36,7 @@ A comprehensive multi-source log generator designed for SIEM solutions like Wazu
 
 ## Features
 
-- **Multi-Source Log Generation**: Generate logs from endpoints, applications, servers, firewalls, and cloud sources
+- **Multi-Source Log Generation**: Generate logs from **12 different sources** - endpoints, applications, servers, firewalls, cloud, authentication, database, web server, email, backup, microservices, and IoT devices
 - **Historical Log Replay**: Replay stored logs with configurable speed and filters
 - **Multiple Output Formats**: Support for JSON, Syslog, CEF, and Wazuh-specific formats
 - **Flexible Output Destinations**: File, Syslog, HTTP endpoints, or stdout
@@ -120,7 +120,8 @@ tail -f logs/current/logs.json
 
 | Log Rate | CPU Usage | RAM Usage | Storage/Day | Use Case |
 |----------|-----------|-----------|-------------|----------|
-| **65 logs/min** (default) | 5-10% | 100 MB | 37 MB | Development, Training |
+| **238 logs/min** (all 12 sources) | 10-15% | 150 MB | 136 MB | **Full Coverage Testing** |
+| **65 logs/min** (5 sources) | 5-10% | 100 MB | 37 MB | Development, Training |
 | **500 logs/min** | 15-25% | 300 MB | 288 MB | SIEM Testing |
 | **2000 logs/min** | 40-60% | 700 MB | 1.15 GB | Load Testing |
 | **5000+ logs/min** | 60-80% | 1+ GB | 2.9+ GB | Enterprise Stress Testing |

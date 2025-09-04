@@ -78,7 +78,102 @@ export class TemplateEngine {
       '{memoryUsed}': () => faker.number.int({ min: 64, max: 3008 }).toString(),
       '{cacheOperation}': () => faker.helpers.arrayElement(['HIT', 'MISS', 'SET', 'DELETE']),
       '{key}': () => faker.lorem.word(),
-      '{result}': () => faker.helpers.arrayElement(['SUCCESS', 'FAILED'])
+      '{result}': () => faker.helpers.arrayElement(['SUCCESS', 'FAILED']),
+      
+      // Authentication variables
+      '{username}': () => faker.internet.userName(),
+      '{sessionId}': () => faker.string.uuid(),
+      '{attemptCount}': () => faker.number.int({ min: 1, max: 5 }).toString(),
+      '{location}': () => `${faker.location.city()}, ${faker.location.country()}`,
+      
+      // Database variables  
+      '{queryType}': () => faker.helpers.arrayElement(['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+      '{tableName}': () => faker.helpers.arrayElement(['users', 'orders', 'products', 'sessions', 'logs']),
+      '{query}': () => faker.helpers.arrayElement([
+        'SELECT * FROM users WHERE active = true',
+        'UPDATE orders SET status = \'shipped\' WHERE id = 12345',
+        'INSERT INTO sessions (user_id, token) VALUES (?, ?)',
+        'DELETE FROM temp_data WHERE created_at < NOW() - INTERVAL 1 DAY'
+      ]),
+      '{transactionId}': () => faker.string.alphanumeric(8),
+      '{poolName}': () => faker.helpers.arrayElement(['main-pool', 'read-pool', 'write-pool']),
+      '{tableCount}': () => faker.number.int({ min: 1, max: 5 }).toString(),
+      '{connectionCount}': () => faker.number.int({ min: 50, max: 100 }).toString(),
+      '{maxConnections}': () => '100',
+      '{dbName}': () => faker.helpers.arrayElement(['production', 'staging', 'analytics']),
+      
+      // Web server variables
+      '{responseSize}': () => faker.number.int({ min: 100, max: 50000 }).toString(),
+      '{userAgent}': () => faker.internet.userAgent(),
+      '{requestCount}': () => faker.number.int({ min: 100, max: 1000 }).toString(),
+      '{backendHost}': () => faker.internet.domainName(),
+      '{errorCode}': () => faker.helpers.arrayElement(['502', '503', '504']),
+      '{certName}': () => faker.internet.domainName(),
+      '{daysToExpiry}': () => faker.number.int({ min: 1, max: 90 }).toString(),
+      '{timeout}': () => faker.number.int({ min: 30, max: 120 }).toString(),
+      
+      // Email variables
+      '{sender}': () => faker.internet.email(),
+      '{recipient}': () => faker.internet.email(),
+      '{subject}': () => faker.helpers.arrayElement([
+        'Welcome to our platform!', 'Password reset request', 'Order confirmation #12345',
+        'Monthly newsletter', 'Account verification required', 'New message from support'
+      ]),
+      '{messageId}': () => faker.string.uuid(),
+      '{retryCount}': () => faker.number.int({ min: 1, max: 5 }).toString(),
+      '{spamScore}': () => faker.number.float({ min: 5.0, max: 10.0, fractionDigits: 1 }).toString(),
+      '{quotaLimit}': () => faker.helpers.arrayElement(['100', '250', '500', '1000']),
+      
+      // Backup variables
+      '{backupName}': () => {
+        const types = ['database', 'application', 'logs', 'config'];
+        const dates = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        return `${faker.helpers.arrayElement(types)}_backup_${dates}`;
+      },
+      '{backupSize}': () => faker.number.float({ min: 0.5, max: 100.0, fractionDigits: 1 }).toString(),
+      '{currentSize}': () => faker.number.float({ min: 1.0, max: 50.0, fractionDigits: 1 }).toString(),
+      '{previousSize}': () => faker.number.float({ min: 0.8, max: 45.0, fractionDigits: 1 }).toString(),
+      '{deletedCount}': () => faker.number.int({ min: 1, max: 20 }).toString(),
+      '{availableSpace}': () => faker.number.float({ min: 0.1, max: 10.0, fractionDigits: 1 }).toString(),
+      '{storagePath}': () => faker.helpers.arrayElement(['/backup/primary', '/backup/secondary', '/mnt/backup-nfs']),
+      
+      // Microservices variables
+      '{targetService}': () => faker.helpers.arrayElement([
+        'user-service', 'order-service', 'payment-service', 'notification-service',
+        'inventory-service', 'auth-service', 'catalog-service', 'shipping-service'
+      ]),
+      '{failureRate}': () => faker.number.int({ min: 50, max: 95 }).toString(),
+      '{healthEndpoint}': () => '/health',
+      '{oldInstances}': () => faker.number.int({ min: 1, max: 5 }).toString(),
+      '{newInstances}': () => faker.number.int({ min: 2, max: 10 }).toString(),
+      '{latency}': () => faker.number.int({ min: 1000, max: 5000 }).toString(),
+      '{serviceUrl}': () => `http://${faker.internet.domainName()}:${faker.internet.port()}`,
+      
+      // IoT variables
+      '{deviceId}': () => {
+        const prefixes = ['SENS', 'CAM', 'THERM', 'LOCK', 'GW'];
+        const prefix = faker.helpers.arrayElement(prefixes);
+        const number = faker.number.int({ min: 1000, max: 9999 });
+        return `${prefix}-${number}`;
+      },
+      '{deviceIP}': () => faker.internet.ip(),
+      '{deviceType}': () => faker.helpers.arrayElement(['sensor', 'camera', 'thermostat', 'smart-lock', 'gateway']),
+      '{batteryLevel}': () => faker.number.int({ min: 5, max: 25 }).toString(),
+      '{lastSeen}': () => faker.date.recent({ days: 1 }).toISOString(),
+      '{temperature}': () => faker.number.float({ min: 15.0, max: 35.0, fractionDigits: 1 }).toString(),
+      '{humidity}': () => faker.number.int({ min: 30, max: 80 }).toString(),
+      '{currentVersion}': () => {
+        const major = faker.number.int({ min: 1, max: 3 });
+        const minor = faker.number.int({ min: 0, max: 9 });
+        const patch = faker.number.int({ min: 0, max: 20 });
+        return `${major}.${minor}.${patch}`;
+      },
+      '{latestVersion}': () => {
+        const major = faker.number.int({ min: 1, max: 3 });
+        const minor = faker.number.int({ min: 0, max: 9 });
+        const patch = faker.number.int({ min: 1, max: 21 });
+        return `${major}.${minor}.${patch}`;
+      }
     };
 
     // Apply replacements

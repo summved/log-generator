@@ -8,7 +8,7 @@ export interface LogEntry {
 }
 
 export interface LogSource {
-  type: 'endpoint' | 'application' | 'server' | 'firewall' | 'cloud';
+  type: 'endpoint' | 'application' | 'server' | 'firewall' | 'cloud' | 'authentication' | 'database' | 'webserver' | 'email' | 'backup' | 'microservices' | 'iot';
   name: string;
   host?: string;
   service?: string;
@@ -48,6 +48,14 @@ export interface Config {
     server: GeneratorConfig;
     firewall: GeneratorConfig;
     cloud: GeneratorConfig;
+    // New generators
+    authentication: GeneratorConfig;
+    database: GeneratorConfig;
+    webserver: GeneratorConfig;
+    email: GeneratorConfig;
+    backup: GeneratorConfig;
+    microservices: GeneratorConfig;
+    iot: GeneratorConfig;
   };
   replay: ReplayConfig;
   output: {

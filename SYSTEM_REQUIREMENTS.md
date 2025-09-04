@@ -40,6 +40,7 @@ Based on testing across different hardware configurations, here are the resource
 | **10 logs/min** | 2-5% | 50-80 MB | 2 MB | 48 MB |
 | **50 logs/min** | 5-10% | 80-120 MB | 10 MB | 240 MB |
 | **100 logs/min** | 8-15% | 120-200 MB | 20 MB | 480 MB |
+| **🆕 238 logs/min (All Sources)** | **10-18%** | **150-250 MB** | **48 MB** | **1.15 GB** |
 | **500 logs/min** | 15-25% | 200-400 MB | 100 MB | 2.4 GB |
 | **1000 logs/min** | 25-40% | 400-600 MB | 200 MB | 4.8 GB |
 | **2000 logs/min** | 40-60% | 600-800 MB | 400 MB | 9.6 GB |

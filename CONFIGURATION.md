@@ -6,6 +6,7 @@ The log generator is **fully configurable** - you can easily adjust the number o
 
 ## 📊 Default Configuration
 
+### 🏗️ Core Infrastructure Sources (65 logs/min)
 | Source Type | Default Rate | Description |
 |-------------|--------------|-------------|
 | **Endpoint** | 10 logs/min | API Gateway, HTTP requests, rate limiting |
@@ -14,7 +15,26 @@ The log generator is **fully configurable** - you can easily adjust the number o
 | **Firewall** | 20 logs/min | Packet filtering, intrusion detection |
 | **Cloud** | 12 logs/min | AWS CloudTrail, auto-scaling, Lambda |
 
-**Total Default:** 65 logs/min (3,900 logs/hour)
+### 🔐 Security & Identity Sources (40 logs/min)
+| Source Type | Default Rate | Description |
+|-------------|--------------|-------------|
+| **Authentication** | 25 logs/min | Login/logout, failed attempts, account lockouts |
+| **Web Server** | 15 logs/min | Access logs, SSL certificates, rate limiting |
+
+### 💾 Data & Storage Sources (38 logs/min)
+| Source Type | Default Rate | Description |
+|-------------|--------------|-------------|
+| **Database** | 30 logs/min | Query execution, transactions, deadlocks |
+| **Backup** | 8 logs/min | Backup operations, storage monitoring |
+
+### 🚀 Modern Architecture Sources (95 logs/min)
+| Source Type | Default Rate | Description |
+|-------------|--------------|-------------|
+| **Microservices** | 35 logs/min | Service calls, circuit breakers, scaling |
+| **Email** | 15 logs/min | SMTP operations, delivery status, spam |
+| **IoT** | 20 logs/min | Device connectivity, sensor data, firmware |
+
+**Total Default:** 238 logs/min (14,280 logs/hour) - **All 12 Sources Active!**
 
 ## 🛠️ How to Customize Rates
 
@@ -50,36 +70,74 @@ npm run generate -- --config my-config.yaml
 
 ## 🎯 Common Configuration Scenarios
 
-### 🏠 **Light Development** (15 logs/min)
-Perfect for development and debugging:
+### 🏠 **Light Development** (30 logs/min)
+Perfect for development and debugging - only core infrastructure:
 ```yaml
 generators:
+  # Core infrastructure only
   endpoint:
-    frequency: 5
+    frequency: 10
   application:
-    frequency: 3
+    frequency: 8
   server:
-    frequency: 2
+    frequency: 5
   firewall:
-    frequency: 4
+    frequency: 5
   cloud:
-    frequency: 1
+    frequency: 2
+  
+  # Disable additional sources for light testing
+  authentication:
+    enabled: false
+  database:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  microservices:
+    enabled: false
+  iot:
+    enabled: false
 ```
 
-### 🏢 **Enterprise Simulation** (500 logs/min)
-Simulate busy enterprise environment:
+### 🏢 **Enterprise Simulation** (800+ logs/min)
+Simulate busy enterprise environment with all systems active:
 ```yaml
 generators:
+  # Core infrastructure (heavy load)
   endpoint:
-    frequency: 120   # Busy API gateway
+    frequency: 80    # Busy API gateway
   application:
-    frequency: 80    # Active business apps
+    frequency: 60    # Active business apps
   server:
-    frequency: 100   # Heavy monitoring
+    frequency: 40    # Heavy monitoring
   firewall:
-    frequency: 150   # Active security filtering
+    frequency: 100   # Active security filtering
   cloud:
-    frequency: 50    # Cloud activity
+    frequency: 30    # Cloud activity
+  
+  # Security & identity
+  authentication:
+    frequency: 120   # High login activity
+  webserver:
+    frequency: 150   # Heavy web traffic
+  
+  # Data & storage
+  database:
+    frequency: 180   # Heavy database load
+  backup:
+    frequency: 20    # Regular backup operations
+  
+  # Modern architecture
+  microservices:
+    frequency: 200   # Active service mesh
+  email:
+    frequency: 80    # Email system activity
+  iot:
+    frequency: 60    # IoT device communications
 ```
 
 ### 🚨 **Security Incident** (300 logs/min)
