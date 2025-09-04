@@ -4,6 +4,11 @@
 
 The log generator supports **multiple output formats and destinations** with **12 comprehensive log source types**, making it compatible with virtually any SIEM system. You can send logs directly to your SIEM via various methods.
 
+> 🔧 **For technical implementation details**, see the [SIEM Technical Guide](SIEM_TECHNICAL_GUIDE.md) which explains exactly how the integration works under the hood.
+> 
+> **📖 Documentation Path**: README.md → SIEM_INTEGRATION.md → SIEM_TECHNICAL_GUIDE.md  
+> *Start simple, go deeper as needed*
+
 ### 🆕 **Enhanced Coverage (12 Source Types)**
 - **🏗️ Infrastructure**: Endpoint, Application, Server, Firewall, Cloud
 - **🔐 Security**: Authentication, Web Server  

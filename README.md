@@ -44,13 +44,13 @@ The log generator creates **realistic logs from 12 different enterprise sources*
 
 ## 📚 Documentation Quick Links
 
-| **[📋 Log Types](LOG_TYPES_REFERENCE.md)** | **[⚙️ Configuration](CONFIGURATION.md)** | **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | **[💻 System Requirements](SYSTEM_REQUIREMENTS.md)** |
+| **[📋 Log Types](LOG_TYPES_REFERENCE.md)** | **[⚙️ Configuration](CONFIGURATION.md)** | **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | **[🔧 Technical Guide](SIEM_TECHNICAL_GUIDE.md)** |
 |---|---|---|---|
-| **What logs are generated** | Customize log rates & settings | Connect to any SIEM system | Hardware & resource planning |
+| **What logs are generated** | Customize log rates & settings | Connect to any SIEM system | **Deep technical details** |
 
-| **[🔬 Technical Analysis](LOG_ANALYSIS.md)** | **[🏗️ Code Architecture](CODE_ARCHITECTURE.md)** |
+| **[💻 System Requirements](SYSTEM_REQUIREMENTS.md)** | **[🔬 Technical Analysis](LOG_ANALYSIS.md)** |
 |---|---|
-| Deep technical documentation | Code structure & implementation |
+| Hardware & resource planning | Deep technical documentation |
 
 ## 📋 Table of Contents
 
@@ -603,6 +603,7 @@ We chose GPL-3.0 to prevent commercial exploitation while encouraging community 
 | **[📋 Log Types Reference](LOG_TYPES_REFERENCE.md)** | **Detailed breakdown of all 12 log types with examples** | **All users - start here!** |
 | **[Configuration Guide](CONFIGURATION.md)** | Customize log rates, create presets, advanced settings | All users who need custom configurations |
 | **[SIEM Integration](SIEM_INTEGRATION.md)** | Connect to Splunk, Elastic, QRadar, ArcSight, etc. | SIEM administrators, security teams |
+| **[🔧 SIEM Technical Guide](SIEM_TECHNICAL_GUIDE.md)** | **How integration works under the hood, troubleshooting** | **Developers, advanced users** |
 | **[System Requirements](SYSTEM_REQUIREMENTS.md)** | Hardware sizing, performance benchmarks, capacity planning | Infrastructure teams, DevOps |
 
 ### 🔬 Technical Documentation
