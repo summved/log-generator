@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  log-generator:
+    build: .
+    container_name: log-generator
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - NODE_ENV=production
+      - CONFIG_PATH=/app/config.yaml
+    ports:
+      - "3000:3000"  # If using HTTP output
+    networks:
+      - log-network
+    depends_on:
+      - wazuh-manager
+    
+  # Example Wazuh setup for testing
+  wazuh-manager:
+    image: wazuh/wazuh-manager:4.7.0
+    container_name: wazuh-manager
+    restart: unless-stopped
+    ports:
+      - "1514:1514"   # Syslog
+      - "1515:1515"   # Agent registration
+      - "55000:55000" # API
+    environment:
+      - WAZUH_MANAGER_ADMIN_USER=admin
+      - WAZUH_MANAGER_ADMIN_PASSWORD=SecretPassword123
+    volumes:
+      - wazuh-manager-config:/var/ossec/etc
+      - wazuh-manager-logs:/var/ossec/logs
+      - wazuh-manager-queue:/var/ossec/queue
+      - wazuh-manager-var-multigroups:/var/ossec/var/multigroups
+      - wazuh-manager-integrations:/var/ossec/integrations
+      - wazuh-manager-active-response:/var/ossec/active-response/bin
+      - wazuh-manager-agentless:/var/ossec/agentless
+      - wazuh-manager-wodles:/var/ossec/wodles
+    networks:
+      - log-network
+
+  # Example Elasticsearch for Wazuh (optional)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - log-network
+
+networks:
+  log-network:
+    driver: bridge
+
+volumes:
+  wazuh-manager-config:
+  wazuh-manager-logs:
+  wazuh-manager-queue:
+  wazuh-manager-var-multigroups:
+  wazuh-manager-integrations:
+  wazuh-manager-active-response:
+  wazuh-manager-agentless:
+  wazuh-manager-wodles:
+  elasticsearch-data:

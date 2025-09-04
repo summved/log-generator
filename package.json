@@ -1,0 +1,53 @@
+{
+  "name": "log-generator",
+  "version": "1.0.0",
+  "description": "Multi-source log generator for SIEM solutions with replay functionality",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "generate": "ts-node src/cli.ts generate",
+    "replay": "ts-node src/cli.ts replay",
+    "docker:build": "docker build -t log-generator:latest .",
+    "docker:run": "docker run --rm -v $(pwd)/logs:/app/logs log-generator:latest"
+  },
+  "keywords": [
+    "log-generator",
+    "siem",
+    "wazuh",
+    "security",
+    "monitoring",
+    "replay",
+    "endpoints",
+    "firewall",
+    "cloud"
+  ],
+  "author": "Security Team",
+  "license": "MIT",
+  "dependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "axios": "^1.11.0",
+    "commander": "^11.1.0",
+    "fs-extra": "^11.2.0",
+    "moment": "^2.29.4",
+    "node-cron": "^3.0.3",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^9.0.7",
+    "jest": "^29.7.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

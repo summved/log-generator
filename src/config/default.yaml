@@ -1,0 +1,156 @@
+generators:
+  endpoint:
+    enabled: true
+    frequency: 10  # logs per minute
+    templates:
+      - level: INFO
+        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms - IP: {clientIP}"
+        probability: 0.6
+        metadata:
+          component: "api-gateway"
+      - level: ERROR
+        messageTemplate: "HTTP {method} {path} - {status} {errorMessage} - IP: {clientIP}"
+        probability: 0.1
+        metadata:
+          component: "api-gateway"
+      - level: WARN
+        messageTemplate: "Rate limit exceeded for IP {clientIP} - {path}"
+        probability: 0.05
+        metadata:
+          component: "rate-limiter"
+      - level: DEBUG
+        messageTemplate: "Request headers: {headers} - {path}"
+        probability: 0.25
+        metadata:
+          component: "api-gateway"
+
+  application:
+    enabled: true
+    frequency: 15
+    templates:
+      - level: INFO
+        messageTemplate: "User {userId} performed action {action} on resource {resourceId}"
+        probability: 0.5
+        metadata:
+          component: "business-logic"
+      - level: ERROR
+        messageTemplate: "Database connection failed: {errorMessage}"
+        probability: 0.08
+        metadata:
+          component: "database"
+      - level: WARN
+        messageTemplate: "High memory usage detected: {memoryUsage}% - PID: {pid}"
+        probability: 0.12
+        metadata:
+          component: "monitoring"
+      - level: INFO
+        messageTemplate: "Cache {cacheOperation} for key {key} - {result}"
+        probability: 0.3
+        metadata:
+          component: "cache"
+
+  server:
+    enabled: true
+    frequency: 8
+    templates:
+      - level: INFO
+        messageTemplate: "System load: {loadAverage} - CPU: {cpuUsage}% Memory: {memoryUsage}%"
+        probability: 0.4
+        metadata:
+          component: "system-monitor"
+      - level: ERROR
+        messageTemplate: "Disk space critical on {mountPoint}: {freeSpace}GB remaining"
+        probability: 0.05
+        metadata:
+          component: "disk-monitor"
+      - level: WARN
+        messageTemplate: "High CPU usage detected: {cpuUsage}% for {duration}s"
+        probability: 0.15
+        metadata:
+          component: "performance-monitor"
+      - level: INFO
+        messageTemplate: "Service {serviceName} {action} - PID: {pid}"
+        probability: 0.4
+        metadata:
+          component: "service-manager"
+
+  firewall:
+    enabled: true
+    frequency: 20
+    templates:
+      - level: INFO
+        messageTemplate: "ACCEPT {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Rule: {ruleId}"
+        probability: 0.7
+        metadata:
+          component: "packet-filter"
+      - level: WARN
+        messageTemplate: "DROP {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Rule: {ruleId} - Reason: {reason}"
+        probability: 0.25
+        metadata:
+          component: "packet-filter"
+      - level: ERROR
+        messageTemplate: "INTRUSION DETECTED: {attackType} from {srcIP} - Blocked by rule {ruleId}"
+        probability: 0.03
+        metadata:
+          component: "intrusion-detection"
+      - level: DEBUG
+        messageTemplate: "Connection state: {state} {srcIP}:{srcPort} <-> {dstIP}:{dstPort}"
+        probability: 0.02
+        metadata:
+          component: "connection-tracker"
+
+  cloud:
+    enabled: true
+    frequency: 12
+    templates:
+      - level: INFO
+        messageTemplate: "AWS {service} API call: {awsOperation} by {user} - RequestId: {requestId}"
+        probability: 0.5
+        metadata:
+          component: "aws-cloudtrail"
+      - level: WARN
+        messageTemplate: "Auto-scaling triggered: {action} instance {instanceId} in {region}"
+        probability: 0.2
+        metadata:
+          component: "aws-autoscaling"
+      - level: ERROR
+        messageTemplate: "S3 bucket {bucketName} access denied for {user} - Action: {action}"
+        probability: 0.1
+        metadata:
+          component: "aws-s3"
+      - level: INFO
+        messageTemplate: "Lambda function {functionName} executed - Duration: {duration}ms Memory: {memoryUsed}MB"
+        probability: 0.2
+        metadata:
+          component: "aws-lambda"
+
+replay:
+  enabled: false
+  speed: 1.0
+  loop: false
+  filters:
+    sources: []
+    levels: []
+
+output:
+  format: "wazuh"  # json, syslog, cef, wazuh
+  destination: "file"  # file, syslog, http, stdout
+  file:
+    path: "./logs/current/logs.json"
+    rotation: true
+    maxSize: "100MB"
+    maxFiles: 10
+  syslog:
+    host: "localhost"
+    port: 514
+    protocol: "udp"
+  http:
+    url: "http://localhost:55000/api/events"
+    headers:
+      "Content-Type": "application/json"
+      "Authorization": "Bearer your-token"
+
+storage:
+  historicalPath: "./logs/historical"
+  currentPath: "./logs/current"
+  retention: 30  # days
