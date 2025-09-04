@@ -15,6 +15,25 @@ A comprehensive multi-source log generator designed for SIEM solutions like Wazu
 - **🎭 Incident Simulation**: Recreate attack scenarios for analysis and response training
 - **🔄 Continuous Testing**: Automated log generation for CI/CD pipelines
 
+## 📚 Documentation Quick Links
+
+| **[⚙️ Configuration](CONFIGURATION.md)** | **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | **[💻 System Requirements](SYSTEM_REQUIREMENTS.md)** | **[🔬 Technical Analysis](LOG_ANALYSIS.md)** |
+|---|---|---|---|
+| Customize log rates & settings | Connect to any SIEM system | Hardware & resource planning | Deep technical documentation |
+
+## 📋 Table of Contents
+
+- [🎯 Why Use This Tool?](#-why-use-this-tool)
+- [🚀 Quick Start](#-quick-start)
+- [💻 CLI Usage](#-cli-usage)
+- [⚙️ Configuration](#️-configuration)
+- [🛡️ SIEM Integration](#️-siem-integration)
+- [🔄 Replay System](#-replay-system)
+- [🐳 Docker Deployment](#-docker-deployment)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [📚 Complete Documentation](#-complete-documentation)
+
 ## Features
 
 - **Multi-Source Log Generation**: Generate logs from endpoints, applications, servers, firewalls, and cloud sources
@@ -543,16 +562,33 @@ See the [LICENSE](LICENSE) file for full terms.
 ### Why GPL-3.0?
 We chose GPL-3.0 to prevent commercial exploitation while encouraging community collaboration. This ensures the tool remains freely available for cybersecurity professionals, researchers, and students.
 
+## 📚 Complete Documentation
+
+### 📖 User Guides
+| Guide | Purpose | Target Audience |
+|-------|---------|-----------------|
+| **[Configuration Guide](CONFIGURATION.md)** | Customize log rates, create presets, advanced settings | All users who need custom configurations |
+| **[SIEM Integration](SIEM_INTEGRATION.md)** | Connect to Splunk, Elastic, QRadar, ArcSight, etc. | SIEM administrators, security teams |
+| **[System Requirements](SYSTEM_REQUIREMENTS.md)** | Hardware sizing, performance benchmarks, capacity planning | Infrastructure teams, DevOps |
+
+### 🔬 Technical Documentation
+| Document | Purpose | Target Audience |
+|----------|---------|-----------------|
+| **[Technical Analysis](LOG_ANALYSIS.md)** | Deep-dive system architecture, replay analysis, testing results | Developers, technical users, contributors |
+
+### 📁 Configuration Files
+| File | Purpose |
+|------|---------|
+| **[Default Config](src/config/default.yaml)** | Sample configuration with all options |
+| **[Docker Compose](docker-compose.yml)** | Container deployment setup |
+
 ## 🆘 Support & Community
 
-### 📚 Documentation
-- 📖 [Complete Analysis](LOG_ANALYSIS.md) - Detailed technical documentation
-- 🔧 [Configuration Examples](src/config/default.yaml) - Sample configurations
-- 🐳 [Docker Setup](docker-compose.yml) - Container deployment
+### 📚 Quick Links
 
 ### 💬 Getting Help
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/YOUR_USERNAME/log-generator/issues)
-- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/YOUR_USERNAME/log-generator/discussions)  
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/summved/log-generator/issues)
+- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/summved/log-generator/discussions)  
 - 📧 **Security Issues**: Email maintainers privately
 - 📖 **Documentation**: Check existing examples and analysis files
 
