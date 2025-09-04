@@ -33,6 +33,9 @@ A comprehensive multi-source log generator designed for SIEM solutions like Wazu
 - **npm** (comes with Node.js)
 - **Git** ([Download here](https://git-scm.com/))
 
+> 💻 **[System Requirements & Resource Usage →](SYSTEM_REQUIREMENTS.md)**  
+> *CPU, memory, and storage requirements for different log volumes*
+
 ### 🏃‍♂️ 30-Second Setup
 
 ```bash
@@ -93,6 +96,17 @@ npx ts-node src/cli.ts status
 # View generated logs
 tail -f logs/current/logs.json
 ```
+
+### 📊 Quick Resource Overview
+
+| Log Rate | CPU Usage | RAM Usage | Storage/Day | Use Case |
+|----------|-----------|-----------|-------------|----------|
+| **65 logs/min** (default) | 5-10% | 100 MB | 37 MB | Development, Training |
+| **500 logs/min** | 15-25% | 300 MB | 288 MB | SIEM Testing |
+| **2000 logs/min** | 40-60% | 700 MB | 1.15 GB | Load Testing |
+| **5000+ logs/min** | 60-80% | 1+ GB | 2.9+ GB | Enterprise Stress Testing |
+
+*Minimum: 1 vCPU, 512MB RAM • Recommended: 2+ vCPU, 1+ GB RAM*
 
 ## 💻 CLI Usage
 
