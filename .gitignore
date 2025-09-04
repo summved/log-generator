@@ -110,3 +110,7 @@ custom-*.yaml
 !logs/.gitkeep
 !logs/current/.gitkeep
 !logs/historical/.gitkeep
+
+# Private documentation (for developer reference only)
+CODE_ARCHITECTURE.md
+LOG_EXPANSION_SUGGESTIONS.md
