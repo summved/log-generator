@@ -10,6 +10,8 @@
     "test": "jest",
     "generate": "ts-node src/cli.ts generate",
     "replay": "ts-node src/cli.ts replay",
+    "analyze": "ts-node src/cli.ts analyze",
+    "status": "ts-node src/cli.ts status",
     "docker:build": "docker build -t log-generator:latest .",
     "docker:run": "docker run --rm -v $(pwd)/logs:/app/logs log-generator:latest"
   },

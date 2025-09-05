@@ -218,6 +218,24 @@ npx ts-node src/cli.ts init --output ./custom-config.yaml
 npx ts-node src/cli.ts --help
 ```
 
+### 🔍 Historical Data Analysis
+```bash
+# Analyze historical log files for timestamp issues
+npm run analyze -- --file large_dataset.jsonl
+
+# Analyze all historical files
+npm run analyze
+
+# Analyze and automatically fix duplicate timestamps
+npm run analyze -- --file problematic.jsonl --fix
+
+# Get detailed analysis report
+npm run analyze -- --file logs_2023-12-01.jsonl
+
+# Check current status of generators and replay
+npm run status
+```
+
 ### 📁 Log Management
 ```bash
 # View current logs being generated
