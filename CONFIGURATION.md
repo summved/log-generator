@@ -342,6 +342,22 @@ npx ts-node src/cli.ts config --config my-config.yaml --validate
 npx ts-node src/cli.ts config --show
 ```
 
+### 🔍 Analyze Historical Data
+
+```bash
+# Analyze historical log files for timestamp issues
+npm run analyze -- --file large_dataset.jsonl
+
+# Analyze all historical files
+npm run analyze
+
+# Analyze and automatically fix duplicate timestamps
+npm run analyze -- --file problematic.jsonl --fix
+
+# Get detailed timestamp pattern analysis
+npm run analyze -- --file logs_2023-12-01.jsonl
+```
+
 ## 🚀 Quick Start Examples
 
 ### Example 1: Create Light Config for Development
