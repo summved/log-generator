@@ -3,6 +3,8 @@
 import { Command } from 'commander';
 import { LogGeneratorManager } from './LogGeneratorManager';
 import { logger } from './utils/logger';
+import { timestampValidator } from './utils/timestampValidator';
+import { StorageManager } from './utils/storage';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -196,6 +198,91 @@ program
 
     } catch (error) {
       logger.error('Failed to initialize configuration:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('analyze')
+  .description('Analyze historical log files for timestamp issues')
+  .option('-f, --file <filename>', 'Specific historical file to analyze')
+  .option('--fix', 'Fix duplicate timestamps in historical files')
+  .action(async (options) => {
+    try {
+      const storageManager = new StorageManager('./logs/current', './logs/historical', 30);
+      
+      if (options.file) {
+        // Analyze specific file
+        console.log(`\n🔍 Analyzing historical file: ${options.file}`);
+        const logs = await storageManager.readHistoricalLogs(options.file);
+        
+        const validation = timestampValidator.validateTimestamps(logs);
+        const analysis = timestampValidator.analyzeTimestampPatterns(logs);
+        
+        console.log(`\n📊 Analysis Results:`);
+        console.log(`  Total logs: ${analysis.totalLogs}`);
+        console.log(`  Time span: ${analysis.timeSpan}`);
+        console.log(`  Average interval: ${analysis.averageInterval.toFixed(2)}ms`);
+        console.log(`  Duplicate timestamps: ${validation.duplicateCount}`);
+        console.log(`  Invalid timestamps: ${validation.invalidCount}`);
+        
+        if (analysis.duplicateGroups.length > 0) {
+          console.log(`\n⚠️  Duplicate timestamp groups:`);
+          analysis.duplicateGroups.slice(0, 10).forEach(group => {
+            console.log(`    ${group.timestamp}: ${group.count} occurrences`);
+          });
+          if (analysis.duplicateGroups.length > 10) {
+            console.log(`    ... and ${analysis.duplicateGroups.length - 10} more groups`);
+          }
+        }
+        
+        if (options.fix && validation.duplicateCount > 0) {
+          console.log(`\n🔧 Fixing duplicate timestamps...`);
+          const { fixedLogs, fixedCount } = timestampValidator.fixDuplicateTimestamps(logs);
+          
+          // Write fixed logs back to file
+          const fixedFilename = options.file.replace(/\.jsonl$/, '_fixed.jsonl');
+          await storageManager.storeLogs(fixedLogs, fixedFilename);
+          
+          console.log(`✅ Fixed ${fixedCount} duplicate timestamps`);
+          console.log(`📁 Fixed logs saved to: ${fixedFilename}`);
+        }
+        
+      } else {
+        // Analyze all historical files
+        console.log(`\n🔍 Analyzing all historical files...`);
+        const historicalFiles = await storageManager.getHistoricalLogFiles();
+        
+        let totalDuplicates = 0;
+        let totalInvalid = 0;
+        let filesWithIssues = 0;
+        
+        for (const file of historicalFiles.slice(0, 10)) { // Limit to 10 files for performance
+          const logs = await storageManager.readHistoricalLogs(file.filename);
+          const validation = timestampValidator.validateTimestamps(logs);
+          
+          if (!validation.isValid) {
+            filesWithIssues++;
+            totalDuplicates += validation.duplicateCount;
+            totalInvalid += validation.invalidCount;
+            
+            console.log(`  ⚠️  ${file.filename}: ${validation.duplicateCount} duplicates, ${validation.invalidCount} invalid`);
+          }
+        }
+        
+        if (filesWithIssues === 0) {
+          console.log(`✅ No timestamp issues found in analyzed files`);
+        } else {
+          console.log(`\n📊 Summary:`);
+          console.log(`  Files with issues: ${filesWithIssues}/${Math.min(historicalFiles.length, 10)}`);
+          console.log(`  Total duplicates: ${totalDuplicates}`);
+          console.log(`  Total invalid: ${totalInvalid}`);
+          console.log(`\n💡 Use --fix flag to automatically fix duplicate timestamps`);
+        }
+      }
+      
+    } catch (error) {
+      logger.error('Failed to analyze historical data:', error);
       process.exit(1);
     }
   });

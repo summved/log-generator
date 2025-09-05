@@ -1,6 +1,7 @@
 import { LogEntry, LogSource, GeneratorConfig, LogTemplate } from '../types';
 import { TemplateEngine } from '../utils/templateEngine';
 import { logger } from '../utils/logger';
+import { timestampSequencer } from '../utils/timestampSequencer';
 
 export abstract class BaseGenerator {
   protected source: LogSource;
@@ -63,7 +64,7 @@ export abstract class BaseGenerator {
     });
 
     return {
-      timestamp: new Date().toISOString(),
+      timestamp: timestampSequencer.getUniqueTimestamp(),
       level: template.level,
       source: this.source,
       message,

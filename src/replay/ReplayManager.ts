@@ -1,6 +1,7 @@
 import { LogEntry, ReplayConfig, HistoricalLogFile } from '../types';
 import { StorageManager } from '../utils/storage';
 import { logger } from '../utils/logger';
+import { timestampValidator } from '../utils/timestampValidator';
 import moment from 'moment';
 
 export class ReplayManager {
@@ -84,6 +85,18 @@ export class ReplayManager {
             const fileLogs = await this.storageManager.readHistoricalLogs(file.filename);
             logs.push(...fileLogs);
           }
+        }
+      }
+
+      // Validate and fix timestamp issues in historical data
+      const validation = timestampValidator.validateTimestamps(logs);
+      if (!validation.isValid) {
+        logger.warn(`Historical data has timestamp issues: ${validation.duplicateCount} duplicates, ${validation.invalidCount} invalid timestamps`);
+        
+        if (validation.duplicateCount > 0) {
+          const { fixedLogs, fixedCount } = timestampValidator.fixDuplicateTimestamps(logs);
+          logs = fixedLogs;
+          logger.info(`Fixed ${fixedCount} duplicate timestamps in historical data`);
         }
       }
 
@@ -211,9 +224,11 @@ export class ReplayManager {
         const originalDelay = moment(nextLog.timestamp).diff(moment(currentLog.timestamp));
         delay = originalDelay / this.config.speed;
         
-        // Handle duplicate timestamps by adding a minimum delay
+        // Handle duplicate timestamps and ensure minimum delay
         if (delay <= 0) {
-          delay = 10; // Minimum 10ms delay for duplicate timestamps
+          // Duplicate or invalid timestamp detected
+          delay = Math.max(10, 1000 / this.config.speed); // Minimum 10ms or based on speed
+          logger.warn(`Duplicate timestamp detected in replay data: ${currentLog.timestamp} -> ${nextLog.timestamp}, using ${delay}ms delay`);
         }
       }
       
