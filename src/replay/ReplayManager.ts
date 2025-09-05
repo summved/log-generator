@@ -184,12 +184,6 @@ export class ReplayManager {
     const currentLog = this.replayLogs[this.currentReplayIndex];
     const nextLog = this.replayLogs[this.currentReplayIndex + 1];
 
-    // Calculate delay until next log
-    let delay = 0;
-    if (nextLog) {
-      const originalDelay = moment(nextLog.timestamp).diff(moment(currentLog.timestamp));
-      delay = originalDelay / this.config.speed;
-    }
 
     // Update timestamp to current replay time
     const elapsedOriginalTime = moment(currentLog.timestamp).diff(this.originalStartTime!);
@@ -211,16 +205,22 @@ export class ReplayManager {
       await onLogReplayed(replayLog);
       this.currentReplayIndex++;
 
-      if (delay > 0) {
-        this.replayTimeoutId = setTimeout(() => {
-          this.scheduleNextReplay(onLogReplayed);
-        }, Math.max(delay, 1)); // Minimum 1ms delay
-      } else {
-        // Schedule immediately for next tick
-        setImmediate(() => {
-          this.scheduleNextReplay(onLogReplayed);
-        });
+      // Calculate delay until next log
+      let delay = 0;
+      if (nextLog) {
+        const originalDelay = moment(nextLog.timestamp).diff(moment(currentLog.timestamp));
+        delay = originalDelay / this.config.speed;
+        
+        // Handle duplicate timestamps by adding a minimum delay
+        if (delay <= 0) {
+          delay = 10; // Minimum 10ms delay for duplicate timestamps
+        }
       }
+      
+      // Schedule next replay iteration
+      this.replayTimeoutId = setTimeout(() => {
+        this.scheduleNextReplay(onLogReplayed);
+      }, Math.max(delay, 1)); // Always use at least 1ms delay
     } catch (error) {
       logger.error('Error during log replay:', error);
       this.stopReplay();
