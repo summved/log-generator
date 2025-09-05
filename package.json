@@ -1,7 +1,7 @@
 {
   "name": "log-generator",
   "version": "1.0.0",
-  "description": "Multi-source log generator for SIEM solutions with replay functionality",
+  "description": "Multi-source log generator with MITRE ATT&CK integration for SIEM solutions, featuring 12 log sources, technique mapping, and replay functionality",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -12,16 +12,25 @@
     "replay": "ts-node src/cli.ts replay",
     "analyze": "ts-node src/cli.ts analyze",
     "status": "ts-node src/cli.ts status",
+    "mitre-list": "ts-node src/cli.ts mitre-list",
+    "mitre-coverage": "ts-node src/cli.ts mitre-coverage",
     "docker:build": "docker build -t log-generator:latest .",
     "docker:run": "docker run --rm -v $(pwd)/logs:/app/logs log-generator:latest"
   },
   "keywords": [
     "log-generator",
     "siem",
+    "mitre-attack",
+    "mitre",
+    "security-testing",
     "wazuh",
     "security",
     "monitoring",
     "replay",
+    "threat-simulation",
+    "purple-team",
+    "red-team",
+    "blue-team",
     "endpoints",
     "firewall",
     "cloud"

@@ -2,6 +2,7 @@ import { LogEntry, LogSource, GeneratorConfig, LogTemplate } from '../types';
 import { TemplateEngine } from '../utils/templateEngine';
 import { logger } from '../utils/logger';
 import { timestampSequencer } from '../utils/timestampSequencer';
+import { mitreMapper } from '../utils/mitreMapper';
 
 export abstract class BaseGenerator {
   protected source: LogSource;
@@ -63,13 +64,36 @@ export abstract class BaseGenerator {
       generator: this.source.name
     });
 
-    return {
+    const logEntry: LogEntry = {
       timestamp: timestampSequencer.getUniqueTimestamp(),
       level: template.level,
       source: this.source,
       message,
       metadata
     };
+
+    // Add MITRE ATT&CK technique mapping
+    this.addMitreTechnique(logEntry, template);
+
+    return logEntry;
+  }
+
+  /**
+   * Adds MITRE ATT&CK technique information to the log entry
+   */
+  protected addMitreTechnique(logEntry: LogEntry, template: LogTemplate): void {
+    // First, check if the template already has MITRE information
+    if (template.mitre) {
+      logEntry.mitre = { ...template.mitre };
+      return;
+    }
+
+    // If not, try to automatically map the log message to a MITRE technique
+    const mitreInfo = mitreMapper.mapLogToTechnique(logEntry.message, logEntry.metadata);
+    if (mitreInfo) {
+      logEntry.mitre = mitreInfo;
+      logger.debug(`Auto-mapped log to MITRE technique: ${mitreInfo.technique}`);
+    }
   }
 
   private selectTemplate(): LogTemplate {

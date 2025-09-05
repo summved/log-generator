@@ -4,12 +4,13 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-A comprehensive multi-source log generator designed for SIEM solutions like Wazuh. Generate realistic logs from **12 different sources** including endpoints, applications, servers, firewalls, cloud services, authentication systems, databases, web servers, email services, backup systems, microservices, and IoT devices - with the ability to replay historical logs.
+A comprehensive multi-source log generator with **MITRE ATT&CK integration** designed for SIEM solutions like Wazuh. Generate realistic logs from **12 different sources** including endpoints, applications, servers, firewalls, cloud services, authentication systems, databases, web servers, email services, backup systems, microservices, and IoT devices - with **MITRE technique mapping** and historical log replay capabilities.
 
 ## 🎯 Why Use This Tool?
 
+- **🎯 MITRE ATT&CK Testing**: Generate logs mapped to specific MITRE techniques for precise security testing
 - **🔒 Security Testing**: Test your SIEM rules and detection capabilities with realistic log data
-- **📚 Training & Education**: Create reproducible scenarios for cybersecurity training
+- **📚 Training & Education**: Create reproducible scenarios for cybersecurity training with MITRE technique context
 - **🧪 Development**: Generate consistent test data for log processing applications  
 - **⚡ Performance Testing**: Load test your log ingestion systems with high-volume replay
 - **🎭 Incident Simulation**: Recreate attack scenarios for analysis and response training
@@ -52,9 +53,44 @@ The log generator creates **realistic logs from 12 different enterprise sources*
 |---|---|
 | Hardware & resource planning | Deep technical documentation |
 
+## 🎯 MITRE ATT&CK Integration
+
+**Industry-first log generator with comprehensive MITRE ATT&CK technique mapping!**
+
+### ✅ **Supported MITRE Capabilities**
+- **15+ MITRE Techniques**: T1110 (Brute Force), T1078 (Valid Accounts), T1562 (Disable Security Tools), and more
+- **14 MITRE Tactics**: Complete coverage from Initial Access (TA0001) to Impact (TA0040)
+- **Automatic Technique Detection**: Intelligent mapping of log patterns to MITRE techniques
+- **Precise Filtering**: Generate logs for specific techniques or tactics
+
+### 🚀 **MITRE-Enhanced Commands**
+```bash
+# Generate logs for specific MITRE technique
+npm run generate -- --mitre-technique T1110
+
+# Generate logs for specific MITRE tactic  
+npm run generate -- --mitre-tactic TA0006
+
+# Generate only logs with MITRE technique mapping
+npm run generate -- --mitre-enabled
+
+# List all supported MITRE techniques and tactics
+npm run mitre-list
+
+# Analyze MITRE coverage in historical logs
+npm run mitre-coverage
+```
+
+### 🎯 **Perfect for MITRE ATT&CK Testing**
+- **SOC Teams**: Test detection rules against specific MITRE techniques
+- **Purple Teams**: Validate security controls with realistic attack patterns  
+- **Compliance**: Demonstrate coverage across MITRE framework
+- **Training**: Learn MITRE techniques with realistic log examples
+
 ## 📋 Table of Contents
 
 - [🎯 Why Use This Tool?](#-why-use-this-tool)
+- [🎯 MITRE ATT&CK Integration](#-mitre-attck-integration)
 - [📋 What Logs Are Generated?](#-what-logs-are-generated)
 - [🚀 Quick Start](#-quick-start)
 - [💻 CLI Usage](#-cli-usage)

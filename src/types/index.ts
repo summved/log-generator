@@ -5,6 +5,15 @@ export interface LogEntry {
   message: string;
   metadata: Record<string, any>;
   raw?: string;
+  mitre?: MitreAttackInfo;
+}
+
+export interface MitreAttackInfo {
+  technique: string;        // e.g., "T1078.001"
+  tactic: string;          // e.g., "TA0001"
+  subtechnique?: string;   // e.g., "Default Accounts"
+  group?: string;          // e.g., "APT29"
+  description?: string;    // Brief description of the technique
 }
 
 export interface LogSource {
@@ -27,6 +36,7 @@ export interface LogTemplate {
   messageTemplate: string;
   probability: number; // 0-1, probability of this template being used
   metadata?: Record<string, any>;
+  mitre?: MitreAttackInfo;
 }
 
 export interface ReplayConfig {

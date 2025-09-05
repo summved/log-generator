@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { LogGeneratorManager } from './LogGeneratorManager';
+import { LogGeneratorManager, MitreFilterOptions } from './LogGeneratorManager';
 import { logger } from './utils/logger';
 import { timestampValidator } from './utils/timestampValidator';
 import { StorageManager } from './utils/storage';
+import { mitreMapper } from './utils/mitreMapper';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -20,9 +21,41 @@ program
   .description('Start generating logs from configured sources')
   .option('-c, --config <path>', 'Path to configuration file')
   .option('-d, --daemon', 'Run as daemon (background process)')
+  .option('--mitre-technique <technique>', 'Generate logs only for specific MITRE technique (e.g., T1110)')
+  .option('--mitre-tactic <tactic>', 'Generate logs only for specific MITRE tactic (e.g., TA0006)')
+  .option('--mitre-enabled', 'Generate only logs with MITRE technique mapping')
   .action(async (options) => {
     try {
-      const logGenerator = new LogGeneratorManager(options.config);
+      // Build MITRE filter options
+      const mitreFilter: MitreFilterOptions = {};
+      
+      if (options.mitreTechnique) {
+        if (!mitreMapper.isValidTechnique(options.mitreTechnique)) {
+          console.error(`Invalid MITRE technique: ${options.mitreTechnique}`);
+          console.error('Example valid techniques: T1110, T1078, T1562.001');
+          process.exit(1);
+        }
+        mitreFilter.technique = options.mitreTechnique;
+        logger.info(`Filtering logs for MITRE technique: ${options.mitreTechnique}`);
+      }
+      
+      if (options.mitreTactic) {
+        if (!mitreMapper.isValidTactic(options.mitreTactic)) {
+          console.error(`Invalid MITRE tactic: ${options.mitreTactic}`);
+          console.error('Example valid tactics: TA0001, TA0006, TA0005');
+          process.exit(1);
+        }
+        mitreFilter.tactic = options.mitreTactic;
+        logger.info(`Filtering logs for MITRE tactic: ${options.mitreTactic} (${mitreMapper.getTacticName(options.mitreTactic)})`);
+      }
+      
+      if (options.mitreEnabled) {
+        mitreFilter.enabledOnly = true;
+        logger.info('Generating only logs with MITRE technique mapping');
+      }
+      
+      const hasMitreFilter = Object.keys(mitreFilter).length > 0;
+      const logGenerator = new LogGeneratorManager(options.config, hasMitreFilter ? mitreFilter : undefined);
       
       if (options.daemon) {
         logger.info('Starting log generator in daemon mode');
@@ -283,6 +316,140 @@ program
       
     } catch (error) {
       logger.error('Failed to analyze historical data:', error);
+      process.exit(1);
+    }
+  });
+
+// MITRE ATT&CK Commands
+program
+  .command('mitre-list')
+  .description('List supported MITRE ATT&CK techniques and tactics')
+  .option('--techniques', 'List all supported techniques')
+  .option('--tactics', 'List all supported tactics')
+  .action(async (options) => {
+    try {
+      console.log('\n🎯 MITRE ATT&CK Support Information\n');
+      
+      if (options.techniques || (!options.techniques && !options.tactics)) {
+        console.log('📋 Supported MITRE Techniques:');
+        const techniques = mitreMapper.getSupportedTechniques();
+        const uniqueTechniques = [...new Set(techniques)].sort();
+        
+        for (const technique of uniqueTechniques) {
+          const info = mitreMapper.getTechniqueInfo(technique);
+          if (info) {
+            console.log(`  ✅ ${technique} - ${info.subtechnique || 'Unknown'}`);
+            console.log(`     ${info.description}`);
+          }
+        }
+        console.log(`\n📊 Total: ${uniqueTechniques.length} techniques supported\n`);
+      }
+      
+      if (options.tactics || (!options.techniques && !options.tactics)) {
+        console.log('🎯 Supported MITRE Tactics:');
+        const tactics = mitreMapper.getSupportedTactics();
+        
+        for (const tactic of tactics) {
+          const name = mitreMapper.getTacticName(tactic);
+          console.log(`  ✅ ${tactic} - ${name}`);
+        }
+        console.log(`\n📊 Total: ${tactics.length} tactics supported\n`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error listing MITRE information:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('mitre-coverage')
+  .description('Analyze MITRE ATT&CK coverage in historical logs')
+  .option('-f, --file <filename>', 'Specific historical file to analyze')
+  .action(async (options) => {
+    try {
+      const storageManager = new StorageManager('./logs/current', './logs/historical', 30);
+      
+      console.log('\n🔍 MITRE ATT&CK Coverage Analysis\n');
+      
+      let allLogs: any[] = [];
+      
+      if (options.file) {
+        console.log(`📁 Analyzing file: ${options.file}`);
+        allLogs = await storageManager.readHistoricalLogs(options.file);
+      } else {
+        console.log('📁 Analyzing all historical files...');
+        const historicalFiles = await storageManager.getHistoricalLogFiles();
+        
+        for (const file of historicalFiles.slice(0, 5)) { // Limit for performance
+          const logs = await storageManager.readHistoricalLogs(file.filename);
+          allLogs.push(...logs);
+        }
+      }
+      
+      if (allLogs.length === 0) {
+        console.log('⚠️  No logs found to analyze');
+        return;
+      }
+      
+      // Analyze MITRE coverage
+      const mitreStats = {
+        totalLogs: allLogs.length,
+        logsWithMitre: 0,
+        techniques: new Map<string, number>(),
+        tactics: new Map<string, number>()
+      };
+      
+      for (const log of allLogs) {
+        if (log.mitre) {
+          mitreStats.logsWithMitre++;
+          
+          // Count techniques
+          const technique = log.mitre.technique;
+          mitreStats.techniques.set(technique, (mitreStats.techniques.get(technique) || 0) + 1);
+          
+          // Count tactics
+          const tactic = log.mitre.tactic;
+          mitreStats.tactics.set(tactic, (mitreStats.tactics.get(tactic) || 0) + 1);
+        }
+      }
+      
+      // Display results
+      console.log('📊 MITRE Coverage Summary:');
+      console.log(`   Total logs analyzed: ${mitreStats.totalLogs}`);
+      console.log(`   Logs with MITRE data: ${mitreStats.logsWithMitre} (${((mitreStats.logsWithMitre / mitreStats.totalLogs) * 100).toFixed(1)}%)`);
+      console.log(`   Unique techniques found: ${mitreStats.techniques.size}`);
+      console.log(`   Unique tactics found: ${mitreStats.tactics.size}\n`);
+      
+      if (mitreStats.techniques.size > 0) {
+        console.log('🎯 Top MITRE Techniques:');
+        const sortedTechniques = Array.from(mitreStats.techniques.entries())
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 10);
+          
+        for (const [technique, count] of sortedTechniques) {
+          const info = mitreMapper.getTechniqueInfo(technique);
+          const percentage = ((count / mitreStats.logsWithMitre) * 100).toFixed(1);
+          console.log(`   ${technique}: ${count} logs (${percentage}%) - ${info?.subtechnique || 'Unknown'}`);
+        }
+        console.log();
+      }
+      
+      if (mitreStats.tactics.size > 0) {
+        console.log('🏹 MITRE Tactics Distribution:');
+        const sortedTactics = Array.from(mitreStats.tactics.entries())
+          .sort(([,a], [,b]) => b - a);
+          
+        for (const [tactic, count] of sortedTactics) {
+          const name = mitreMapper.getTacticName(tactic);
+          const percentage = ((count / mitreStats.logsWithMitre) * 100).toFixed(1);
+          console.log(`   ${tactic} (${name}): ${count} logs (${percentage}%)`);
+        }
+        console.log();
+      }
+      
+    } catch (error) {
+      console.error('❌ Error analyzing MITRE coverage:', error);
       process.exit(1);
     }
   });

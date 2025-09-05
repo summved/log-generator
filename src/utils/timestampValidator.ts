@@ -158,4 +158,8 @@ export class TimestampValidator {
   }
 }
 
-export const timestampValidator = TimestampValidator;
+export const timestampValidator = {
+  validateTimestamps: TimestampValidator.validateTimestamps,
+  fixDuplicateTimestamps: TimestampValidator.fixDuplicateTimestamps,
+  analyzeTimestampPatterns: TimestampValidator.analyzeTimestampPatterns
+};

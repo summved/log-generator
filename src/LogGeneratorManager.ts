@@ -1,9 +1,10 @@
-import { Config } from './types';
+import { Config, LogEntry } from './types';
 import { ConfigManager } from './config';
 import { StorageManager } from './utils/storage';
 import { OutputManager } from './utils/outputManager';
 import { ReplayManager } from './replay';
 import { logger } from './utils/logger';
+import { mitreMapper } from './utils/mitreMapper';
 import * as cron from 'node-cron';
 import {
   EndpointGenerator,
@@ -21,6 +22,12 @@ import {
   BaseGenerator
 } from './generators';
 
+export interface MitreFilterOptions {
+  technique?: string;
+  tactic?: string;
+  enabledOnly?: boolean;
+}
+
 export class LogGeneratorManager {
   private configManager: ConfigManager;
   private storageManager: StorageManager;
@@ -30,10 +37,12 @@ export class LogGeneratorManager {
   private isRunning: boolean = false;
   private cleanupCron?: cron.ScheduledTask;
   private rotationCron?: cron.ScheduledTask;
+  private mitreFilter?: MitreFilterOptions;
 
-  constructor(configPath?: string) {
+  constructor(configPath?: string, mitreFilter?: MitreFilterOptions) {
     this.configManager = new ConfigManager(configPath);
     const config = this.configManager.getConfig();
+    this.mitreFilter = mitreFilter;
     
     this.storageManager = new StorageManager(
       config.storage.currentPath,
@@ -124,7 +133,10 @@ export class LogGeneratorManager {
     for (const [name, generator] of this.generators) {
       generator.start(async (logEntry) => {
         try {
-          await this.outputManager.outputLog(logEntry);
+          // Apply MITRE filtering if specified
+          if (this.shouldIncludeLogEntry(logEntry)) {
+            await this.outputManager.outputLog(logEntry);
+          }
         } catch (error) {
           logger.error(`Failed to output log from ${name}:`, error);
         }
@@ -136,6 +148,36 @@ export class LogGeneratorManager {
     this.rotationCron?.start();
 
     logger.info('Log generator started successfully');
+  }
+
+  /**
+   * Determines if a log entry should be included based on MITRE filtering options
+   */
+  private shouldIncludeLogEntry(logEntry: LogEntry): boolean {
+    if (!this.mitreFilter) {
+      return true; // No filtering applied
+    }
+
+    // If MITRE-enabled only filter is set, only include logs with MITRE data
+    if (this.mitreFilter.enabledOnly && !logEntry.mitre) {
+      return false;
+    }
+
+    // If specific technique filter is set
+    if (this.mitreFilter.technique && logEntry.mitre) {
+      if (logEntry.mitre.technique !== this.mitreFilter.technique) {
+        return false;
+      }
+    }
+
+    // If specific tactic filter is set
+    if (this.mitreFilter.tactic && logEntry.mitre) {
+      if (logEntry.mitre.tactic !== this.mitreFilter.tactic) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   public async stop(): Promise<void> {

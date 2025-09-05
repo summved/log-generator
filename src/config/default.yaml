@@ -88,11 +88,21 @@ generators:
         probability: 0.25
         metadata:
           component: "packet-filter"
+        mitre:
+          technique: "T1562.004"
+          tactic: "TA0005"
+          subtechnique: "Disable or Modify System Firewall"
+          description: "Adversaries may disable or modify system firewalls"
       - level: ERROR
         messageTemplate: "INTRUSION DETECTED: {attackType} from {srcIP} - Blocked by rule {ruleId}"
         probability: 0.03
         metadata:
           component: "intrusion-detection"
+        mitre:
+          technique: "T1562.001"
+          tactic: "TA0005"
+          subtechnique: "Disable or Modify Tools"
+          description: "Adversaries may disable security tools to avoid detection"
       - level: DEBUG
         messageTemplate: "Connection state: {state} {srcIP}:{srcPort} <-> {dstIP}:{dstPort}"
         probability: 0.02
@@ -139,21 +149,41 @@ generators:
         probability: 0.2
         metadata:
           component: "auth-service"
+        mitre:
+          technique: "T1110.001"
+          tactic: "TA0006"
+          subtechnique: "Password Guessing"
+          description: "Adversaries may use password guessing to gain access"
       - level: ERROR
         messageTemplate: "Account {username} locked due to multiple failed attempts from {clientIP}"
         probability: 0.05
         metadata:
           component: "auth-service"
+        mitre:
+          technique: "T1110"
+          tactic: "TA0006"
+          subtechnique: "Brute Force"
+          description: "Account lockout due to multiple failed attempts"
       - level: INFO
         messageTemplate: "Password changed for user {username} from {clientIP}"
         probability: 0.05
         metadata:
           component: "auth-service"
+        mitre:
+          technique: "T1098"
+          tactic: "TA0003"
+          subtechnique: "Account Manipulation"
+          description: "Adversaries may manipulate accounts to maintain access"
       - level: WARN
         messageTemplate: "Suspicious login: {username} from unusual location {location} ({clientIP})"
         probability: 0.08
         metadata:
           component: "security-monitor"
+        mitre:
+          technique: "T1078"
+          tactic: "TA0001"
+          subtechnique: "Valid Accounts"
+          description: "Login from unusual geographic location"
       - level: INFO
         messageTemplate: "User {username} logout - Session duration: {duration}min"
         probability: 0.02

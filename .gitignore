@@ -102,6 +102,8 @@ Thumbs.db
 # Custom config files (keep templates)
 config.yaml
 custom-*.yaml
+*test*.yaml
+*-test-*.yaml
 
 # Docker
 .dockerignore
