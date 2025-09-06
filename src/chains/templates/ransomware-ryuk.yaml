@@ -1,0 +1,303 @@
+# Ryuk Ransomware Attack Chain Template
+# Based on real-world Ryuk ransomware campaigns
+# Reference: MITRE ATT&CK Software S0446
+
+name: "Ryuk Ransomware Campaign"
+description: "Simulates a complete Ryuk ransomware attack chain from initial compromise to encryption"
+category: "ransomware"
+difficulty: "intermediate"
+use_cases:
+  - "Ransomware incident response training"
+  - "Testing backup and recovery procedures"
+  - "SOC team training for ransomware detection"
+  - "Business continuity planning exercises"
+
+chain:
+  name: "Ryuk Ransomware Campaign"
+  description: "Multi-stage ransomware attack simulating Ryuk TTPs"
+  category: "ransomware"
+  
+  metadata:
+    author: "SIEM Log Generator"
+    version: "1.0"
+    created: "2025-01-01"
+    tags: ["ryuk", "ransomware", "encryption", "lateral-movement", "trickbot"]
+    severity: "critical"
+    estimated_duration: 30 # minutes
+  
+  mitre_mapping:
+    tactics:
+      - "TA0001" # Initial Access
+      - "TA0002" # Execution
+      - "TA0003" # Persistence
+      - "TA0005" # Defense Evasion
+      - "TA0006" # Credential Access
+      - "TA0007" # Discovery
+      - "TA0008" # Lateral Movement
+      - "TA0040" # Impact
+    techniques:
+      - "T1566.001" # Spearphishing Attachment
+      - "T1059.003" # Windows Command Shell
+      - "T1547.001" # Registry Run Keys
+      - "T1562.001" # Disable or Modify Tools
+      - "T1003.001" # LSASS Memory
+      - "T1018" # Remote System Discovery
+      - "T1021.001" # Remote Desktop Protocol
+      - "T1486" # Data Encrypted for Impact
+    kill_chain_phases:
+      - "delivery"
+      - "exploitation"
+      - "installation"
+      - "command-and-control"
+      - "actions-on-objectives"
+  
+  steps:
+    # Phase 1: Initial Access via TrickBot
+    - id: "trickbot_infection"
+      name: "TrickBot Banking Trojan Infection"
+      description: "Initial compromise through TrickBot malware, often delivered via email"
+      mitre:
+        technique: "T1566.001"
+        tactic: "TA0001"
+        subtechnique: "Spearphishing Attachment"
+        description: "Adversaries may send spearphishing emails with malicious attachments"
+      timing:
+        delayAfterPrevious: 0
+        duration: 180000 # 3 minutes
+        variance: 0.2
+      logGeneration:
+        templates: ["malware_execution", "suspicious_process_creation", "network_connection"]
+        frequency: 15
+        sources: ["endpoint", "firewall"]
+        customData:
+          malware_family: "TrickBot"
+          process: "winword.exe"
+          child_process: "cmd.exe"
+    
+    # Phase 2: Persistence and Defense Evasion
+    - id: "disable_security_tools"
+      name: "Disable Security Tools and Windows Defender"
+      description: "Disables antivirus and security monitoring tools"
+      mitre:
+        technique: "T1562.001"
+        tactic: "TA0005"
+        subtechnique: "Disable or Modify Tools"
+        description: "Adversaries may disable security tools to avoid detection"
+      timing:
+        delayAfterPrevious: 120000 # 2 minutes
+        duration: 90000 # 1.5 minutes
+        variance: 0.3
+      dependencies: ["trickbot_infection"]
+      logGeneration:
+        templates: ["security_tool_disabled", "service_stopped", "registry_modification"]
+        frequency: 12
+        sources: ["endpoint", "windows-server"]
+        customData:
+          disabled_services: ["WinDefend", "MsMpSvc", "SecurityHealthService"]
+          registry_changes: ["DisableAntiSpyware", "DisableRealtimeMonitoring"]
+    
+    # Phase 3: Credential Access
+    - id: "credential_harvesting"
+      name: "Credential Harvesting with Mimikatz"
+      description: "Extracts credentials from memory using Mimikatz or similar tools"
+      mitre:
+        technique: "T1003.001"
+        tactic: "TA0006"
+        subtechnique: "LSASS Memory"
+        description: "Adversaries may attempt to access credential material stored in LSASS"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 120000 # 2 minutes
+        variance: 0.2
+      dependencies: ["disable_security_tools"]
+      logGeneration:
+        templates: ["credential_dumping", "lsass_access", "mimikatz_activity"]
+        frequency: 20
+        sources: ["endpoint", "windows-server"]
+        customData:
+          tool: "Mimikatz"
+          techniques: ["sekurlsa::logonpasswords", "sekurlsa::wdigest"]
+    
+    # Phase 4: Discovery and Reconnaissance
+    - id: "network_discovery"
+      name: "Network and System Discovery"
+      description: "Discovers network topology and identifies high-value targets"
+      mitre:
+        technique: "T1018"
+        tactic: "TA0007"
+        subtechnique: "Remote System Discovery"
+        description: "Adversaries may attempt to get a listing of other systems"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 300000 # 5 minutes
+        variance: 0.4
+      dependencies: ["credential_harvesting"]
+      logGeneration:
+        templates: ["network_scan", "system_discovery", "enumeration_commands"]
+        frequency: 25
+        sources: ["endpoint", "firewall", "windows-server"]
+        customData:
+          scan_targets: ["192.168.1.0/24", "10.0.0.0/16"]
+          discovery_commands: ["net view", "ping", "nslookup", "arp -a"]
+    
+    # Phase 5: Lateral Movement
+    - id: "lateral_movement_rdp"
+      name: "Lateral Movement via RDP"
+      description: "Uses stolen credentials to move laterally through RDP connections"
+      mitre:
+        technique: "T1021.001"
+        tactic: "TA0008"
+        subtechnique: "Remote Desktop Protocol"
+        description: "Adversaries may use Valid Accounts to log into remote machines using RDP"
+      timing:
+        delayAfterPrevious: 240000 # 4 minutes
+        duration: 360000 # 6 minutes
+        variance: 0.3
+      dependencies: ["network_discovery"]
+      logGeneration:
+        templates: ["rdp_login", "lateral_movement", "remote_logon"]
+        frequency: 18
+        sources: ["authentication", "windows-server", "firewall"]
+        customData:
+          target_systems: ["DC01", "FILE-SRV", "BACKUP-SRV"]
+          logon_type: "10" # RemoteInteractive
+    
+    # Phase 6: Privilege Escalation and Persistence
+    - id: "domain_admin_access"
+      name: "Domain Administrator Access"
+      description: "Escalates privileges to domain administrator level"
+      mitre:
+        technique: "T1547.001"
+        tactic: "TA0003"
+        subtechnique: "Registry Run Keys / Startup Folder"
+        description: "Adversaries may achieve persistence by adding programs to startup folders"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 150000 # 2.5 minutes
+        variance: 0.2
+      dependencies: ["lateral_movement_rdp"]
+      logGeneration:
+        templates: ["privilege_escalation", "admin_access", "persistence_established"]
+        frequency: 15
+        sources: ["authentication", "windows-server"]
+        customData:
+          escalation_method: "Token Impersonation"
+          target_account: "DOMAIN\\Administrator"
+    
+    # Phase 7: Data Discovery and Staging
+    - id: "data_discovery"
+      name: "Identify High-Value Data"
+      description: "Locates databases, file shares, and backup systems for encryption"
+      mitre:
+        technique: "T1005"
+        tactic: "TA0009"
+        subtechnique: "Data from Local System"
+        description: "Adversaries may search local system sources to find files of interest"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 480000 # 8 minutes
+        variance: 0.3
+      dependencies: ["domain_admin_access"]
+      logGeneration:
+        templates: ["file_enumeration", "share_discovery", "database_access"]
+        frequency: 30
+        sources: ["file-server", "database", "backup-server"]
+        customData:
+          target_extensions: ["*.sql", "*.mdb", "*.bak", "*.vhd", "*.vmdk"]
+          target_shares: ["\\\\file-srv\\documents", "\\\\backup-srv\\backups"]
+    
+    # Phase 8: Backup System Compromise
+    - id: "backup_destruction"
+      name: "Backup System Compromise"
+      description: "Destroys or encrypts backup systems to prevent recovery"
+      mitre:
+        technique: "T1490"
+        tactic: "TA0040"
+        subtechnique: "Inhibit System Recovery"
+        description: "Adversaries may delete or remove built-in operating system data and turn off services"
+      timing:
+        delayAfterPrevious: 120000 # 2 minutes
+        duration: 240000 # 4 minutes
+        variance: 0.2
+      dependencies: ["data_discovery"]
+      logGeneration:
+        templates: ["backup_deletion", "shadow_copy_deletion", "recovery_inhibition"]
+        frequency: 20
+        sources: ["backup-server", "windows-server"]
+        customData:
+          deleted_backups: ["Weekly_Full_Backup.bak", "Daily_Incremental.bak"]
+          vssadmin_commands: ["delete shadows /all /quiet"]
+    
+    # Phase 9: Ransomware Deployment
+    - id: "ryuk_deployment"
+      name: "Ryuk Ransomware Deployment"
+      description: "Deploys Ryuk ransomware across the network for mass encryption"
+      mitre:
+        technique: "T1486"
+        tactic: "TA0040"
+        subtechnique: "Data Encrypted for Impact"
+        description: "Adversaries may encrypt data on target systems to interrupt availability"
+      timing:
+        delayAfterPrevious: 600000 # 10 minutes
+        duration: 900000 # 15 minutes
+        variance: 0.2
+      dependencies: ["backup_destruction"]
+      logGeneration:
+        templates: ["ransomware_execution", "file_encryption", "mass_file_modification"]
+        frequency: 50
+        sources: ["endpoint", "file-server", "windows-server"]
+        customData:
+          ransomware_family: "Ryuk"
+          encrypted_extensions: [".ryk", ".ryuk"]
+          ransom_note: "RyukReadMe.txt"
+    
+    # Phase 10: Network Spread
+    - id: "network_encryption"
+      name: "Network-Wide Encryption"
+      description: "Spreads encryption across all accessible network resources"
+      mitre:
+        technique: "T1486"
+        tactic: "TA0040"
+        subtechnique: "Data Encrypted for Impact"
+        description: "Adversaries may encrypt data on target systems to interrupt availability"
+      timing:
+        delayAfterPrevious: 60000 # 1 minute (parallel with local encryption)
+        duration: 1200000 # 20 minutes
+        variance: 0.3
+      dependencies: ["ryuk_deployment"]
+      logGeneration:
+        templates: ["network_encryption", "share_encryption", "database_encryption"]
+        frequency: 60
+        sources: ["file-server", "database", "backup-server", "firewall"]
+        customData:
+          affected_systems: ["FILE-SRV", "DB-SRV", "BACKUP-SRV", "WS001-050"]
+          encryption_speed: "2GB/min"
+    
+    # Phase 11: Ransom Demand
+    - id: "ransom_demand"
+      name: "Ransom Note Delivery"
+      description: "Displays ransom notes and demands payment for decryption"
+      mitre:
+        technique: "T1491.001"
+        tactic: "TA0040"
+        subtechnique: "Internal Defacement"
+        description: "Adversaries may modify visual content to communicate messages"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 60000 # 1 minute
+        variance: 0.1
+      dependencies: ["network_encryption"]
+      logGeneration:
+        templates: ["ransom_note_creation", "desktop_modification", "system_message"]
+        frequency: 10
+        sources: ["endpoint", "windows-server"]
+        customData:
+          ransom_amount: "2.5 BTC"
+          payment_deadline: "72 hours"
+          contact_email: "ryuk_recovery@protonmail.com"
+  
+  config:
+    max_duration: 2700000 # 45 minutes maximum
+    abort_on_step_failure: false
+    log_chain_progress: true
+    cleanup_after_completion: false # Keep evidence for analysis

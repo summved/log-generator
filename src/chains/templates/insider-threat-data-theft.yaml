@@ -1,0 +1,302 @@
+# Insider Threat Data Theft Attack Chain Template
+# Simulates malicious insider stealing sensitive data
+# Reference: MITRE ATT&CK for Insider Threats
+
+name: "Malicious Insider Data Theft"
+description: "Simulates a malicious insider with legitimate access stealing sensitive company data"
+category: "insider_threat"
+difficulty: "beginner"
+use_cases:
+  - "Insider threat detection training"
+  - "Data loss prevention testing"
+  - "User behavior analytics validation"
+  - "HR security awareness training"
+
+chain:
+  name: "Malicious Insider Data Theft"
+  description: "Simulates insider threat scenario with legitimate access abuse"
+  category: "insider_threat"
+  
+  metadata:
+    author: "SIEM Log Generator"
+    version: "1.0"
+    created: "2025-01-01"
+    tags: ["insider-threat", "data-theft", "privilege-abuse", "legitimate-access"]
+    severity: "high"
+    estimated_duration: 25 # minutes
+  
+  mitre_mapping:
+    tactics:
+      - "TA0009" # Collection
+      - "TA0010" # Exfiltration
+      - "TA0005" # Defense Evasion
+      - "TA0007" # Discovery
+    techniques:
+      - "T1005" # Data from Local System
+      - "T1039" # Data from Network Shared Drive
+      - "T1213" # Data from Information Repositories
+      - "T1020" # Automated Exfiltration
+      - "T1070.004" # File Deletion
+      - "T1083" # File and Directory Discovery
+    kill_chain_phases:
+      - "reconnaissance"
+      - "collection"
+      - "exfiltration"
+      - "covering-tracks"
+  
+  steps:
+    # Phase 1: Initial Reconnaissance
+    - id: "legitimate_access"
+      name: "Normal User Login"
+      description: "Employee logs in normally using legitimate credentials"
+      mitre:
+        technique: "T1078"
+        tactic: "TA0001"
+        subtechnique: "Valid Accounts"
+        description: "Adversaries may obtain and abuse credentials of existing accounts"
+      timing:
+        delayAfterPrevious: 0
+        duration: 60000 # 1 minute
+        variance: 0.1
+      logGeneration:
+        templates: ["successful_login", "user_logon", "workstation_unlock"]
+        frequency: 5
+        sources: ["authentication", "endpoint"]
+        customData:
+          user: "john.smith@company.com"
+          workstation: "WS-FINANCE-05"
+          department: "Finance"
+    
+    # Phase 2: Unusual File Access Patterns
+    - id: "excessive_file_access"
+      name: "Unusual File Access Behavior"
+      description: "Employee begins accessing files outside their normal scope"
+      mitre:
+        technique: "T1083"
+        tactic: "TA0007"
+        subtechnique: "File and Directory Discovery"
+        description: "Adversaries may enumerate files and directories"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 480000 # 8 minutes
+        variance: 0.3
+      dependencies: ["legitimate_access"]
+      logGeneration:
+        templates: ["file_access", "directory_enumeration", "unusual_access_pattern"]
+        frequency: 25
+        sources: ["file-server", "endpoint"]
+        customData:
+          accessed_departments: ["HR", "Legal", "Executive", "R&D"]
+          file_types: ["*.docx", "*.xlsx", "*.pdf", "*.pptx"]
+          unusual_hours: false
+    
+    # Phase 3: Database Query Abuse
+    - id: "database_reconnaissance"
+      name: "Excessive Database Queries"
+      description: "Employee runs unusual database queries to identify valuable data"
+      mitre:
+        technique: "T1213"
+        tactic: "TA0009"
+        subtechnique: "Data from Information Repositories"
+        description: "Adversaries may leverage information repositories to mine valuable information"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 360000 # 6 minutes
+        variance: 0.4
+      dependencies: ["excessive_file_access"]
+      logGeneration:
+        templates: ["database_query", "data_access", "sql_execution"]
+        frequency: 20
+        sources: ["database", "application"]
+        customData:
+          queries: ["SELECT * FROM customers", "SELECT * FROM financial_data", "SELECT * FROM employee_records"]
+          database: "CorporateDB"
+          unusual_query_patterns: true
+    
+    # Phase 4: Bulk Data Collection
+    - id: "mass_data_collection"
+      name: "Bulk Sensitive Data Collection"
+      description: "Employee downloads large amounts of sensitive data"
+      mitre:
+        technique: "T1005"
+        tactic: "TA0009"
+        subtechnique: "Data from Local System"
+        description: "Adversaries may search local system sources to find files of interest"
+      timing:
+        delayAfterPrevious: 240000 # 4 minutes
+        duration: 600000 # 10 minutes
+        variance: 0.2
+      dependencies: ["database_reconnaissance"]
+      logGeneration:
+        templates: ["bulk_download", "large_file_transfer", "data_collection"]
+        frequency: 35
+        sources: ["file-server", "database", "endpoint"]
+        customData:
+          data_volume: "1.2GB"
+          file_count: 847
+          sensitive_categories: ["PII", "Financial", "Trade Secrets", "Customer Data"]
+    
+    # Phase 5: Network Share Access
+    - id: "network_share_access"
+      name: "Unauthorized Network Share Access"
+      description: "Employee accesses network shares they don't normally use"
+      mitre:
+        technique: "T1039"
+        tactic: "TA0009"
+        subtechnique: "Data from Network Shared Drive"
+        description: "Adversaries may search network shares to find files of interest"
+      timing:
+        delayAfterPrevious: 120000 # 2 minutes
+        duration: 300000 # 5 minutes
+        variance: 0.3
+      dependencies: ["mass_data_collection"]
+      logGeneration:
+        templates: ["share_access", "network_file_access", "smb_access"]
+        frequency: 18
+        sources: ["file-server", "firewall"]
+        customData:
+          shares: ["\\\\srv01\\HR_Confidential", "\\\\srv02\\Executive", "\\\\srv03\\Legal"]
+          access_method: "SMB"
+    
+    # Phase 6: Data Staging
+    - id: "data_staging"
+      name: "Data Staging for Exfiltration"
+      description: "Employee consolidates collected data into staging area"
+      mitre:
+        technique: "T1074.001"
+        tactic: "TA0009"
+        subtechnique: "Local Data Staging"
+        description: "Adversaries may stage collected data in a central location"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 240000 # 4 minutes
+        variance: 0.2
+      dependencies: ["network_share_access"]
+      logGeneration:
+        templates: ["file_copy", "data_staging", "archive_creation"]
+        frequency: 15
+        sources: ["endpoint", "file-server"]
+        customData:
+          staging_location: "C:\\Users\\john.smith\\Documents\\Backup"
+          archive_name: "company_backup.zip"
+          compression_ratio: "65%"
+    
+    # Phase 7: Personal Cloud Upload
+    - id: "cloud_exfiltration"
+      name: "Data Exfiltration to Personal Cloud"
+      description: "Employee uploads sensitive data to personal cloud storage"
+      mitre:
+        technique: "T1567.002"
+        tactic: "TA0010"
+        subtechnique: "Exfiltration to Cloud Storage"
+        description: "Adversaries may exfiltrate data to cloud storage service"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 480000 # 8 minutes
+        variance: 0.3
+      dependencies: ["data_staging"]
+      logGeneration:
+        templates: ["cloud_upload", "large_upload", "external_data_transfer"]
+        frequency: 25
+        sources: ["firewall", "proxy", "endpoint"]
+        customData:
+          cloud_service: "PersonalDropbox"
+          upload_size: "1.2GB"
+          destination: "dropbox.com"
+    
+    # Phase 8: Email Exfiltration
+    - id: "email_exfiltration"
+      name: "Email-Based Data Exfiltration"
+      description: "Employee emails sensitive documents to personal account"
+      mitre:
+        technique: "T1566.001"
+        tactic: "TA0010"
+        subtechnique: "Spearphishing Attachment"
+        description: "Adversaries may send emails with sensitive attachments"
+      timing:
+        delayAfterPrevious: 60000 # 1 minute (parallel with cloud upload)
+        duration: 300000 # 5 minutes
+        variance: 0.2
+      dependencies: ["data_staging"]
+      logGeneration:
+        templates: ["email_sent", "large_attachment", "external_email"]
+        frequency: 12
+        sources: ["mail-server", "endpoint"]
+        customData:
+          recipient: "john.personal@gmail.com"
+          attachment_count: 15
+          total_attachment_size: "45MB"
+    
+    # Phase 9: USB Device Usage
+    - id: "usb_exfiltration"
+      name: "USB Device Data Exfiltration"
+      description: "Employee copies data to personal USB device"
+      mitre:
+        technique: "T1052.001"
+        tactic: "TA0010"
+        subtechnique: "Exfiltration over USB"
+        description: "Adversaries may attempt to exfiltrate data over USB"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 180000 # 3 minutes
+        variance: 0.2
+      dependencies: ["data_staging"]
+      logGeneration:
+        templates: ["usb_device_connected", "file_copy_to_usb", "removable_media_access"]
+        frequency: 10
+        sources: ["endpoint"]
+        customData:
+          device_id: "USB_DEVICE_01"
+          device_name: "SanDisk Ultra 32GB"
+          copied_files: 127
+    
+    # Phase 10: Evidence Cleanup
+    - id: "evidence_cleanup"
+      name: "Cover Tracks and Delete Evidence"
+      description: "Employee attempts to hide traces of data theft"
+      mitre:
+        technique: "T1070.004"
+        tactic: "TA0005"
+        subtechnique: "File Deletion"
+        description: "Adversaries may delete files left behind by the actions of their intrusion"
+      timing:
+        delayAfterPrevious: 240000 # 4 minutes
+        duration: 180000 # 3 minutes
+        variance: 0.2
+      dependencies: ["cloud_exfiltration", "email_exfiltration", "usb_exfiltration"]
+      logGeneration:
+        templates: ["file_deletion", "browser_history_clearing", "temp_file_cleanup"]
+        frequency: 8
+        sources: ["endpoint"]
+        customData:
+          deleted_files: ["company_backup.zip", "temp_data.xlsx", "download_list.txt"]
+          cleared_history: true
+          deleted_temp_files: 23
+    
+    # Phase 11: Normal Behavior Resume
+    - id: "normal_behavior"
+      name: "Resume Normal Work Behavior"
+      description: "Employee returns to normal work patterns to avoid suspicion"
+      mitre:
+        technique: "T1078"
+        tactic: "TA0001"
+        subtechnique: "Valid Accounts"
+        description: "Adversaries may obtain and abuse credentials of existing accounts"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 240000 # 4 minutes
+        variance: 0.3
+      dependencies: ["evidence_cleanup"]
+      logGeneration:
+        templates: ["normal_file_access", "routine_application_usage", "typical_work_pattern"]
+        frequency: 12
+        sources: ["endpoint", "file-server", "application"]
+        customData:
+          normal_files: ["budget_q4.xlsx", "monthly_report.docx", "team_meeting.pptx"]
+          applications: ["Excel", "Word", "Outlook", "SAP"]
+  
+  config:
+    max_duration: 1800000 # 30 minutes maximum
+    abort_on_step_failure: false
+    log_chain_progress: true
+    cleanup_after_completion: true

@@ -113,6 +113,14 @@ custom-*.yaml
 !logs/current/.gitkeep
 !logs/historical/.gitkeep
 
-# Private documentation (for developer reference only)
-CODE_ARCHITECTURE.md
-LOG_EXPANSION_SUGGESTIONS.md
+# ML Models (too large for git)
+models/ml-patterns/*.json
+models/ml-patterns/*.pkl
+models/ml-patterns/*.bin
+
+# Generated files
+docs/generated/
+
+# Note: Developer reference files are kept in repository:
+# - CODE_ARCHITECTURE.md (for developers)
+# - LOG_EXPANSION_SUGGESTIONS.md (for future development)

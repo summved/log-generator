@@ -1,0 +1,181 @@
+name: SEO Automation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  update-readme-stats:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Update Repository Stats
+      run: |
+        # Get repository stats
+        STARS=$(curl -s "https://api.github.com/repos/${{ github.repository }}" | jq '.stargazers_count')
+        FORKS=$(curl -s "https://api.github.com/repos/${{ github.repository }}" | jq '.forks_count')
+        ISSUES=$(curl -s "https://api.github.com/repos/${{ github.repository }}/issues?state=open" | jq 'length')
+        
+        # Update README with current stats
+        sed -i "s/Stars: [0-9]*/Stars: $STARS/g" README.md || true
+        sed -i "s/Forks: [0-9]*/Forks: $FORKS/g" README.md || true
+        
+        echo "Updated stats: Stars: $STARS, Forks: $FORKS, Open Issues: $ISSUES"
+        
+    - name: Generate Sitemap
+      run: |
+        # Create a simple sitemap for documentation
+        cat > sitemap.xml << EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url>
+            <loc>https://github.com/${{ github.repository }}</loc>
+            <lastmod>$(date -u +%Y-%m-%d)</lastmod>
+            <changefreq>weekly</changefreq>
+            <priority>1.0</priority>
+          </url>
+          <url>
+            <loc>https://github.com/${{ github.repository }}/blob/main/README.md</loc>
+            <lastmod>$(date -u +%Y-%m-%d)</lastmod>
+            <changefreq>weekly</changefreq>
+            <priority>0.9</priority>
+          </url>
+          <url>
+            <loc>https://github.com/${{ github.repository }}/blob/main/ADVANCED_FEATURES.md</loc>
+            <lastmod>$(date -u +%Y-%m-%d)</lastmod>
+            <changefreq>monthly</changefreq>
+            <priority>0.8</priority>
+          </url>
+          <url>
+            <loc>https://github.com/${{ github.repository }}/blob/main/SIEM_INTEGRATION.md</loc>
+            <lastmod>$(date -u +%Y-%m-%d)</lastmod>
+            <changefreq>monthly</changefreq>
+            <priority>0.8</priority>
+          </url>
+        </urlset>
+        EOF
+        
+    - name: Update Social Media Links
+      run: |
+        # Add social media meta tags to README if not present
+        if ! grep -q "twitter:card" README.md; then
+          cat >> README.md << EOF
+        
+        <!-- Social Media Meta Tags -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="Enterprise SIEM Log Generator | MITRE ATT&CK">
+        <meta name="twitter:description" content="Generate realistic cybersecurity logs for SIEM testing, security training, and threat simulation with MITRE ATT&CK integration.">
+        <meta property="og:title" content="Enterprise SIEM Log Generator">
+        <meta property="og:description" content="Open-source log generator with MITRE ATT&CK integration for cybersecurity professionals.">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="https://github.com/${{ github.repository }}">
+        EOF
+        fi
+        
+    - name: Commit changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add -A
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "🤖 Auto-update SEO metadata and stats"
+          git push
+        fi
+
+  check-seo-health:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: SEO Health Check
+      run: |
+        echo "🔍 SEO Health Check Report"
+        echo "=========================="
+        
+        # Check README length
+        README_WORDS=$(wc -w < README.md)
+        echo "📄 README word count: $README_WORDS"
+        if [ $README_WORDS -lt 500 ]; then
+          echo "⚠️  README might be too short for good SEO (< 500 words)"
+        else
+          echo "✅ README length is good for SEO"
+        fi
+        
+        # Check for keywords in README
+        KEYWORDS=("SIEM" "cybersecurity" "MITRE" "security" "logs" "testing")
+        for keyword in "${KEYWORDS[@]}"; do
+          count=$(grep -i "$keyword" README.md | wc -l)
+          echo "🔑 Keyword '$keyword' appears $count times"
+        done
+        
+        # Check for external links
+        EXTERNAL_LINKS=$(grep -o 'https\?://[^)]*' README.md | grep -v github.com | wc -l)
+        echo "🔗 External links: $EXTERNAL_LINKS"
+        
+        # Check for images
+        IMAGES=$(grep -o '!\[.*\]' README.md | wc -l)
+        echo "🖼️  Images: $IMAGES"
+        
+        # Check documentation completeness
+        DOCS=("ADVANCED_FEATURES.md" "SIEM_INTEGRATION.md" "CONFIGURATION.md")
+        for doc in "${DOCS[@]}"; do
+          if [ -f "$doc" ]; then
+            echo "✅ $doc exists"
+          else
+            echo "❌ $doc missing"
+          fi
+        done
+        
+        echo "=========================="
+        echo "🎯 SEO Health Check Complete"
+
+  generate-keywords:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Generate Keyword Report
+      run: |
+        echo "# 🎯 Keyword Analysis Report" > KEYWORD_REPORT.md
+        echo "Generated on: $(date)" >> KEYWORD_REPORT.md
+        echo "" >> KEYWORD_REPORT.md
+        
+        echo "## Primary Keywords Found in Repository" >> KEYWORD_REPORT.md
+        echo "| Keyword | Count | Files |" >> KEYWORD_REPORT.md
+        echo "|---------|-------|-------|" >> KEYWORD_REPORT.md
+        
+        # Analyze keyword frequency
+        KEYWORDS=("SIEM" "cybersecurity" "MITRE" "security" "logs" "testing" "Wazuh" "Splunk" "ELK")
+        for keyword in "${KEYWORDS[@]}"; do
+          count=$(find . -name "*.md" -exec grep -i "$keyword" {} \; | wc -l)
+          files=$(find . -name "*.md" -exec grep -l -i "$keyword" {} \; | tr '\n' ', ' | sed 's/,$//')
+          echo "| $keyword | $count | $files |" >> KEYWORD_REPORT.md
+        done
+        
+        echo "" >> KEYWORD_REPORT.md
+        echo "## Recommendations" >> KEYWORD_REPORT.md
+        echo "- Ensure primary keywords appear naturally throughout documentation" >> KEYWORD_REPORT.md
+        echo "- Add more long-tail keywords for specific use cases" >> KEYWORD_REPORT.md
+        echo "- Include technical terms that users might search for" >> KEYWORD_REPORT.md
+        
+    - name: Commit keyword report
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add KEYWORD_REPORT.md
+        if git diff --staged --quiet; then
+          echo "No changes to keyword report"
+        else
+          git commit -m "📊 Update keyword analysis report"
+          git push
+        fi
