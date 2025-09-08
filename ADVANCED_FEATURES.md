@@ -60,26 +60,26 @@ The log generator supports **14 MITRE ATT&CK techniques** across **12 tactics**:
 
 #### Generate Technique-Specific Logs
 ```bash
-# Generate brute force attack logs
+# Generate brute force attack logs for 30 minutes
 npm run generate -- --mitre-technique T1110.001 --duration 30m
 
-# Generate credential access logs
-npm run generate -- --mitre-tactic TA0006 --count 100
+# Generate credential access logs for 1 hour
+npm run generate -- --mitre-tactic TA0006 --duration 1h
 
-# Generate only MITRE-mapped logs
-npm run generate -- --mitre-enabled --output logs/mitre-logs.jsonl
+# Generate only MITRE-mapped logs for 45 minutes
+npm run generate -- --mitre-enabled --duration 45m
 ```
 
 #### MITRE Analysis & Coverage
 ```bash
 # List all supported techniques with descriptions
-npm run mitre-list --detailed
+npm run mitre-list --techniques
 
 # Analyze MITRE coverage in historical logs
-npm run mitre-coverage logs/historical/ --format json
+npm run mitre-coverage --file logs/historical/dataset.jsonl
 
-# Generate MITRE coverage report
-npm run mitre-coverage logs/historical/ --output coverage-report.json
+# Generate MITRE coverage report for all historical files
+npm run mitre-coverage
 ```
 
 ### Use Cases

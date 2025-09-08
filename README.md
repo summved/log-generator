@@ -1,4 +1,4 @@
-# 🚀 Enterprise SIEM Log Generator | MITRE ATT&CK | Cybersecurity Training
+# 🚀 Enterprise SIEM Log Generator and Replay Collector | MITRE ATT&CK | Cybersecurity Training
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
@@ -35,8 +35,11 @@ npm install
 # Start generating logs from all sources
 npm run generate
 
-# Generate MITRE-specific logs
-npm run generate -- --mitre-technique T1110 --mitre-tactic TA0006
+# Generate MITRE-specific logs for 30 minutes
+npm run generate -- --mitre-technique T1110 --duration 30m
+
+# Generate logs for specific MITRE tactic
+npm run generate -- --mitre-tactic TA0006 --duration 1h
 
 # Run attack chain simulation
 npm run attack-chains:execute apt29-cozy-bear --speed 2.0
@@ -60,8 +63,8 @@ npm run ml-patterns:generate authentication --count 100
 Generate logs mapped to **14 MITRE techniques** across **12 tactics**:
 
 ```bash
-# Generate brute force attack logs
-npm run generate -- --mitre-technique T1110.001
+# Generate brute force attack logs for 1 hour
+npm run generate -- --mitre-technique T1110.001 --duration 1h
 
 # List all supported techniques
 npm run mitre-list
@@ -103,7 +106,7 @@ Learn from historical data to generate realistic, behavior-based logs:
 # Learn patterns from historical data
 npm run ml-patterns:learn logs/historical/*.jsonl --min-samples 100
 
-# Generate ML-enhanced logs
+# Generate ML-enhanced logs (50 logs with 10% anomalies)
 npm run ml-patterns:generate authentication --count 50 --anomaly-rate 0.1
 
 # Check ML engine status
@@ -138,20 +141,23 @@ npm run replay logs/historical/dataset.jsonl --start "2024-01-01" --end "2024-01
 
 ### Wazuh Integration
 ```bash
-# Send logs directly to Wazuh agent
-npm run generate -- --output syslog --host 127.0.0.1 --port 514
+# Generate logs and monitor with Wazuh agent
+npm run generate -- --duration 1h
+# Then configure Wazuh agent to monitor logs/current/ directory
 ```
 
 ### ELK Stack Integration
 ```bash
-# Generate logs in JSON format for Elasticsearch
-npm run generate -- --output file --format json
+# Generate logs in JSON format (default) for Elasticsearch
+npm run generate -- --duration 2h
+# Logs are saved to logs/current/ in JSON format by default
 ```
 
 ### Splunk Integration
 ```bash
-# Generate logs in CEF format for Splunk
-npm run generate -- --output file --format cef
+# Generate logs for Splunk ingestion
+npm run generate -- --duration 1h
+# Use Universal Forwarder to monitor logs/current/ directory
 ```
 
 ## 📊 Output Formats
@@ -188,12 +194,12 @@ npm run generate -- --config config/custom.yaml
 
 | **Category** | **Command** | **Description** |
 |---|---|---|
-| **Generation** | `npm run generate` | Start log generation |
-| **Replay** | `npm run replay <file>` | Replay historical logs |
-| **Analysis** | `npm run analyze <file>` | Analyze log quality |
-| **MITRE** | `npm run mitre-list` | List MITRE techniques |
-| **Attack Chains** | `npm run attack-chains:list` | List attack scenarios |
-| **ML Patterns** | `npm run ml-patterns:learn` | Learn from historical data |
+| **Generation** | `npm run generate [--duration <time>] [--mitre-technique <id>]` | Start log generation |
+| **Replay** | `npm run replay [--file <filename>] [--speed <multiplier>]` | Replay historical logs |
+| **Analysis** | `npm run analyze [--file <filename>] [--fix]` | Analyze log quality |
+| **MITRE** | `npm run mitre-list [--techniques] [--tactics]` | List MITRE techniques |
+| **Attack Chains** | `npm run attack-chains:list [--category <type>]` | List attack scenarios |
+| **ML Patterns** | `npm run ml-patterns:learn <files...>` | Learn from historical data |
 | **Status** | `npm run status` | Show generation status |
 
 ## 📚 Documentation & Resources

@@ -186,10 +186,10 @@ npm run generate -- --apt-group apt29 --validate-rules
 **Solution**: Automated security log testing
 ```bash
 # CI/CD pipeline integration
-npm run generate -- --ci-mode --test-duration 5m --format json
+npm run generate -- --duration 5m
 
-# Automated SIEM rule testing
-npm run test-rules -- --rules-dir security-rules/ --log-source generated
+# Use generated logs for automated testing
+# Logs are available in logs/current/ directory
 ```
 
 **DevSecOps Benefits**:
@@ -203,11 +203,12 @@ npm run test-rules -- --rules-dir security-rules/ --log-source generated
 
 **Solution**: Application-specific log generation
 ```bash
-# Web application security logs
-npm run generate -- --source web-server --attacks sql-injection,xss
+# Generate web application security logs
+npm run generate -- --mitre-technique T1190 --duration 30m
 
-# API security testing logs
-npm run generate -- --source api-gateway --security-events
+# Generate API security testing logs
+npm run generate -- --duration 1h
+# Configure sources in config files to focus on specific log types
 ```
 
 ---

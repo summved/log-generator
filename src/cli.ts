@@ -25,11 +25,25 @@ program
   .description('Start generating logs from configured sources')
   .option('-c, --config <path>', 'Path to configuration file')
   .option('-d, --daemon', 'Run as daemon (background process)')
+  .option('--duration <time>', 'Duration to run generation (e.g., 30m, 1h, 2h30m)')
   .option('--mitre-technique <technique>', 'Generate logs only for specific MITRE technique (e.g., T1110)')
   .option('--mitre-tactic <tactic>', 'Generate logs only for specific MITRE tactic (e.g., TA0006)')
   .option('--mitre-enabled', 'Generate only logs with MITRE technique mapping')
   .action(async (options) => {
     try {
+      // Parse duration if provided
+      let durationMs: number | undefined;
+      if (options.duration) {
+        const parsed = parseDuration(options.duration);
+        if (!parsed) {
+          console.error(`Invalid duration format: ${options.duration}`);
+          console.error('Example valid formats: 30m, 1h, 2h30m, 90s');
+          process.exit(1);
+        }
+        durationMs = parsed;
+        logger.info(`Generation will run for ${options.duration} (${durationMs}ms)`);
+      }
+
       // Build MITRE filter options
       const mitreFilter: MitreFilterOptions = {};
       
@@ -83,9 +97,21 @@ program
       await logGenerator.start();
       
       if (!options.daemon) {
-        console.log('Log generator is running. Press Ctrl+C to stop.');
-        // Keep the process running
-        await new Promise(() => {});
+        if (durationMs) {
+          console.log(`Log generator is running for ${options.duration}. Press Ctrl+C to stop early.`);
+          // Set timeout to stop after specified duration
+          setTimeout(async () => {
+            logger.info(`Duration ${options.duration} completed, stopping log generation`);
+            await logGenerator.stop();
+            process.exit(0);
+          }, durationMs);
+          // Keep the process running until timeout
+          await new Promise(() => {});
+        } else {
+          console.log('Log generator is running. Press Ctrl+C to stop.');
+          // Keep the process running
+          await new Promise(() => {});
+        }
       }
     } catch (error) {
       logger.error('Failed to start log generation:', error);
@@ -1396,6 +1422,28 @@ function getSyslogPriority(level: string): number {
 
 function formatCEF(log: any): string {
   return `CEF:0|LogGenerator|ML-Enhanced|1.0|${log.source}|${log.message}|${getSyslogPriority(log.level)}|`;
+}
+
+function parseDuration(duration: string): number | null {
+  if (!duration) return null;
+  
+  // Remove spaces and convert to lowercase
+  const normalized = duration.replace(/\s+/g, '').toLowerCase();
+  
+  // Parse formats like: 30m, 1h, 2h30m, 90s, 1h30m45s
+  const regex = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
+  const match = normalized.match(regex);
+  
+  if (!match) return null;
+  
+  const [, hours, minutes, seconds] = match;
+  
+  let totalMs = 0;
+  if (hours) totalMs += parseInt(hours) * 60 * 60 * 1000;
+  if (minutes) totalMs += parseInt(minutes) * 60 * 1000;
+  if (seconds) totalMs += parseInt(seconds) * 1000;
+  
+  return totalMs > 0 ? totalMs : null;
 }
 
 program.parse();

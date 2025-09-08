@@ -281,7 +281,8 @@ npm run generate -- --mitre-technique T1110 --duration 1h
 
 **SIEM Testing**:
 ```bash
-npm run generate -- --performance-test --rate 500 --duration 30m
+npm run generate -- --duration 30m
+# Default rate is 238 logs/min across all sources
 ```
 
 **Research**:

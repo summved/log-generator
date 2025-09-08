@@ -40,51 +40,48 @@ npm run attack-chains:status
 ### 🎓 Educator - Classroom Setup
 ```bash
 # Generate diverse logs for training
-npm run generate -- --duration 2h --all-sources
+npm run generate -- --duration 2h
 
-# Create student lab environment
-npm run generate -- --config classroom-lab.yaml
+# Create student lab environment with custom config
+npm run generate -- --config config/classroom-lab.yaml --duration 1h
 ```
 
 ### 🏢 Enterprise - SIEM Testing
 ```bash
-# High-volume performance test
-npm run generate -- --rate 1000 --duration 1h
+# Generate logs for SIEM testing
+npm run generate -- --duration 1h
 
-# Send directly to your SIEM
-npm run generate -- --output syslog --host YOUR_SIEM_IP --port 514
+# Monitor logs directory for SIEM ingestion
+# Configure your SIEM to monitor logs/current/ directory
 ```
 
 ## 🛡️ SIEM Integration (Pick Your Platform)
 
 ### Wazuh
 ```bash
-# Method 1: Direct syslog
-npm run generate -- --output syslog --host 127.0.0.1 --port 514
+# Generate logs for Wazuh monitoring
+npm run generate -- --duration 1h
 
-# Method 2: File monitoring
-npm run generate -- --output file --format wazuh
-# Then configure Wazuh agent to monitor logs/current/
+# Configure Wazuh agent to monitor logs/current/ directory
+# Logs are generated in JSON format by default
 ```
 
 ### Splunk
 ```bash
-# Method 1: HTTP Event Collector
-npm run generate -- --output splunk-hec --token YOUR_HEC_TOKEN --host splunk.company.com
+# Generate logs for Splunk ingestion
+npm run generate -- --duration 2h
 
-# Method 2: Universal Forwarder
-npm run generate -- --output file --format json
-# Configure UF to monitor logs/current/
+# Configure Universal Forwarder to monitor logs/current/ directory
+# Logs are generated in JSON format by default
 ```
 
 ### ELK Stack
 ```bash
 # Generate JSON logs for Elasticsearch
-npm run generate -- --output file --format json --directory /var/log/security/
+npm run generate -- --duration 3h
 
-# Use our Filebeat configuration template
-cp config/filebeat.yml /etc/filebeat/filebeat.yml
-systemctl restart filebeat
+# Configure Filebeat to monitor logs/current/ directory
+# Logs are generated in JSON format by default
 ```
 
 ## 🎯 MITRE ATT&CK Quick Reference
@@ -209,40 +206,43 @@ sudo chown $USER:$USER /var/log/security
 
 **Issue**: "High CPU usage during generation"
 ```bash
-# Solution: Reduce generation rate
-npm run generate -- --rate 50  # Reduce from default 238/min
+# Solution: Use shorter durations or configure lower frequency in config files
+npm run generate -- --duration 30m  # Run for shorter periods
 ```
 
 **Issue**: "Logs not appearing in SIEM"
 ```bash
-# Solution: Test connectivity
-telnet YOUR_SIEM_IP 514
+# Solution: Check if logs are being generated
+ls -la logs/current/
 
-# Check log format compatibility
-npm run generate -- --format syslog --output console
+# Verify SIEM is monitoring the correct directory
+# Default log location: logs/current/
 ```
 
 **Issue**: "Out of disk space"
 ```bash
-# Solution: Enable log rotation
-npm run generate -- --rotate-logs --max-size 100MB --max-files 10
+# Solution: Clean up old logs or use shorter durations
+rm -f logs/current/*.jsonl  # Clean current logs
+rm -f logs/historical/*.jsonl  # Clean historical logs
 ```
 
 ## 📈 Performance Tuning
 
 ### For High-Volume Generation
 ```bash
-# Optimize for performance
-npm run generate -- --performance-mode --rate 1000 --batch-size 100
+# Generate logs continuously (stop with Ctrl+C)
+npm run generate
 
-# Monitor resource usage
-npm run status --detailed
+# Monitor resource usage and status
+npm run status
 ```
 
 ### For Low-Resource Environments
 ```bash
-# Reduce resource usage
-npm run generate -- --rate 10 --sources authentication,firewall --memory-limit 256MB
+# Use shorter durations to reduce resource usage
+npm run generate -- --duration 15m
+
+# Configure lower frequencies in config files for specific sources
 ```
 
 ## 🆘 Getting Help
