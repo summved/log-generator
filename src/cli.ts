@@ -10,8 +10,63 @@ import { AttackChainManager } from './chains/AttackChainManager';
 import { AttackChainExecutionConfig } from './types/attackChain';
 import { PatternLearningEngine } from './ml/PatternLearningEngine';
 import { MLLogGenerationConfig } from './types/mlPatterns';
+import { ConfigManager } from './config';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import * as yaml from 'yaml';
+
+// Helper functions for config management
+async function setConfigValue(configManager: ConfigManager, key: string, value: string): Promise<void> {
+  const configPath = 'src/config/default.yaml';
+  const configContent = await fs.readFile(configPath, 'utf8');
+  const config = yaml.parse(configContent);
+  
+  // Parse the key path (e.g., "generators.endpoint.frequency")
+  const keyParts = key.split('.');
+  let current = config;
+  
+  // Navigate to the parent object
+  for (let i = 0; i < keyParts.length - 1; i++) {
+    if (!current[keyParts[i]]) {
+      current[keyParts[i]] = {};
+    }
+    current = current[keyParts[i]];
+  }
+  
+  // Set the value (convert to appropriate type)
+  const finalKey = keyParts[keyParts.length - 1];
+  let parsedValue: any = value;
+  
+  // Try to parse as number
+  if (!isNaN(Number(value))) {
+    parsedValue = Number(value);
+  }
+  // Try to parse as boolean
+  else if (value.toLowerCase() === 'true' || value.toLowerCase() === 'false') {
+    parsedValue = value.toLowerCase() === 'true';
+  }
+  
+  current[finalKey] = parsedValue;
+  
+  // Write back to file
+  const newConfigContent = yaml.stringify(config, { indent: 2 });
+  await fs.writeFile(configPath, newConfigContent);
+}
+
+function getConfigValue(config: any, key: string): any {
+  const keyParts = key.split('.');
+  let current = config;
+  
+  for (const part of keyParts) {
+    if (current && typeof current === 'object' && part in current) {
+      current = current[part];
+    } else {
+      return undefined;
+    }
+  }
+  
+  return current;
+}
 
 const program = new Command();
 
@@ -210,6 +265,10 @@ program
         }
       }
 
+      // Clean up resources and exit
+      await logGenerator.stop();
+      process.exit(0);
+
     } catch (error) {
       logger.error('Failed to get status:', error);
       process.exit(1);
@@ -222,18 +281,39 @@ program
   .option('-c, --config <path>', 'Path to configuration file')
   .option('--show', 'Show current configuration')
   .option('--validate', 'Validate configuration file')
+  .option('--set <key=value>', 'Set configuration value (e.g., generators.endpoint.frequency=20)')
+  .option('--get <key>', 'Get configuration value (e.g., generators.endpoint.frequency)')
   .action(async (options) => {
     try {
-      const logGenerator = new LogGeneratorManager(options.config);
+      const configManager = new ConfigManager(options.config);
       
       if (options.show) {
-        const config = logGenerator.getConfig();
+        const config = configManager.getConfig();
         console.log(JSON.stringify(config, null, 2));
       }
 
       if (options.validate) {
         console.log('✅ Configuration is valid');
       }
+
+      if (options.set) {
+        const [key, value] = options.set.split('=');
+        if (!key || value === undefined) {
+          console.error('❌ Invalid format. Use: --set key=value');
+          process.exit(1);
+        }
+        
+        await setConfigValue(configManager, key.trim(), value.trim());
+        console.log(`✅ Set ${key} = ${value}`);
+      }
+
+      if (options.get) {
+        const value = getConfigValue(configManager.getConfig(), options.get);
+        console.log(value !== undefined ? value : `❌ Key not found: ${options.get}`);
+      }
+
+      // Clean up and exit
+      process.exit(0);
 
     } catch (error) {
       logger.error('Configuration error:', error);

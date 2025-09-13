@@ -83,29 +83,52 @@ export class StorageManager {
       const files = await fs.readdir(this.historicalPath);
       const logFiles: HistoricalLogFile[] = [];
 
-      for (const file of files) {
-        if (file.endsWith('.jsonl') || file.endsWith('.json')) {
-          const filePath = path.join(this.historicalPath, file);
-          const stats = await fs.stat(filePath);
+      // Limit processing to prevent hangs with thousands of files
+      const maxFiles = 100;
+      const filesToProcess = files
+        .filter(file => file.endsWith('.jsonl') || file.endsWith('.json'))
+        .sort((a, b) => b.localeCompare(a)) // Sort by name descending (newest first)
+        .slice(0, maxFiles);
+
+      for (const file of filesToProcess) {
+        const filePath = path.join(this.historicalPath, file);
+        const stats = await fs.stat(filePath);
+        
+        // Parse timestamps from filename or use file timestamps
+        const timeMatch = file.match(/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/);
+        const startTime = timeMatch ? 
+          moment(timeMatch[1], 'YYYY-MM-DD_HH-mm-ss').toISOString() : 
+          moment(stats.birthtime).toISOString();
+
+        // Count lines efficiently without loading entire file into memory
+        let count = 0;
+        try {
+          const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+          let buffer = '';
           
-          // Parse timestamps from filename or use file timestamps
-          const timeMatch = file.match(/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/);
-          const startTime = timeMatch ? 
-            moment(timeMatch[1], 'YYYY-MM-DD_HH-mm-ss').toISOString() : 
-            moment(stats.birthtime).toISOString();
-
-          // Count lines to estimate log count
-          const content = await fs.readFile(filePath, 'utf8');
-          const count = content.split('\n').filter(line => line.trim()).length;
-
-          logFiles.push({
-            filename: file,
-            startTime,
-            endTime: moment(stats.mtime).toISOString(),
-            count,
-            size: stats.size
-          });
+          for await (const chunk of stream) {
+            buffer += chunk;
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line
+            count += lines.filter(line => line.trim()).length;
+          }
+          
+          // Count final line if exists
+          if (buffer.trim()) {
+            count += 1;
+          }
+        } catch (streamError) {
+          // Fallback to file size estimation if streaming fails
+          count = Math.max(1, Math.floor(stats.size / 500)); // Estimate ~500 bytes per log
         }
+
+        logFiles.push({
+          filename: file,
+          startTime,
+          endTime: moment(stats.mtime).toISOString(),
+          count,
+          size: stats.size
+        });
       }
 
       return logFiles.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());

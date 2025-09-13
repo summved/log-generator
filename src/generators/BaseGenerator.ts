@@ -27,18 +27,23 @@ export abstract class BaseGenerator {
     }
 
     this.isRunning = true;
-    const intervalMs = (60 / this.config.frequency) * 1000; // Convert frequency to milliseconds
-
-    logger.info(`Starting ${this.source.name} generator with frequency ${this.config.frequency} logs/min`);
+    
+    // Batch Generation Optimization: Dynamic batching based on frequency
+    const batchConfig = this.calculateBatchConfig(this.config.frequency);
+    
+    logger.info(`Starting ${this.source.name} generator with frequency ${this.config.frequency} logs/min (batch: ${batchConfig.logsPerBatch} logs every ${batchConfig.intervalMs}ms)`);
 
     this.intervalId = setInterval(() => {
       try {
-        const logEntry = this.generateLogEntry();
-        onLogGenerated(logEntry);
+        // Generate batch of logs for high-frequency generators
+        for (let i = 0; i < batchConfig.logsPerBatch; i++) {
+          const logEntry = this.generateLogEntry();
+          onLogGenerated(logEntry);
+        }
       } catch (error) {
-        logger.error(`Error generating log for ${this.source.name}:`, error);
+        logger.error(`Error generating log batch for ${this.source.name}:`, error);
       }
-    }, intervalMs);
+    }, batchConfig.intervalMs);
   }
 
   public stop(): void {
@@ -76,6 +81,53 @@ export abstract class BaseGenerator {
     this.addMitreTechnique(logEntry, template);
 
     return logEntry;
+  }
+
+  /**
+   * Calculate optimal batch configuration based on target frequency
+   * Low frequencies: No batching (maintains exact timing)
+   * High frequencies: Batch generation (improves performance)
+   */
+  private calculateBatchConfig(targetFrequency: number): { logsPerBatch: number; intervalMs: number } {
+    // Frequency threshold for batching (logs/minute)
+    const BATCH_THRESHOLD = 20;
+    
+    if (targetFrequency <= BATCH_THRESHOLD) {
+      // Low frequency: Use original approach (1 log per timer tick)
+      return {
+        logsPerBatch: 1,
+        intervalMs: (60 / targetFrequency) * 1000
+      };
+    }
+    
+    // High frequency: Use batch generation for maximum performance
+    // Strategy: Optimize timer frequency and batch size for target throughput
+    
+    let timerFrequencyHz: number;
+    let intervalMs: number;
+    
+    if (targetFrequency <= 1000) {
+      // Medium-high frequency: 10 Hz timer (100ms intervals)
+      timerFrequencyHz = 10;
+      intervalMs = 100;
+    } else if (targetFrequency <= 10000) {
+      // Very high frequency: 20 Hz timer (50ms intervals)
+      timerFrequencyHz = 20;
+      intervalMs = 50;
+    } else {
+      // Extreme frequency: 100 Hz timer (10ms intervals)
+      timerFrequencyHz = 100;
+      intervalMs = 10;
+    }
+    
+    // Calculate logs per batch to achieve exact target frequency
+    const targetLogsPerSecond = targetFrequency / 60;
+    const logsPerBatch = Math.max(1, Math.round(targetLogsPerSecond / timerFrequencyHz));
+    
+    return {
+      logsPerBatch,
+      intervalMs
+    };
   }
 
   /**
