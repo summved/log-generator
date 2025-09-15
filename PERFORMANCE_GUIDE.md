@@ -270,7 +270,7 @@ npm run status  # Check actual throughput
 #### 2. **High-Volume Performance Test**
 ```bash
 # Configure for high throughput
-npm run config -- --set generators.endpoint.frequency=10000
+npx ts-node src/cli.ts config --set generators.endpoint.frequency=10000
 npm run generate -- --duration 30s
 ```
 

@@ -128,13 +128,13 @@ Replay and analyze historical log data:
 
 ```bash
 # Replay logs with speed control
-npm run replay logs/historical/dataset.jsonl --speed 2.0 --loop
+npm run replay -- --file logs/historical/dataset.jsonl --speed 2.0 --loop
 
-# Analyze timestamp quality
-npm run analyze logs/historical/dataset.jsonl --fix-duplicates
+# Analyze timestamp quality and fix issues
+npm run analyze -- --file logs/historical/dataset.jsonl --fix
 
 # Replay specific time range
-npm run replay logs/historical/dataset.jsonl --start "2024-01-01" --end "2024-01-02"
+npm run replay -- --file logs/historical/dataset.jsonl --start-time "2024-01-01T00:00:00Z" --end-time "2024-01-02T00:00:00Z"
 ```
 
 ## 🛡️ SIEM Integration

@@ -84,7 +84,8 @@ npm run attack-chains:coverage --real-time
 npm run generate -- --config classroom-lab.yaml --duration 8h
 
 # Generate compliance audit logs for regulatory training
-npm run generate -- --compliance gdpr --audit-trail
+# Generate GDPR-relevant logs (authentication, access, data processing)
+npm run generate -- --duration 1h
 ```
 
 **Educational Benefits**:
@@ -114,11 +115,13 @@ npm run generate -- --certification gsec --comprehensive
 
 **Solution**: High-volume realistic log generation
 ```bash
-# Performance test with 1000 logs/minute
-npm run generate -- --performance-test --rate 1000 --duration 2h
+# Performance test with high frequency configuration
+npx ts-node src/cli.ts config --set generators.endpoint.frequency=1000
+npx ts-node src/cli.ts config --set generators.authentication.frequency=2000
+npm run generate -- --duration 2h
 
-# Test SIEM correlation engine with complex scenarios
-npm run generate -- --correlation-test --complexity high
+# Test SIEM with high-volume realistic logs
+npm run generate -- --duration 30m
 ```
 
 **Enterprise Benefits**:
@@ -132,14 +135,14 @@ npm run generate -- --correlation-test --complexity high
 
 **Solution**: Compliance-focused log generation
 ```bash
-# Generate GDPR compliance audit logs
-npm run generate -- --compliance gdpr --personal-data-events
+# Generate GDPR compliance audit logs - Focus on authentication, access, and data processing
+npm run generate -- --duration 2h
 
-# HIPAA healthcare security logs
-npm run generate -- --compliance hipaa --healthcare-scenarios
+# HIPAA healthcare security logs - Focus on authentication and access logs
+npm run generate -- --duration 1h
 
-# PCI-DSS payment processing logs
-npm run generate -- --compliance pci-dss --payment-events
+# PCI-DSS payment processing logs - Focus on access and authentication
+npm run generate -- --duration 1h
 ```
 
 ---
@@ -250,8 +253,11 @@ npm run ml-patterns:learn historical-data/*.jsonl
 
 ### Enterprise Quick Start
 ```bash
-npm run generate -- --performance-test --rate 500
-npm run generate -- --compliance pci-dss --duration 24h
+# Configure high-performance generation and run
+npx ts-node src/cli.ts config --set generators.endpoint.frequency=500
+npm run generate -- --duration 1h
+# Generate comprehensive logs for PCI-DSS compliance
+npm run generate -- --duration 24h
 ```
 
 Each use case is designed to address specific challenges in cybersecurity with realistic, actionable solutions using our log generator.
