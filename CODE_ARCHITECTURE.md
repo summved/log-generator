@@ -221,7 +221,7 @@ Historical File → ReplayManager → Validation → Timing Control → Output
 ## 🔧 Key Design Patterns
 
 ### **1. Strategy Pattern**
-- **Used in**: Output formatting (JSON, Syslog, CEF, Wazuh)
+- **Used in**: Output formatting (JSON, Syslog, CEF)
 - **Implementation**: `src/utils/formatters.ts`
 - **Benefit**: Easy to add new output formats
 

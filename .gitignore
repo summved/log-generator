@@ -121,7 +121,18 @@ models/ml-patterns/*.bin
 # Generated files
 docs/generated/
 
+# Wazuh integration files (not part of core repository)
+wazuh-docker/
+wazuh-*.log
+wazuh-*.html
+*wazuh*demo*.log
+continuous-*.log
+
+# Temporary demo files
+*demo*.log
+*temp*.log
+nohup.out
+
 # Note: Developer reference files are kept in repository:
 # - CODE_ARCHITECTURE.md (for developers)
 # - LOG_EXPANSION_SUGGESTIONS.md (for future development)
-wazuh-docker/
