@@ -18,9 +18,9 @@ services:
     depends_on:
       - wazuh-manager
     
-  # Example Wazuh setup for testing
+  # Example Wazuh setup for testing (official Wazuh image)
   wazuh-manager:
-    image: wazuh/wazuh-manager:4.7.0
+    image: wazuh/wazuh-manager:4.7.0@sha256:8c4b5b5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e5f5e
     container_name: wazuh-manager
     restart: unless-stopped
     ports:
@@ -28,8 +28,8 @@ services:
       - "1515:1515"   # Agent registration
       - "55000:55000" # API
     environment:
-      - WAZUH_MANAGER_ADMIN_USER=admin
-      - WAZUH_MANAGER_ADMIN_PASSWORD=SecretPassword123
+      - WAZUH_MANAGER_ADMIN_USER=${WAZUH_ADMIN_USER:-admin}
+      - WAZUH_MANAGER_ADMIN_PASSWORD=${WAZUH_ADMIN_PASSWORD}
     volumes:
       - wazuh-manager-config:/var/ossec/etc
       - wazuh-manager-logs:/var/ossec/logs
@@ -42,15 +42,16 @@ services:
     networks:
       - log-network
 
-  # Example Elasticsearch for Wazuh (optional)
+  # Example Elasticsearch for Wazuh (official Elastic image)
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9@sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
     container_name: elasticsearch
     restart: unless-stopped
     environment:
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     ports:

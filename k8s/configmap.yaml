@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-generator-config
+  namespace: log-generator
+  labels:
+    app.kubernetes.io/name: log-generator
+    app.kubernetes.io/component: config
+data:
+  config.yaml: |
+    generators:
+      endpoint:
+        enabled: true
+        frequency: 60000  # 1,000 logs/second - production safe
+        templates:
+          - level: INFO
+            messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms"
+            probability: 0.8
+            metadata:
+              component: api-gateway
+          - level: WARN
+            messageTemplate: "Slow response: {method} {path} took {responseTime}ms"
+            probability: 0.15
+            metadata:
+              component: api-gateway
+          - level: ERROR
+            messageTemplate: "HTTP error {status}: {method} {path}"
+            probability: 0.05
+            metadata:
+              component: api-gateway
+
+      application:
+        enabled: true
+        frequency: 36000  # 600 logs/second
+        templates:
+          - level: INFO
+            messageTemplate: "User {userId} action {action} on {resource}"
+            probability: 0.9
+            metadata:
+              component: business-logic
+          - level: ERROR
+            messageTemplate: "Business logic error in {action}"
+            probability: 0.1
+            metadata:
+              component: business-logic
+
+      # Disable other generators for production stability
+      server:
+        enabled: false
+      firewall:
+        enabled: false
+      cloud:
+        enabled: false
+      authentication:
+        enabled: false
+      database:
+        enabled: false
+      webserver:
+        enabled: false
+      email:
+        enabled: false
+      backup:
+        enabled: false
+      microservices:
+        enabled: false
+      iot:
+        enabled: false
+
+    replay:
+      enabled: false
+
+    # Production output configuration
+    output:
+      format: json
+      destination: http  # Send to SIEM via HTTP
+      batching:
+        maxBatchSize: 500
+        flushIntervalMs: 200
+        enabled: true
+      http:
+        url: "${SIEM_HTTP_URL}"
+        headers:
+          "Content-Type": "application/json"
+          "Authorization": "Bearer ${SIEM_API_TOKEN}"
+          "X-Source": "log-generator-k8s"
+
+    storage:
+      historicalPath: /app/logs/historical
+      currentPath: /app/logs/current
+      retention: 30  # Keep logs for 30 days

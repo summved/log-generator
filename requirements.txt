@@ -1,0 +1,50 @@
+# Python ML Dependencies for Advanced Log Generator Features
+# Install with: pip install -r requirements.txt
+# All packages are pinned to specific secure versions from PyPI official repository
+
+# Core ML Libraries (Python 3.13 Compatible)
+scikit-learn==1.5.2    # Latest stable, no known vulnerabilities
+pandas==2.2.3          # Latest stable, security patches included  
+numpy==2.1.3           # Latest stable, memory safety improvements
+
+# Time Series Forecasting
+# prophet==1.1.6       # Temporarily disabled - Python 3.13 compatibility pending
+statsmodels==0.14.4    # Statistical modeling library
+
+# Anomaly Detection  
+pyod==2.0.2            # Python Outlier Detection toolkit
+# isolation-forest==0.1.2 # Not available for Python 3.13 - using sklearn.ensemble.IsolationForest instead
+
+# Natural Language Processing (Conservative versions for stability)
+transformers==4.46.3   # Hugging Face transformers - latest stable
+torch==2.5.1           # PyTorch - latest stable with security fixes
+sentence-transformers==3.3.1  # Sentence embeddings
+spacy==3.8.2           # Industrial-strength NLP
+
+# Threat Intelligence
+requests==2.32.3       # HTTP library with security patches
+python-whois==0.9.4    # WHOIS lookup functionality
+ipwhois==1.2.0         # IP address WHOIS and ASN lookup
+
+# Utilities
+joblib==1.4.2          # Lightweight pipelining
+tqdm==4.67.1           # Progress bars
+python-dateutil==2.9.0.post0  # Date utilities
+pyyaml==6.0.2          # YAML parser with security fixes
+
+# Security and Validation
+cryptography==44.0.0   # Cryptographic recipes and primitives
+certifi==2024.12.14    # Certificate validation
+urllib3==2.2.3         # HTTP client with security patches
+
+# Development and Testing
+pytest==8.3.4          # Testing framework
+pytest-cov==6.0.0      # Coverage plugin
+black==24.10.0         # Code formatter
+flake8==7.1.1          # Linting tool
+safety==3.2.11         # Security vulnerability scanner
+
+# Optional GPU Support (commented out by default for security)
+# torch-audio==2.5.1
+# torch-vision==0.20.1
+

@@ -11,9 +11,8 @@
 
 export class TimestampSequencer {
   private static instance: TimestampSequencer;
+  private counter: number = 0;
   private lastTimestamp: number = 0;
-  private sequence: number = 0;
-  private readonly maxSequence: number = 999; // Max microsecond-like precision
 
   private constructor() {}
 
@@ -25,50 +24,46 @@ export class TimestampSequencer {
   }
 
   /**
-   * Generates a unique, monotonic timestamp in ISO format
-   * Handles race conditions by incrementing sequence for simultaneous calls
+   * Generates a unique timestamp - GUARANTEED uniqueness
+   * Uses monotonic incrementing timestamp to ensure no duplicates
    */
   public getUniqueTimestamp(): string {
     const now = Date.now();
     
+    // Ensure monotonic timestamps - always increment
     if (now <= this.lastTimestamp) {
-      // Same or earlier millisecond - increment sequence to ensure uniqueness
-      this.sequence++;
-      this.lastTimestamp = Math.max(now, this.lastTimestamp);
-      
-      // If we exceed max sequence, advance to next millisecond
-      if (this.sequence > this.maxSequence) {
-        this.lastTimestamp = this.lastTimestamp + 1;
-        this.sequence = 0;
-      }
+      this.lastTimestamp = this.lastTimestamp + 1;
     } else {
-      // New millisecond - reset sequence
       this.lastTimestamp = now;
-      this.sequence = 0;
     }
-
-    // Create unique timestamp by adding sequence as microseconds
-    // This ensures each call gets a unique timestamp even within the same millisecond
-    const uniqueTimestamp = this.lastTimestamp + this.sequence;
     
-    return new Date(uniqueTimestamp).toISOString();
+    this.counter++;
+    
+    // Create unique timestamp with microsecond precision
+    const baseIsoString = new Date(this.lastTimestamp).toISOString();
+    const microseconds = String(this.counter % 1000).padStart(3, '0');
+    
+    // Insert microseconds: 2025-09-19T08:20:00.123Z -> 2025-09-19T08:20:00.123456Z
+    const result = baseIsoString.slice(0, -1) + microseconds + 'Z';
+    
+    return result;
   }
 
   /**
    * Reset the sequencer (mainly for testing purposes)
    */
   public reset(): void {
+    this.counter = 0;
     this.lastTimestamp = 0;
-    this.sequence = 0;
   }
 
   /**
-   * Get current sequence info (for debugging)
+   * Get current counter info (for debugging)
    */
-  public getSequenceInfo(): { lastTimestamp: number; sequence: number } {
+  public getCounterInfo(): { counter: number; lastTimestamp: number } {
     return {
-      lastTimestamp: this.lastTimestamp,
-      sequence: this.sequence
+      counter: this.counter,
+      lastTimestamp: this.lastTimestamp
     };
   }
 }

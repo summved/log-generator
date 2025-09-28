@@ -1,0 +1,771 @@
+/**
+ * Local AI Orchestrator
+ * Manages local AI models and knowledge bases for attack chain enhancement
+ * NO external APIs, NO tokens required - everything runs locally
+ */
+
+import { EventEmitter } from 'events';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import * as path from 'path';
+import { logger } from '../utils/logger';
+import { AttackChain, AttackChainStep } from '../types/attackChain';
+import { 
+  AIEnhancementConfig, 
+  EnhancedAttackChain, 
+  AttackChainVariation,
+  MitreKnowledgeBase,
+  TechniqueSubstitution,
+  EvasionTactic,
+  AIModelInfo,
+  MitreTechnique,
+  AILevel
+} from '../types/aiAttackChain';
+
+export interface LocalAIOrchestratorEvents {
+  'model.loading': (modelName: string) => void;
+  'model.loaded': (modelName: string, info: AIModelInfo) => void;
+  'model.error': (modelName: string, error: Error) => void;
+  'enhancement.started': (chainId: string, config: AIEnhancementConfig) => void;
+  'enhancement.completed': (chainId: string, result: EnhancedAttackChain) => void;
+  'knowledge.updated': (source: string, count: number) => void;
+}
+
+export declare interface LocalAIOrchestrator {
+  on<U extends keyof LocalAIOrchestratorEvents>(event: U, listener: LocalAIOrchestratorEvents[U]): this;
+  emit<U extends keyof LocalAIOrchestratorEvents>(event: U, ...args: Parameters<LocalAIOrchestratorEvents[U]>): boolean;
+}
+
+export class LocalAIOrchestrator extends EventEmitter {
+  private modelsDirectory: string;
+  private knowledgeDirectory: string;
+  private knowledgeBase: MitreKnowledgeBase;
+  private loadedModels: Map<string, any> = new Map();
+  private enhancementCache: Map<string, EnhancedAttackChain> = new Map();
+
+  constructor(modelsDirectory?: string, knowledgeDirectory?: string) {
+    super();
+    
+    this.modelsDirectory = modelsDirectory || path.join(process.cwd(), 'models', 'local-ai');
+    this.knowledgeDirectory = knowledgeDirectory || path.join(process.cwd(), 'knowledge', 'mitre');
+    
+    this.ensureDirectories();
+    this.initializeKnowledgeBase();
+    
+    logger.info('Local AI Orchestrator initialized', {
+      modelsDirectory: this.modelsDirectory,
+      knowledgeDirectory: this.knowledgeDirectory
+    });
+  }
+
+  /**
+   * Enhance an attack chain with AI-driven improvements
+   */
+  async enhanceAttackChain(
+    originalChain: AttackChain, 
+    config: AIEnhancementConfig
+  ): Promise<EnhancedAttackChain> {
+    const cacheKey = `${originalChain.name}_${config.mode}_${config.aiLevel}`;
+    
+    // Check cache first
+    if (this.enhancementCache.has(cacheKey)) {
+      logger.debug(`Using cached enhancement for ${originalChain.name}`);
+      return this.enhancementCache.get(cacheKey)!;
+    }
+
+    this.emit('enhancement.started', originalChain.name, config);
+    const startTime = Date.now();
+
+    try {
+      let enhancedChain: EnhancedAttackChain;
+
+      switch (config.mode) {
+        case 'static':
+          enhancedChain = this.createStaticEnhancement(originalChain);
+          break;
+        case 'enhanced':
+          enhancedChain = await this.createEnhancedChain(originalChain, config);
+          break;
+        case 'dynamic':
+          enhancedChain = await this.createDynamicChain(originalChain, config);
+          break;
+        default:
+          throw new Error(`Unknown enhancement mode: ${config.mode}`);
+      }
+
+      // Generate variations if requested
+      if (config.variations.count > 1) {
+        enhancedChain.variations = await this.generateVariations(
+          originalChain, 
+          config.variations.count - 1,
+          config.variations.difficulty
+        );
+      }
+
+      // Cache the result
+      this.enhancementCache.set(cacheKey, enhancedChain);
+
+      const enhancementTime = Date.now() - startTime;
+      logger.info(`Attack chain enhanced successfully`, {
+        originalChain: originalChain.name,
+        mode: config.mode,
+        aiLevel: config.aiLevel,
+        enhancementTime: `${enhancementTime}ms`,
+        variations: enhancedChain.variations.length
+      });
+
+      this.emit('enhancement.completed', originalChain.name, enhancedChain);
+      return enhancedChain;
+
+    } catch (error) {
+      logger.error(`Failed to enhance attack chain: ${originalChain.name}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create static enhancement (no AI, just rule-based improvements)
+   */
+  private createStaticEnhancement(originalChain: AttackChain): EnhancedAttackChain {
+    return {
+      ...originalChain,
+      originalChain,
+      enhancementLevel: 'basic',
+      enhancementType: 'timing',
+      aiGenerated: false,
+      variations: [],
+      metadata: {
+        baseTemplate: originalChain.name,
+        enhancementDate: new Date(),
+        confidenceScore: 1.0,
+        realismScore: 0.8
+      }
+    };
+  }
+
+  /**
+   * Create enhanced chain with rule-based AI improvements
+   */
+  private async createEnhancedChain(
+    originalChain: AttackChain, 
+    config: AIEnhancementConfig
+  ): Promise<EnhancedAttackChain> {
+    const enhancedSteps = await Promise.all(
+      originalChain.steps.map(async (step, index) => {
+        let enhancedStep = { ...step };
+
+        // Apply enhancements based on config
+        if (config.enabledFeatures.timingRandomization) {
+          enhancedStep = this.randomizeTiming(enhancedStep, config.aiLevel);
+        }
+
+        if (config.enabledFeatures.techniqueSubstitution) {
+          enhancedStep = await this.substituteStep(enhancedStep, config.aiLevel);
+        }
+
+        if (config.enabledFeatures.evasionTactics) {
+          enhancedStep = await this.addEvasionTactics(enhancedStep, config.aiLevel);
+        }
+
+        if (config.enabledFeatures.logVariation) {
+          enhancedStep = this.enhanceLogGeneration(enhancedStep, config.aiLevel);
+        }
+
+        return enhancedStep;
+      })
+    );
+
+    return {
+      ...originalChain,
+      steps: enhancedSteps,
+      originalChain,
+      enhancementLevel: config.aiLevel,
+      enhancementType: 'technique',
+      aiGenerated: true,
+      variations: [],
+      metadata: {
+        baseTemplate: originalChain.name,
+        enhancementDate: new Date(),
+        aiModel: 'local-knowledge-base',
+        confidenceScore: this.calculateConfidenceScore(enhancedSteps),
+        realismScore: this.calculateRealismScore(enhancedSteps)
+      }
+    };
+  }
+
+  /**
+   * Create dynamic chain with advanced AI scenario generation
+   */
+  private async createDynamicChain(
+    originalChain: AttackChain, 
+    config: AIEnhancementConfig
+  ): Promise<EnhancedAttackChain> {
+    // For now, use enhanced mode with additional randomization
+    // TODO: Integrate local LLM for true dynamic generation
+    const enhancedChain = await this.createEnhancedChain(originalChain, config);
+    
+    // Add dynamic elements
+    enhancedChain.enhancementType = 'scenario';
+    enhancedChain.metadata.confidenceScore *= 0.9; // Slightly lower confidence for generated content
+    enhancedChain.metadata.realismScore *= 1.1; // Higher realism due to variation
+    
+    return enhancedChain;
+  }
+
+  /**
+   * Randomize timing with realistic variance
+   */
+  private randomizeTiming(step: AttackChainStep, aiLevel: AILevel): AttackChainStep {
+    const enhancedStep = { ...step };
+    const variance = this.getVarianceForLevel(aiLevel);
+    
+    // Randomize delay after previous step
+    if (enhancedStep.timing.delayAfterPrevious > 0) {
+      const baseDelay = enhancedStep.timing.delayAfterPrevious;
+      const randomFactor = 1 + (Math.random() - 0.5) * variance;
+      enhancedStep.timing.delayAfterPrevious = Math.max(
+        1000, // Minimum 1 second
+        Math.floor(baseDelay * randomFactor)
+      );
+    }
+
+    // Randomize step duration
+    if (enhancedStep.timing.duration > 0) {
+      const baseDuration = enhancedStep.timing.duration;
+      const randomFactor = 1 + (Math.random() - 0.5) * variance;
+      enhancedStep.timing.duration = Math.max(
+        5000, // Minimum 5 seconds
+        Math.floor(baseDuration * randomFactor)
+      );
+    }
+
+    // Add realistic variance to the variance itself
+    enhancedStep.timing.variance = Math.min(0.8, enhancedStep.timing.variance + variance * 0.1);
+
+    return enhancedStep;
+  }
+
+  /**
+   * Substitute attack techniques with equivalent alternatives
+   */
+  private async substituteStep(step: AttackChainStep, aiLevel: AILevel): Promise<AttackChainStep> {
+    const originalTechnique = step.mitre.technique;
+    const substitution = this.knowledgeBase.substitutions.get(originalTechnique);
+    
+    if (!substitution || substitution.substitutions.length === 0) {
+      return step; // No substitutions available
+    }
+
+    // Choose substitution based on AI level
+    const availableSubstitutions = substitution.substitutions.filter(sub => 
+      this.isAppropriateForLevel(sub.difficulty, aiLevel)
+    );
+
+    if (availableSubstitutions.length === 0) {
+      return step; // No appropriate substitutions
+    }
+
+    const chosenSubstitution = availableSubstitutions[
+      Math.floor(Math.random() * availableSubstitutions.length)
+    ];
+
+    const enhancedStep = { ...step };
+    enhancedStep.mitre = {
+      ...enhancedStep.mitre,
+      technique: chosenSubstitution.technique,
+      tactic: chosenSubstitution.tactic,
+      subtechnique: chosenSubstitution.subtechnique,
+      description: chosenSubstitution.description
+    };
+
+    // Update step name and description to reflect the change
+    enhancedStep.name = enhancedStep.name.replace(
+      /\b\w+/g, 
+      (word) => this.adaptStepName(word, chosenSubstitution.technique)
+    );
+
+    logger.debug(`Substituted technique in step ${step.id}`, {
+      original: originalTechnique,
+      substitute: chosenSubstitution.technique,
+      reason: chosenSubstitution.equivalentGoal
+    });
+
+    return enhancedStep;
+  }
+
+  /**
+   * Add evasion tactics to make detection harder
+   */
+  private async addEvasionTactics(step: AttackChainStep, aiLevel: AILevel): Promise<AttackChainStep> {
+    const technique = step.mitre.technique;
+    const applicableEvasions = Array.from(this.knowledgeBase.evasionTactics.values())
+      .filter(evasion => evasion.applicableTechniques.includes(technique));
+
+    if (applicableEvasions.length === 0) {
+      return step;
+    }
+
+    const chosenEvasion = applicableEvasions[
+      Math.floor(Math.random() * applicableEvasions.length)
+    ];
+
+    const enhancedStep = { ...step };
+    
+    // Modify log generation to include evasion indicators
+    if (enhancedStep.logGeneration) {
+      enhancedStep.logGeneration.customData = {
+        ...enhancedStep.logGeneration.customData,
+        evasion_tactic: chosenEvasion.name,
+        evasion_methods: this.selectEvasionMethods(chosenEvasion, aiLevel),
+        detection_difficulty: this.calculateDetectionDifficulty(chosenEvasion, aiLevel)
+      };
+
+      // Reduce log frequency for stealth
+      if (aiLevel === 'high' || aiLevel === 'advanced') {
+        enhancedStep.logGeneration.frequency = Math.max(
+          1, 
+          Math.floor(enhancedStep.logGeneration.frequency * 0.7)
+        );
+      }
+    }
+
+    logger.debug(`Added evasion tactics to step ${step.id}`, {
+      evasion: chosenEvasion.name,
+      methods: enhancedStep.logGeneration?.customData?.evasion_methods
+    });
+
+    return enhancedStep;
+  }
+
+  /**
+   * Enhance log generation with more realistic patterns
+   */
+  private enhanceLogGeneration(step: AttackChainStep, aiLevel: AILevel): AttackChainStep {
+    if (!step.logGeneration) {
+      return step;
+    }
+
+    const enhancedStep = { ...step };
+    const logGen = { ...enhancedStep.logGeneration };
+
+    // Add realistic noise and variation
+    const noiseLevel = this.getNoiseLevel(aiLevel);
+    
+    // Vary log frequency
+    const baseFrequency = logGen.frequency;
+    const frequencyVariation = Math.floor(baseFrequency * noiseLevel * (Math.random() - 0.5));
+    logGen.frequency = Math.max(1, baseFrequency + frequencyVariation);
+
+    // Add realistic metadata
+    logGen.customData = {
+      ...logGen.customData,
+      ai_enhanced: true,
+      enhancement_level: aiLevel,
+      realistic_noise: noiseLevel,
+      variation_seed: Math.random().toString(36).substring(2, 15)
+    };
+
+    // Add additional log templates for realism
+    if (aiLevel === 'high' || aiLevel === 'advanced') {
+      logGen.templates = [
+        ...logGen.templates,
+        ...this.getAdditionalTemplates(step.mitre.technique)
+      ];
+    }
+
+    enhancedStep.logGeneration = logGen;
+    return enhancedStep;
+  }
+
+  /**
+   * Generate multiple variations of the attack chain
+   */
+  private async generateVariations(
+    originalChain: AttackChain, 
+    count: number, 
+    difficulty: 'progressive' | 'random' | 'adaptive'
+  ): Promise<AttackChainVariation[]> {
+    const variations: AttackChainVariation[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const variationConfig = this.createVariationConfig(difficulty, i, count);
+      const enhancedChain = await this.createEnhancedChain(originalChain, variationConfig);
+      
+      const variation: AttackChainVariation = {
+        id: `${originalChain.name}_variation_${i + 1}`,
+        name: `${originalChain.name} - Variation ${i + 1}`,
+        description: this.generateVariationDescription(enhancedChain, difficulty),
+        difficulty: this.mapAILevelToDifficulty(variationConfig.aiLevel),
+        changes: this.calculateChanges(originalChain, enhancedChain),
+        estimatedDuration: this.calculateDuration(enhancedChain.steps),
+        detectionDifficulty: this.calculateDetectionDifficulty(enhancedChain.steps)
+      };
+
+      variations.push(variation);
+    }
+
+    return variations;
+  }
+
+  /**
+   * Initialize the MITRE ATT&CK knowledge base
+   */
+  private initializeKnowledgeBase(): void {
+    this.knowledgeBase = {
+      techniques: new Map(),
+      tactics: new Map(),
+      relationships: [],
+      substitutions: new Map(),
+      evasionTactics: new Map()
+    };
+
+    // Load built-in MITRE knowledge
+    this.loadBuiltinMitreKnowledge();
+    
+    // Load evasion tactics
+    this.loadEvasionTactics();
+    
+    // Build technique substitutions
+    this.buildTechniqueSubstitutions();
+
+    this.emit('knowledge.updated', 'mitre-knowledge-base', this.knowledgeBase.techniques.size);
+  }
+
+  /**
+   * Load built-in MITRE ATT&CK knowledge
+   */
+  private loadBuiltinMitreKnowledge(): void {
+    // Essential MITRE techniques with substitution relationships
+    const techniques: MitreTechnique[] = [
+      // Credential Access
+      {
+        id: 'T1003.001',
+        name: 'LSASS Memory',
+        description: 'Adversaries may attempt to access credential material stored in LSASS',
+        tactics: ['TA0006'],
+        platforms: ['Windows'],
+        dataComponents: ['Process: Process Access'],
+        defenses: ['Privileged Account Management', 'User Account Management'],
+        equivalents: ['T1003.002', 'T1003.003'],
+        alternatives: ['T1558', 'T1212'],
+        difficulty: 6,
+        detectability: 7
+      },
+      {
+        id: 'T1003.002',
+        name: 'Security Account Manager',
+        description: 'Adversaries may attempt to extract credential material from the SAM',
+        tactics: ['TA0006'],
+        platforms: ['Windows'],
+        dataComponents: ['File: File Access'],
+        defenses: ['Privileged Account Management'],
+        equivalents: ['T1003.001', 'T1003.003'],
+        alternatives: ['T1558', 'T1212'],
+        difficulty: 5,
+        detectability: 6
+      },
+      
+      // Command and Scripting Interpreter
+      {
+        id: 'T1059.001',
+        name: 'PowerShell',
+        description: 'Adversaries may abuse PowerShell commands and scripts',
+        tactics: ['TA0002'],
+        platforms: ['Windows'],
+        dataComponents: ['Command: Command Execution', 'Process: Process Creation'],
+        defenses: ['Execution Prevention'],
+        equivalents: ['T1059.003', 'T1059.006'],
+        alternatives: ['T1047', 'T1053'],
+        difficulty: 4,
+        detectability: 8
+      },
+      {
+        id: 'T1059.003',
+        name: 'Windows Command Shell',
+        description: 'Adversaries may abuse the Windows command shell',
+        tactics: ['TA0002'],
+        platforms: ['Windows'],
+        dataComponents: ['Command: Command Execution', 'Process: Process Creation'],
+        defenses: ['Execution Prevention'],
+        equivalents: ['T1059.001', 'T1059.006'],
+        alternatives: ['T1047', 'T1053'],
+        difficulty: 3,
+        detectability: 7
+      },
+
+      // Living off the Land alternatives
+      {
+        id: 'T1047',
+        name: 'Windows Management Instrumentation',
+        description: 'Adversaries may abuse WMI to execute malicious commands',
+        tactics: ['TA0002'],
+        platforms: ['Windows'],
+        dataComponents: ['Process: Process Creation', 'WMI: WMI Creation'],
+        defenses: ['Privileged Account Management'],
+        equivalents: ['T1053', 'T1569'],
+        alternatives: ['T1059.001', 'T1059.003'],
+        difficulty: 7,
+        detectability: 5
+      }
+    ];
+
+    techniques.forEach(technique => {
+      this.knowledgeBase.techniques.set(technique.id, technique);
+    });
+  }
+
+  /**
+   * Load evasion tactics knowledge base
+   */
+  private loadEvasionTactics(): void {
+    const evasionTactics: EvasionTactic[] = [
+      {
+        id: 'evasion_001',
+        name: 'Living off the Land',
+        description: 'Use legitimate system tools to avoid detection',
+        applicableTechniques: ['T1059.001', 'T1059.003', 'T1003.001'],
+        evasionMethods: {
+          timing: ['Execute during business hours', 'Blend with normal activity'],
+          obfuscation: ['Use system binaries', 'Avoid suspicious filenames'],
+          livingOffTheLand: ['PowerShell alternatives', 'WMI instead of CMD'],
+          antiForensics: ['Clear event logs selectively', 'Use memory-only execution']
+        },
+        detectionBypass: ['Behavioral analysis', 'Signature-based detection']
+      },
+      {
+        id: 'evasion_002',
+        name: 'Timing Evasion',
+        description: 'Execute attacks during low-monitoring periods',
+        applicableTechniques: ['T1003.001', 'T1021.001', 'T1486'],
+        evasionMethods: {
+          timing: ['Night/weekend execution', 'Holiday periods', 'Maintenance windows'],
+          obfuscation: ['Slow and low approach', 'Distributed timing'],
+          livingOffTheLand: ['Scheduled tasks', 'Cron jobs'],
+          antiForensics: ['Time stomping', 'Clock manipulation']
+        },
+        detectionBypass: ['Real-time monitoring', 'Anomaly detection']
+      }
+    ];
+
+    evasionTactics.forEach(evasion => {
+      this.knowledgeBase.evasionTactics.set(evasion.id, evasion);
+    });
+  }
+
+  /**
+   * Build technique substitution mappings
+   */
+  private buildTechniqueSubstitutions(): void {
+    // Build substitutions based on technique equivalents
+    this.knowledgeBase.techniques.forEach((technique, techniqueId) => {
+      const substitutions = technique.equivalents
+        .map(equivId => this.knowledgeBase.techniques.get(equivId))
+        .filter(equiv => equiv !== undefined)
+        .map(equiv => ({
+          technique: equiv!.id,
+          tactic: equiv!.tactics[0], // Use primary tactic
+          subtechnique: equiv!.name,
+          description: equiv!.description,
+          difficulty: equiv!.difficulty,
+          detectability: equiv!.detectability,
+          equivalentGoal: 'Same objective, different method'
+        }));
+
+      if (substitutions.length > 0) {
+        this.knowledgeBase.substitutions.set(techniqueId, {
+          originalTechnique: techniqueId,
+          substitutions
+        });
+      }
+    });
+  }
+
+  // Helper methods
+  private ensureDirectories(): void {
+    [this.modelsDirectory, this.knowledgeDirectory].forEach(dir => {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+    });
+  }
+
+  private getVarianceForLevel(level: AILevel): number {
+    const variances = {
+      basic: 0.1,
+      medium: 0.2,
+      high: 0.4,
+      advanced: 0.6
+    };
+    return variances[level] || 0.1;
+  }
+
+  private getNoiseLevel(level: AILevel): number {
+    const noiseLevels = {
+      basic: 0.05,
+      medium: 0.1,
+      high: 0.2,
+      advanced: 0.3
+    };
+    return noiseLevels[level] || 0.05;
+  }
+
+  private isAppropriateForLevel(difficulty: number, level: AILevel): boolean {
+    const levelThresholds = {
+      basic: [1, 4],
+      medium: [3, 7],
+      high: [5, 9],
+      advanced: [7, 10]
+    };
+    
+    const [min, max] = levelThresholds[level] || [1, 10];
+    return difficulty >= min && difficulty <= max;
+  }
+
+  private adaptStepName(word: string, newTechnique: string): string {
+    // Simple word mapping for technique substitution
+    const mappings: Record<string, Record<string, string>> = {
+      'T1003.002': {
+        'Mimikatz': 'Registry',
+        'Memory': 'SAM',
+        'LSASS': 'Registry'
+      },
+      'T1047': {
+        'PowerShell': 'WMI',
+        'CMD': 'WMI',
+        'Command': 'WMI'
+      }
+    };
+
+    return mappings[newTechnique]?.[word] || word;
+  }
+
+  private selectEvasionMethods(evasion: EvasionTactic, level: AILevel): string[] {
+    const allMethods = [
+      ...evasion.evasionMethods.timing,
+      ...evasion.evasionMethods.obfuscation,
+      ...evasion.evasionMethods.livingOffTheLand,
+      ...evasion.evasionMethods.antiForensics
+    ];
+
+    const methodCount = level === 'basic' ? 1 : level === 'medium' ? 2 : level === 'high' ? 3 : 4;
+    return allMethods.slice(0, methodCount);
+  }
+
+  private calculateDetectionDifficulty(evasionOrSteps: EvasionTactic | AttackChainStep[], level?: AILevel): number {
+    if (Array.isArray(evasionOrSteps)) {
+      // Calculate for array of steps
+      const avgDifficulty = evasionOrSteps.reduce((sum, step) => {
+        const technique = this.knowledgeBase.techniques.get(step.mitre.technique);
+        return sum + (technique?.detectability || 5);
+      }, 0) / evasionOrSteps.length;
+      
+      return Math.min(1, avgDifficulty / 10);
+    } else {
+      // Calculate for single evasion tactic
+      return Math.min(1, evasionOrSteps.detectionBypass.length * 0.2);
+    }
+  }
+
+  private getAdditionalTemplates(technique: string): string[] {
+    const additionalTemplates: Record<string, string[]> = {
+      'T1003.001': ['memory_access', 'process_injection', 'credential_theft'],
+      'T1059.001': ['powershell_execution', 'script_block_logging', 'command_line_audit'],
+      'T1021.001': ['rdp_connection', 'remote_desktop', 'terminal_services']
+    };
+
+    return additionalTemplates[technique] || [];
+  }
+
+  private createVariationConfig(difficulty: string, index: number, total: number): AIEnhancementConfig {
+    let aiLevel: AILevel;
+    
+    switch (difficulty) {
+      case 'progressive':
+        aiLevel = index < total * 0.3 ? 'basic' : 
+                 index < total * 0.6 ? 'medium' : 
+                 index < total * 0.8 ? 'high' : 'advanced';
+        break;
+      case 'adaptive':
+        aiLevel = ['basic', 'medium', 'high'][index % 3] as AILevel;
+        break;
+      default: // random
+        aiLevel = ['basic', 'medium', 'high', 'advanced'][Math.floor(Math.random() * 4)] as AILevel;
+    }
+
+    return {
+      mode: 'enhanced',
+      aiLevel,
+      enabledFeatures: {
+        timingRandomization: true,
+        techniqueSubstitution: aiLevel !== 'basic',
+        evasionTactics: aiLevel === 'high' || aiLevel === 'advanced',
+        adaptiveDelays: true,
+        logVariation: true,
+        scenarioGeneration: false
+      },
+      localModels: { enabled: false },
+      variations: { count: 1, difficulty: 'random' }
+    };
+  }
+
+  private generateVariationDescription(chain: EnhancedAttackChain, difficulty: string): string {
+    const features = [];
+    if (chain.enhancementLevel === 'high' || chain.enhancementLevel === 'advanced') {
+      features.push('advanced evasion tactics');
+    }
+    if (chain.metadata.aiModel) {
+      features.push('AI-enhanced techniques');
+    }
+    features.push(`${difficulty} difficulty progression`);
+
+    return `Enhanced attack chain with ${features.join(', ')}`;
+  }
+
+  private mapAILevelToDifficulty(aiLevel: AILevel): 'beginner' | 'intermediate' | 'advanced' | 'expert' {
+    const mapping = {
+      basic: 'beginner' as const,
+      medium: 'intermediate' as const,
+      high: 'advanced' as const,
+      advanced: 'expert' as const
+    };
+    return mapping[aiLevel];
+  }
+
+  private calculateChanges(original: AttackChain, enhanced: EnhancedAttackChain): any[] {
+    // Simplified change calculation - in a full implementation, this would do deep comparison
+    return [{
+      stepId: 'all',
+      changeType: 'enhancement',
+      originalValue: 'static',
+      newValue: enhanced.enhancementLevel,
+      reason: 'AI enhancement applied'
+    }];
+  }
+
+  private calculateDuration(steps: AttackChainStep[]): number {
+    return steps.reduce((total, step) => total + step.timing.duration + step.timing.delayAfterPrevious, 0);
+  }
+
+  private calculateConfidenceScore(steps: AttackChainStep[]): number {
+    // Higher confidence for steps with known techniques
+    const knownTechniques = steps.filter(step => 
+      this.knowledgeBase.techniques.has(step.mitre.technique)
+    ).length;
+    
+    return Math.min(1, knownTechniques / steps.length);
+  }
+
+  private calculateRealismScore(steps: AttackChainStep[]): number {
+    // Higher realism for varied timing and techniques
+    const hasVariation = steps.some(step => step.timing.variance > 0.1);
+    const hasEvasion = steps.some(step => 
+      step.logGeneration?.customData?.evasion_tactic
+    );
+    
+    let score = 0.7; // Base realism
+    if (hasVariation) score += 0.15;
+    if (hasEvasion) score += 0.15;
+    
+    return Math.min(1, score);
+  }
+}
+

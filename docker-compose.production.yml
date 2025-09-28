@@ -1,0 +1,106 @@
+# Production Docker Compose with Monitoring Stack
+
+services:
+  log-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    image: log-generator:production
+    container_name: log-generator-prod
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - CONFIG_PATH=/app/src/config/default.yaml
+      - LOG_LEVEL=info
+      - SIEM_HTTP_URL=${SIEM_HTTP_URL}
+      - SIEM_API_TOKEN=${SIEM_API_TOKEN}
+    volumes:
+      - ./logs:/app/logs
+      - log-generator-models:/app/models
+    ports:
+      - "3000:3000"  # HTTP API
+      - "8080:8080"  # Metrics
+    networks:
+      - log-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # Prometheus for monitoring (official Prometheus image)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - log-network
+
+  # Grafana for visualization (official Grafana image)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - log-network
+    depends_on:
+      - prometheus
+
+  # Example SIEM endpoint for testing (official httpbin image)
+  mock-siem:
+    image: kennethreitz/httpbin:latest
+    container_name: mock-siem
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    networks:
+      - log-network
+
+networks:
+  log-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  log-generator-models:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

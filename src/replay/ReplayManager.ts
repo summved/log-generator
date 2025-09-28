@@ -194,9 +194,21 @@ export class ReplayManager {
       return;
     }
 
+    // Get batch size (default to 1 for backward compatibility)
+    const batchSize = this.config.batchSize || 1;
+    
+    if (batchSize === 1) {
+      // Original single-log processing for compatibility
+      await this.processSingleLog(onLogReplayed);
+    } else {
+      // Batch processing for performance with timing
+      await this.processBatchLogs(onLogReplayed, batchSize);
+    }
+  }
+
+  private async processSingleLog(onLogReplayed: (log: LogEntry) => Promise<void>): Promise<void> {
     const currentLog = this.replayLogs[this.currentReplayIndex];
     const nextLog = this.replayLogs[this.currentReplayIndex + 1];
-
 
     // Update timestamp to current replay time
     const elapsedOriginalTime = moment(currentLog.timestamp).diff(this.originalStartTime!);
@@ -230,6 +242,13 @@ export class ReplayManager {
           delay = Math.max(10, 1000 / this.config.speed); // Minimum 10ms or based on speed
           logger.warn(`Duplicate timestamp detected in replay data: ${currentLog.timestamp} -> ${nextLog.timestamp}, using ${delay}ms delay`);
         }
+        
+        // Cap maximum delay to prevent appearing frozen (max 5 seconds)
+        const maxDelay = 5000;
+        if (delay > maxDelay) {
+          logger.info(`Large delay detected (${Math.round(delay/1000)}s), capping to ${maxDelay/1000}s for better UX`);
+          delay = maxDelay;
+        }
       }
       
       // Schedule next replay iteration
@@ -241,6 +260,85 @@ export class ReplayManager {
       this.stopReplay();
     }
   }
+
+  private async processBatchLogs(onLogReplayed: (log: LogEntry) => Promise<void>, batchSize: number): Promise<void> {
+    try {
+      const remainingLogs = this.replayLogs.length - this.currentReplayIndex;
+      const actualBatchSize = Math.min(batchSize, remainingLogs);
+      const batch = this.replayLogs.slice(this.currentReplayIndex, this.currentReplayIndex + actualBatchSize);
+      
+      // Process entire batch instantly
+      const batchPromises = batch.map(async (currentLog, batchIndex) => {
+        const globalIndex = this.currentReplayIndex + batchIndex;
+        
+        // Update timestamp to current replay time
+        const elapsedOriginalTime = moment(currentLog.timestamp).diff(this.originalStartTime!);
+        const elapsedReplayTime = elapsedOriginalTime / this.config.speed;
+        const replayTimestamp = this.replayStartTime!.clone().add(elapsedReplayTime, 'milliseconds');
+        
+        const replayLog: LogEntry = {
+          ...currentLog,
+          timestamp: replayTimestamp.toISOString(),
+          metadata: {
+            ...currentLog.metadata,
+            replay: true,
+            originalTimestamp: currentLog.timestamp,
+            replaySpeed: this.config.speed,
+            batchIndex: batchIndex,
+            batchSize: actualBatchSize
+          }
+        };
+
+        return onLogReplayed(replayLog);
+      });
+
+      // Wait for all logs in the batch to be processed
+      await Promise.all(batchPromises);
+      
+      // Update index after processing the entire batch
+      this.currentReplayIndex += actualBatchSize;
+
+      // Calculate delay for the entire batch based on time difference between first and last log
+      let batchDelay = 0;
+      if (actualBatchSize > 1) {
+        const firstLog = batch[0];
+        const lastLog = batch[actualBatchSize - 1];
+        const originalBatchDuration = moment(lastLog.timestamp).diff(moment(firstLog.timestamp));
+        batchDelay = originalBatchDuration / this.config.speed;
+      }
+
+      // If there's a next batch, calculate delay to the first log of next batch
+      const nextLog = this.replayLogs[this.currentReplayIndex];
+      if (nextLog) {
+        const lastBatchLog = batch[actualBatchSize - 1];
+        const originalDelay = moment(nextLog.timestamp).diff(moment(lastBatchLog.timestamp));
+        const additionalDelay = originalDelay / this.config.speed;
+        batchDelay += additionalDelay;
+      }
+
+      // Cap maximum batch delay to prevent appearing frozen (max 5 seconds)
+      const maxBatchDelay = 5000;
+      if (batchDelay > maxBatchDelay) {
+        logger.info(`Large batch delay detected (${Math.round(batchDelay/1000)}s), capping to ${maxBatchDelay/1000}s for better UX`);
+        batchDelay = maxBatchDelay;
+      }
+
+      // Ensure minimum delay and handle edge cases
+      batchDelay = Math.max(batchDelay, 1); // Minimum 1ms delay
+      
+      logger.debug(`Processed batch of ${actualBatchSize} logs, next delay: ${batchDelay}ms`);
+      
+      // Schedule next batch
+      this.replayTimeoutId = setTimeout(() => {
+        this.scheduleNextReplay(onLogReplayed);
+      }, batchDelay);
+      
+    } catch (error) {
+      logger.error('Error during batch log replay:', error);
+      this.stopReplay();
+    }
+  }
+
 
   public getReplayStatus(): {
     isReplaying: boolean;

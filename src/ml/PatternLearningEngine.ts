@@ -18,6 +18,7 @@ import {
   PatternAnalysisResult,
   MLPatternEngineState
 } from '../types/mlPatterns';
+import { PythonMLBridge } from './PythonMLBridge';
 
 /**
  * Events emitted by the Pattern Learning Engine
@@ -48,6 +49,7 @@ export class PatternLearningEngine extends EventEmitter {
   private applicationUsagePatterns: Map<string, ApplicationUsagePattern> = new Map();
   private models: Map<string, MLPatternModel> = new Map();
   private modelsDirectory: string;
+  private pythonBridge: PythonMLBridge;
 
   constructor(config?: Partial<MLLogGenerationConfig>, modelsDirectory?: string) {
     super();
@@ -86,6 +88,9 @@ export class PatternLearningEngine extends EventEmitter {
 
     this.modelsDirectory = modelsDirectory || path.join(process.cwd(), 'models', 'ml-patterns');
     this.ensureModelsDirectory();
+    
+    // Initialize Python ML Bridge for advanced ML capabilities
+    this.pythonBridge = new PythonMLBridge();
 
     this.state = {
       engineId: `ml-engine-${Date.now()}`,
@@ -280,23 +285,45 @@ export class PatternLearningEngine extends EventEmitter {
   }
 
   /**
-   * Load logs from a file
+   * Load logs from a file using streaming to handle large files
    */
   private async loadLogsFromFile(filePath: string): Promise<LogEntry[]> {
     const logs: LogEntry[] = [];
-    const fileContent = readFileSync(filePath, 'utf8');
+    const fs = require('fs');
+    const readline = require('readline');
     
-    const lines = fileContent.split('\n').filter(line => line.trim());
+    const fileStream = fs.createReadStream(filePath);
+    const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity // Handle Windows line endings
+    });
+
+    let lineCount = 0;
+    const maxLines = 50000; // Limit to prevent memory issues
     
-    for (const line of lines) {
-      try {
-        const logEntry = JSON.parse(line) as LogEntry;
-        logs.push(logEntry);
-      } catch (error) {
-        logger.debug(`Failed to parse log line: ${line.substring(0, 100)}...`);
+    for await (const line of rl) {
+      if (lineCount >= maxLines) {
+        logger.warn(`Limiting ML learning to first ${maxLines} lines to prevent memory issues`);
+        break;
+      }
+      
+      if (line.trim()) {
+        try {
+          const logEntry = JSON.parse(line) as LogEntry;
+          logs.push(logEntry);
+          lineCount++;
+          
+          // Progress reporting for large files
+          if (lineCount % 10000 === 0) {
+            logger.info(`Processed ${lineCount} log entries...`);
+          }
+        } catch (error) {
+          logger.debug(`Failed to parse log line: ${line.substring(0, 100)}...`);
+        }
       }
     }
     
+    logger.info(`Loaded ${logs.length} log entries from ${filePath}`);
     return logs;
   }
 

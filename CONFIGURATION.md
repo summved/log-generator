@@ -359,12 +359,51 @@ npx ts-node src/cli.ts status
 ### Validate Configuration
 
 ```bash
-# Verify your config is valid
-npx ts-node src/cli.ts config --config my-config.yaml --validate
+# Validate configuration with advisory warnings
+npm run validate-config
 
 # View current configuration
 npx ts-node src/cli.ts config --show
+
+# Generate with configuration validation (automatic)
+npm run generate  # Shows warnings but doesn't block execution
 ```
+
+### 🔍 Advisory Configuration Validation
+
+The log generator now uses **advisory validation** instead of restrictive limits:
+
+#### **✅ What Changed**
+- **No more hard limits** - You can set any frequency you want
+- **Intelligent warnings** - Get recommendations based on your hardware
+- **Performance estimates** - See disk I/O and resource requirements
+- **Conscious decisions** - Make informed choices about extreme configurations
+
+#### **Example Validation Output**
+```bash
+$ npm run validate-config
+
+🔍 Validating Configuration...
+
+✅ Configuration is valid!
+
+⚠️ Warnings:
+   ⚠️ Generator 'endpoint' frequency 120,000 is above recommended safe limit (60,000)
+   ⚠️ Estimated disk I/O: 2500.0 MB/s - ensure adequate disk performance
+   
+💡 Recommendations:
+   • Consider using network output (HTTP/Syslog) for high-volume scenarios
+   • Enable worker threads for frequencies above 10,000 logs/minute
+   • Ensure SSD storage for disk-based output above 1,000 logs/minute
+   • Monitor system resources during high-volume generation
+```
+
+#### **Performance Thresholds (Advisory)**
+| **Frequency Range** | **Classification** | **Recommendations** |
+|---|---|---|
+| 0 - 60,000 logs/min | ✅ **Safe** | Standard hardware sufficient |
+| 60,001 - 300,000 logs/min | ⚠️ **High Performance** | SSD storage, monitor resources |
+| 300,001+ logs/min | 🔥 **Extreme** | Worker threads, network output, high-end hardware |
 
 ### 🔍 Analyze Historical Data
 

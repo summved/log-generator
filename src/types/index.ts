@@ -6,6 +6,7 @@ export interface LogEntry {
   metadata: Record<string, any>;
   raw?: string;
   mitre?: MitreAttackInfo;
+  d3fend?: D3FENDInfo;
 }
 
 export interface MitreAttackInfo {
@@ -14,6 +15,15 @@ export interface MitreAttackInfo {
   subtechnique?: string;   // e.g., "Default Accounts"
   group?: string;          // e.g., "APT29"
   description?: string;    // Brief description of the technique
+}
+
+export interface D3FENDInfo {
+  technique: string;        // e.g., "D3-NTA"
+  category: 'Detect' | 'Deny' | 'Disrupt' | 'Degrade' | 'Deceive' | 'Contain';
+  subcategory: string;      // e.g., "Network Traffic Analysis"
+  description: string;      // Brief description of the defensive technique
+  effectiveness?: 'High' | 'Medium' | 'Low';
+  automated?: boolean;      // Whether the defense is automated
 }
 
 export interface LogSource {
@@ -37,6 +47,7 @@ export interface LogTemplate {
   probability: number; // 0-1, probability of this template being used
   metadata?: Record<string, any>;
   mitre?: MitreAttackInfo;
+  d3fend?: D3FENDInfo;
 }
 
 export interface ReplayConfig {
@@ -45,6 +56,7 @@ export interface ReplayConfig {
   loop: boolean;
   startTime?: string;
   endTime?: string;
+  batchSize?: number; // number of logs to process per batch (default: 1 for compatibility, 100+ for performance)
   filters?: {
     sources?: string[];
     levels?: LogEntry['level'][];
@@ -101,3 +113,8 @@ export interface HistoricalLogFile {
   count: number;
   size: number;
 }
+
+// Export AI Attack Chain types
+// export * from './aiAttackChain'; // Temporarily disabled
+export * from './attackChain';
+// export * from './mlPatterns'; // Temporarily disabled

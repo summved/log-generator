@@ -1,0 +1,84 @@
+# Multi-stage Docker build for production
+# Use official Node.js image from Docker Hub (authentic source)
+FROM node:20-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install all dependencies (including dev dependencies for building)
+RUN npm ci
+
+# Copy source code
+COPY src/ ./src/
+
+# Build the application
+RUN npm run build
+
+# Production stage
+# Use official Node.js image from Docker Hub (authentic source)
+FROM node:20-alpine AS production
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Create app directory
+WORKDIR /app
+
+# Create non-root user first
+RUN addgroup -g 1001 -S loggen && \
+    adduser -S loggen -u 1001 -G loggen
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy necessary runtime files
+COPY --chown=loggen:loggen src/config/ ./src/config/
+COPY --chown=loggen:loggen src/chains/ ./src/chains/
+COPY --chown=loggen:loggen examples/ ./examples/
+
+# Create logs directory with proper permissions
+RUN mkdir -p logs/current logs/historical models/ml-patterns && \
+    chown -R loggen:loggen logs models
+
+# Switch to non-root user
+USER loggen
+
+# Expose port for HTTP output and health checks
+EXPOSE 3000 8080
+
+# Add labels for better container management
+LABEL maintainer="log-generator-team" \
+      version="1.0.0" \
+      description="Enterprise SIEM Log Generator with MITRE ATT&CK integration" \
+      org.opencontainers.image.source="https://github.com/your-org/log-generator" \
+      org.opencontainers.image.documentation="https://github.com/your-org/log-generator/blob/main/README.md"
+
+# Health check that actually tests functionality
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD node -e " \
+    const { LogGeneratorManager } = require('./dist/LogGeneratorManager'); \
+    try { \
+      const manager = new LogGeneratorManager(); \
+      const stats = manager.getPerformanceStats(); \
+      console.log('Health check passed:', stats); \
+      process.exit(0); \
+    } catch (error) { \
+      console.error('Health check failed:', error); \
+      process.exit(1); \
+    }"
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+# Default command with proper error handling
+CMD ["node", "dist/index.js"]

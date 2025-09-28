@@ -1,0 +1,435 @@
+/**
+ * Python ML Bridge
+ * Bridge between Node.js log generator and Python ML models
+ */
+
+import { spawn, ChildProcess } from 'child_process';
+import * as path from 'path';
+import { logger } from '../utils/logger';
+import { LogEntry } from '../types';
+import { 
+  AnomalyResult, 
+  TimeSeriesForecast, 
+  NLPAnalysisResult,
+  ThreatIntelligenceResult 
+} from '../types/enhancedMlPatterns';
+
+export interface PythonMLConfig {
+  pythonPath: string;
+  scriptPath: string;
+  timeout: number; // milliseconds
+  maxMemory: number; // MB
+  enableGPU: boolean;
+}
+
+export class PythonMLBridge {
+  private config: PythonMLConfig;
+  private activeProcesses: Map<string, ChildProcess> = new Map();
+
+  constructor(config?: Partial<PythonMLConfig>) {
+    this.config = {
+      pythonPath: config?.pythonPath || 'python3',
+      scriptPath: config?.scriptPath || path.join(__dirname, '../../python/ml_models.py'),
+      timeout: config?.timeout || 30000, // 30 seconds
+      maxMemory: config?.maxMemory || 2048, // 2GB
+      enableGPU: config?.enableGPU || false,
+      ...config
+    };
+
+    logger.info('Python ML Bridge initialized', {
+      pythonPath: this.config.pythonPath,
+      scriptPath: this.config.scriptPath,
+      timeout: this.config.timeout
+    });
+  }
+
+  /**
+   * Train anomaly detection models
+   */
+  async trainAnomalyDetection(logEntries: LogEntry[]): Promise<any> {
+    const command = 'anomaly_train';
+    const inputData = { log_entries: logEntries };
+
+    try {
+      const result = await this.executePythonCommand(command, inputData);
+      logger.info('Anomaly detection training completed', {
+        modelsTrained: result.models_trained?.length || 0,
+        samples: logEntries.length
+      });
+      return result;
+    } catch (error) {
+      logger.error('Anomaly detection training failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Predict anomalies in log entries
+   */
+  async predictAnomalies(logEntries: LogEntry[]): Promise<AnomalyResult[]> {
+    const command = 'anomaly_predict';
+    const inputData = { log_entries: logEntries };
+
+    try {
+      const result = await this.executePythonCommand(command, inputData);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Convert Python results to TypeScript format
+      const anomalyResults: AnomalyResult[] = [];
+      const ensembleResults = result.results?.ensemble;
+
+      if (ensembleResults) {
+        for (let i = 0; i < logEntries.length; i++) {
+          anomalyResults.push({
+            isAnomaly: ensembleResults.predictions[i] === -1,
+            anomalyScore: Math.abs(ensembleResults.anomaly_scores[i]),
+            confidence: Math.min(Math.abs(ensembleResults.anomaly_scores[i]) * 1.5, 1.0),
+            modelName: 'python_ensemble',
+            features: ['temporal', 'message', 'metadata'],
+            explanation: `Ensemble anomaly detection score: ${ensembleResults.anomaly_scores[i].toFixed(3)}`,
+            severity: this.calculateSeverity(Math.abs(ensembleResults.anomaly_scores[i])),
+            timestamp: new Date()
+          });
+        }
+      }
+
+      logger.debug(`Anomaly prediction completed for ${logEntries.length} entries`, {
+        anomaliesDetected: anomalyResults.filter(r => r.isAnomaly).length
+      });
+
+      return anomalyResults;
+    } catch (error) {
+      logger.error('Anomaly prediction failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate time series forecast
+   */
+  async generateForecast(logEntries: LogEntry[], hoursAhead: number = 24): Promise<TimeSeriesForecast[]> {
+    const command = 'forecast';
+    const inputData = { log_entries: logEntries, hours_ahead: hoursAhead };
+
+    try {
+      const result = await this.executePythonCommand(command, inputData);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const forecasts: TimeSeriesForecast[] = [];
+      const forecastData = result.forecast;
+
+      if (forecastData) {
+        for (let i = 0; i < forecastData.timestamps.length; i++) {
+          forecasts.push({
+            timestamp: new Date(forecastData.timestamps[i]),
+            predicted: forecastData.predicted[i],
+            upperBound: forecastData.upper_bound[i],
+            lowerBound: forecastData.lower_bound[i],
+            confidence: 0.8, // Default confidence
+            trend: this.calculateTrend(forecastData.predicted, i),
+            seasonality: { daily: 0.1, weekly: 0.2, monthly: 0.05 } // Simplified
+          });
+        }
+      }
+
+      logger.info(`Time series forecast generated`, {
+        hoursAhead,
+        forecastPoints: forecasts.length
+      });
+
+      return forecasts;
+    } catch (error) {
+      logger.error('Time series forecasting failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze log messages with NLP
+   */
+  async analyzeWithNLP(logEntries: LogEntry[]): Promise<NLPAnalysisResult[]> {
+    const command = 'nlp_analyze';
+    const inputData = { log_entries: logEntries };
+
+    try {
+      const result = await this.executePythonCommand(command, inputData);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const nlpResults: NLPAnalysisResult[] = [];
+      const sentimentResults = result.results?.sentiment_analysis || [];
+
+      for (let i = 0; i < Math.min(logEntries.length, sentimentResults.length); i++) {
+        const sentimentData = sentimentResults[i];
+        const logEntry = logEntries[i];
+
+        nlpResults.push({
+          text: logEntry.message,
+          sentiment: {
+            polarity: sentimentData.sentiment === 'POSITIVE' ? 1 : 
+                     sentimentData.sentiment === 'NEGATIVE' ? -1 : 0,
+            subjectivity: 0.5, // Simplified
+            label: sentimentData.sentiment.toLowerCase() as 'positive' | 'negative' | 'neutral'
+          },
+          entities: [], // Would be populated by NER model
+          topics: result.results?.topics || [],
+          keywords: this.extractKeywords(logEntry.message),
+          readability: this.calculateReadability(logEntry.message),
+          language: 'en',
+          confidence: sentimentData.confidence
+        });
+      }
+
+      logger.debug(`NLP analysis completed for ${logEntries.length} entries`);
+      return nlpResults;
+    } catch (error) {
+      logger.error('NLP analysis failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze threat intelligence
+   */
+  async analyzeThreatIntelligence(logEntries: LogEntry[]): Promise<ThreatIntelligenceResult[]> {
+    const command = 'threat_intel';
+    const inputData = { log_entries: logEntries };
+
+    try {
+      const result = await this.executePythonCommand(command, inputData);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const threatResults: ThreatIntelligenceResult[] = [];
+      const threatsIdentified = result.threats_identified || {};
+
+      for (const [iocType, threats] of Object.entries(threatsIdentified)) {
+        for (const threat of threats as any[]) {
+          threatResults.push({
+            ioc: threat.ioc,
+            type: threat.type as 'ip' | 'domain' | 'hash' | 'url' | 'email',
+            threat: true,
+            confidence: threat.confidence,
+            sources: ['python_analysis'],
+            lastSeen: new Date(),
+            tags: [iocType, 'detected'],
+            mitreMapping: this.getMitreMapping(threat.type),
+            riskScore: this.calculateRiskScore(threat.confidence)
+          });
+        }
+      }
+
+      logger.debug(`Threat intelligence analysis completed`, {
+        threatsFound: threatResults.length
+      });
+
+      return threatResults;
+    } catch (error) {
+      logger.error('Threat intelligence analysis failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if Python environment is available
+   */
+  async checkPythonEnvironment(): Promise<{ available: boolean; version?: string; libraries: string[] }> {
+    try {
+      const versionResult = await this.executePythonCommand('--version', {}, [], 5000);
+      const libraryCheck = await this.checkPythonLibraries();
+
+      return {
+        available: true,
+        version: versionResult.toString().trim(),
+        libraries: libraryCheck
+      };
+    } catch (error) {
+      logger.warn('Python environment check failed', error);
+      return {
+        available: false,
+        libraries: []
+      };
+    }
+  }
+
+  /**
+   * Execute Python command with data
+   */
+  private async executePythonCommand(
+    command: string, 
+    inputData: any, 
+    additionalArgs: string[] = [],
+    timeoutOverride?: number
+  ): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const timeout = timeoutOverride || this.config.timeout;
+      const processId = `${command}_${Date.now()}`;
+      
+      // Prepare arguments
+      const args = [this.config.scriptPath, command, ...additionalArgs];
+      
+      // Set environment variables
+      const env = { ...process.env };
+      if (!this.config.enableGPU) {
+        env.CUDA_VISIBLE_DEVICES = '';
+      }
+
+      // Spawn Python process
+      const pythonProcess = spawn(this.config.pythonPath, args, {
+        env,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      this.activeProcesses.set(processId, pythonProcess);
+
+      let stdout = '';
+      let stderr = '';
+
+      pythonProcess.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      pythonProcess.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      pythonProcess.on('close', (code) => {
+        this.activeProcesses.delete(processId);
+
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout);
+            resolve(result);
+          } catch (parseError) {
+            reject(new Error(`Failed to parse Python output: ${parseError}`));
+          }
+        } else {
+          reject(new Error(`Python process exited with code ${code}. Stderr: ${stderr}`));
+        }
+      });
+
+      pythonProcess.on('error', (error) => {
+        this.activeProcesses.delete(processId);
+        reject(new Error(`Failed to start Python process: ${error.message}`));
+      });
+
+      // Set timeout
+      const timeoutHandle = setTimeout(() => {
+        pythonProcess.kill('SIGTERM');
+        this.activeProcesses.delete(processId);
+        reject(new Error(`Python command timed out after ${timeout}ms`));
+      }, timeout);
+
+      pythonProcess.on('close', () => {
+        clearTimeout(timeoutHandle);
+      });
+
+      // Send input data
+      if (inputData && Object.keys(inputData).length > 0) {
+        pythonProcess.stdin?.write(JSON.stringify(inputData));
+      }
+      pythonProcess.stdin?.end();
+    });
+  }
+
+  /**
+   * Check available Python libraries
+   */
+  private async checkPythonLibraries(): Promise<string[]> {
+    const requiredLibraries = [
+      'sklearn', 'pandas', 'numpy', 'prophet', 'transformers', 'torch'
+    ];
+    
+    const availableLibraries: string[] = [];
+    
+    for (const lib of requiredLibraries) {
+      try {
+        await this.executePythonCommand(`-c "import ${lib}; print('${lib}')"`, {}, [], 5000);
+        availableLibraries.push(lib);
+      } catch (error) {
+        logger.debug(`Python library ${lib} not available`);
+      }
+    }
+    
+    return availableLibraries;
+  }
+
+  /**
+   * Kill all active Python processes
+   */
+  killAllProcesses(): void {
+    for (const [processId, process] of this.activeProcesses) {
+      logger.info(`Terminating Python process: ${processId}`);
+      process.kill('SIGTERM');
+    }
+    this.activeProcesses.clear();
+  }
+
+  // Helper methods
+
+  private calculateSeverity(score: number): 'low' | 'medium' | 'high' | 'critical' {
+    if (score >= 0.9) return 'critical';
+    if (score >= 0.7) return 'high';
+    if (score >= 0.5) return 'medium';
+    return 'low';
+  }
+
+  private calculateTrend(predictions: number[], index: number): 'increasing' | 'decreasing' | 'stable' {
+    if (index === 0) return 'stable';
+    
+    const current = predictions[index];
+    const previous = predictions[index - 1];
+    const diff = (current - previous) / previous;
+    
+    if (diff > 0.05) return 'increasing';
+    if (diff < -0.05) return 'decreasing';
+    return 'stable';
+  }
+
+  private extractKeywords(text: string): string[] {
+    return text.toLowerCase()
+      .split(/\W+/)
+      .filter(word => word.length > 3)
+      .filter(word => !['the', 'and', 'for', 'with', 'from'].includes(word))
+      .slice(0, 10);
+  }
+
+  private calculateReadability(text: string): number {
+    const words = text.split(/\s+/).length;
+    const sentences = text.split(/[.!?]+/).length;
+    const syllables = text.split(/[aeiouAEIOU]/).length - 1;
+
+    if (words === 0 || sentences === 0) return 0;
+
+    const avgWordsPerSentence = words / sentences;
+    const avgSyllablesPerWord = syllables / words;
+
+    return Math.max(0, Math.min(100, 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord)));
+  }
+
+  private getMitreMapping(threatType: string): any {
+    const mappings: Record<string, any> = {
+      'ip': { technique: 'T1071', tactic: 'TA0011', subtechnique: 'Application Layer Protocol' },
+      'domain': { technique: 'T1071.001', tactic: 'TA0011', subtechnique: 'Web Protocols' },
+      'hash': { technique: 'T1059', tactic: 'TA0002', subtechnique: 'Command and Scripting Interpreter' },
+      'email': { technique: 'T1566', tactic: 'TA0001', subtechnique: 'Phishing' }
+    };
+
+    return mappings[threatType] || { technique: 'T1078', tactic: 'TA0001', subtechnique: 'Valid Accounts' };
+  }
+
+  private calculateRiskScore(confidence: number): number {
+    return Math.min(confidence * 1.2, 1.0);
+  }
+}
+

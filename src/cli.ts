@@ -8,21 +8,32 @@ import { StorageManager } from './utils/storage';
 import { mitreMapper } from './utils/mitreMapper';
 import { AttackChainManager } from './chains/AttackChainManager';
 import { AttackChainExecutionConfig } from './types/attackChain';
-import { PatternLearningEngine } from './ml/PatternLearningEngine';
-import { MLLogGenerationConfig } from './types/mlPatterns';
+// Disabled features - using stubs to provide informative error messages
+import { 
+  EnhancedAttackChainManager, 
+  PatternLearningEngine, 
+  MLLogGenerationConfig,
+  AttackChainMode,
+  AILevel,
+  EnhancedExecutionOptions
+} from './stubs/DisabledFeatures';
 import { ConfigManager } from './config';
+import { InputValidator } from './utils/inputValidator';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'yaml';
 
 // Helper functions for config management
 async function setConfigValue(configManager: ConfigManager, key: string, value: string): Promise<void> {
-  const configPath = 'src/config/default.yaml';
+  // Validate and sanitize input
+  const validated = InputValidator.validateConfigKeyValue(key, value);
+  
+  const configPath = InputValidator.validateFilePath('src/config/default.yaml');
   const configContent = await fs.readFile(configPath, 'utf8');
   const config = yaml.parse(configContent);
   
   // Parse the key path (e.g., "generators.endpoint.frequency")
-  const keyParts = key.split('.');
+  const keyParts = validated.key.split('.');
   let current = config;
   
   // Navigate to the parent object
@@ -180,6 +191,7 @@ program
   .option('-c, --config <path>', 'Path to configuration file')
   .option('-f, --file <filename>', 'Specific historical file to replay')
   .option('-s, --speed <multiplier>', 'Replay speed multiplier (default: 1.0)', parseFloat)
+  .option('-b, --batch-size <size>', 'Batch size for high-performance replay (1=single, 100+=batch)', parseInt)
   .option('-l, --loop', 'Loop replay continuously')
   .option('--start-time <timestamp>', 'Start time for replay (ISO format)')
   .option('--end-time <timestamp>', 'End time for replay (ISO format)')
@@ -188,12 +200,13 @@ program
       const logGenerator = new LogGeneratorManager(options.config);
       
       // Update replay config with CLI options
-      if (options.speed || options.loop || options.startTime || options.endTime) {
+      if (options.speed || options.loop || options.startTime || options.endTime || options.batchSize) {
         const config = logGenerator.getConfig();
         const replayConfig = {
           ...config.replay,
           enabled: true,
           ...(options.speed && { speed: options.speed }),
+          ...(options.batchSize && { batchSize: options.batchSize }),
           ...(options.loop && { loop: true }),
           ...(options.startTime && { startTime: options.startTime }),
           ...(options.endTime && { endTime: options.endTime })
@@ -221,10 +234,73 @@ program
           clearInterval(progressInterval);
           process.exit(0);
         }
-      }, 5000);
+      }, 2000); // Reduced from 5000ms to 2000ms for more frequent updates
 
     } catch (error) {
       logger.error('Failed to start replay:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('validate-config')
+  .description('Validate configuration file for errors and performance issues')
+  .option('-c, --config <path>', 'Path to configuration file')
+  .option('--json', 'Output validation results in JSON format')
+  .action(async (options) => {
+    try {
+      const { ConfigValidator } = await import('./utils/configValidator');
+      const { ConfigManager } = await import('./config');
+      
+      const configManager = new ConfigManager(options.config);
+      const config = configManager.getConfig();
+      
+      console.log('🔍 Validating Configuration...\n');
+      
+      const validationResult = ConfigValidator.validateConfig(config);
+      
+      if (options.json) {
+        console.log(JSON.stringify(validationResult, null, 2));
+        return;
+      }
+      
+      // Display human-readable results
+      if (validationResult.isValid) {
+        console.log('✅ Configuration is valid!\n');
+      } else {
+        console.log('❌ Configuration validation failed!\n');
+      }
+      
+      if (validationResult.errors.length > 0) {
+        console.log('🚨 Errors:');
+        validationResult.errors.forEach(error => {
+          console.log(`   ❌ ${error}`);
+        });
+        console.log();
+      }
+      
+      if (validationResult.warnings.length > 0) {
+        console.log('⚠️ Warnings:');
+        validationResult.warnings.forEach(warning => {
+          console.log(`   ⚠️ ${warning}`);
+        });
+        console.log();
+      }
+      
+      if (validationResult.recommendations.length > 0) {
+        console.log('💡 Recommendations:');
+        validationResult.recommendations.forEach((rec: any) => {
+          console.log(`   💡 ${rec}`);
+        });
+        console.log();
+      }
+      
+      if (!validationResult.isValid) {
+        process.exit(1);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error validating configuration:', error);
       process.exit(1);
     }
   });
@@ -577,7 +653,14 @@ program
     console.log('  status         - Show status of running attack chains');
     console.log('  abort <id>     - Abort a running attack chain');
     console.log('  coverage       - Show MITRE technique coverage across all chains');
-    console.log('\nExample: npm run attack-chains list');
+    console.log('');
+    console.log('🤖 AI-Enhanced Commands:');
+    console.log('  execute-ai <name>  - Execute chain with AI enhancements');
+    console.log('  training <name>    - Run training session with multiple variations');
+    console.log('  preview <name>     - Preview AI enhancements without execution');
+    console.log('  ai-options <name>  - Show available AI enhancement options');
+    console.log('  ai-statistics      - Show AI enhancement execution statistics');
+    console.log('\nExample: npm run attack-chains:execute-ai ransomware-ryuk --mode enhanced --ai-level medium');
   });
 
 program
@@ -813,6 +896,9 @@ program
         console.log(`   Last Error: ${execution.lastError.message} (Step: ${execution.lastError.stepId})`);
       }
 
+      // Explicitly exit to prevent hanging due to lingering timers/handles
+      process.exit(0);
+
     } catch (error) {
       console.error('❌ Error executing attack chain:', error);
       process.exit(1);
@@ -964,7 +1050,436 @@ program
     }
   });
 
+// AI-Enhanced Attack Chain Commands
+program
+  .command('attack-chains:execute-ai')
+  .description('Execute attack chain with AI enhancements')
+  .argument('<name>', 'Attack chain name or ID')
+  .option('--mode <mode>', 'Enhancement mode: static, enhanced, dynamic', 'static')
+  .option('--ai-level <level>', 'AI level: basic, medium, high, advanced', 'basic')
+  .option('--variations <count>', 'Number of variations to generate', '1')
+  .option('--enable-evasion', 'Enable evasion tactics')
+  .option('--adaptive-delays', 'Enable adaptive timing delays')
+  .option('--full-execution', 'Run full attack chain execution (may take 45+ minutes)')
+  .option('--simulation', 'Run in simulation mode (fast, 1-3 seconds)', true)
+  .option('-c, --config <path>', 'Path to log generator configuration file')
+  .action(async (name, options) => {
+    try {
+      console.log(`🤖 Starting AI-Enhanced Attack Chain: ${name}\n`);
+      
+      const enhancedManager = new EnhancedAttackChainManager();
+      
+      // Determine execution mode
+      const useFullExecution = options.fullExecution || !options.simulation;
+      
+      const enhancementOptions = {
+        mode: options.mode,
+        aiLevel: options.aiLevel,
+        variations: parseInt(options.variations),
+        enableEvasion: options.enableEvasion,
+        adaptiveDelays: options.adaptiveDelays,
+        simulation: !useFullExecution,
+        config: options.config
+      };
+
+      console.log(`⚙️ Enhancement Configuration:`);
+      console.log(`   Execution Mode: ${useFullExecution ? '⚡ FULL EXECUTION (may take 45+ minutes)' : '🚀 SIMULATION (1-3 seconds)'}`);
+      console.log(`   AI Mode: ${enhancementOptions.mode}`);
+      console.log(`   AI Level: ${enhancementOptions.aiLevel}`);
+      console.log(`   Variations: ${enhancementOptions.variations}`);
+      console.log(`   Evasion Tactics: ${enhancementOptions.enableEvasion ? 'Enabled' : 'Disabled'}`);
+      console.log(`   Adaptive Delays: ${enhancementOptions.adaptiveDelays ? 'Enabled' : 'Disabled'}`);
+      
+      if (useFullExecution) {
+        console.log(`\n⚠️  WARNING: Full execution mode selected!`);
+        console.log(`   This will run the complete attack chain simulation which may take 45+ minutes.`);
+        console.log(`   Use --simulation flag for quick testing (1-3 seconds).`);
+      }
+      console.log();
+
+      const execution = await enhancedManager.executeEnhancedChain(name, enhancementOptions);
+
+      console.log(`\n✅ AI-Enhanced Execution Completed!`);
+      console.log(`   Execution Mode: ${execution.executionMode === 'simulation' ? '🚀 SIMULATION' : '⚡ FULL EXECUTION'}`);
+      console.log(`   Execution ID: ${execution.executionId || 'N/A'}`);
+      console.log(`   Status: ${execution.status || 'completed'}`);
+      console.log(`   Logs Generated: ${execution.stats.logsGenerated}`);
+      console.log(`   Steps Completed: ${execution.stats.stepsCompleted}`);
+      console.log(`   AI Enhancements Applied: ${execution.stats.enhancementsApplied || 0}`);
+      console.log(`   Detection Evasion Score: ${Math.round((execution.stats.detectionEvasion || 0) * 100)}%`);
+
+      if (execution.aiEnhancements && execution.aiEnhancements.length > 0) {
+        console.log(`\n🔧 Applied Enhancements:`);
+        execution.aiEnhancements.forEach((enhancement: any, index: number) => {
+          console.log(`   ${index + 1}. ${enhancement.description}`);
+          console.log(`      Impact: ${enhancement.impact}`);
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error executing AI-enhanced attack chain:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('attack-chains:training')
+  .description('Execute multiple attack chain variations for training')
+  .argument('<name>', 'Attack chain name or ID')
+  .option('--variations <count>', 'Number of variations to execute', '5')
+  .option('--progressive', 'Use progressive difficulty (basic to advanced)', true)
+  .option('--delay <ms>', 'Delay between variations in milliseconds', '30000')
+  .option('-c, --config <path>', 'Path to log generator configuration file')
+  .action(async (name, options) => {
+    try {
+      console.log('🎓 Starting AI-Enhanced Training Session\n');
+      
+      const enhancedManager = new EnhancedAttackChainManager();
+      const variationCount = parseInt(options.variations);
+      const delayBetweenVariations = parseInt(options.delay);
+
+      console.log(`📋 Training Configuration:`);
+      console.log(`   Chain: ${name}`);
+      console.log(`   Variations: ${variationCount}`);
+      console.log(`   Progressive Mode: ${options.progressive}`);
+      console.log(`   Delay Between Variations: ${delayBetweenVariations}ms`);
+      console.log();
+
+      const executions = await enhancedManager.executeTrainingSession(name, {
+        variationCount,
+        progressiveMode: options.progressive,
+        delayBetweenVariations,
+        logGeneratorConfig: options.config
+      });
+
+      console.log('✅ Training Session Completed\n');
+      console.log(`📊 Training Results:`);
+      console.log(`   Total Variations Executed: ${executions.length}`);
+      console.log(`   Total Logs Generated: ${executions.reduce((sum, exec) => sum + exec.stats.logsGenerated, 0)}`);
+      console.log(`   Total Duration: ${Math.round(executions.reduce((sum, exec) => sum + (exec.stats.averageStepDuration * exec.stats.stepsCompleted), 0) / 1000)}s`);
+      console.log();
+
+      console.log(`📈 Variation Breakdown:`);
+      executions.forEach((execution, index) => {
+        console.log(`   Variation ${index + 1}: ${execution.enhancementConfig.mode}/${execution.enhancementConfig.aiLevel} - ${execution.stats.logsGenerated} logs`);
+      });
+
+    } catch (error) {
+      console.error('❌ Error executing training session:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('attack-chains:preview')
+  .description('Preview attack chain enhancement without execution')
+  .argument('<name>', 'Attack chain name or ID')
+  .option('--mode <mode>', 'Enhancement mode: static, enhanced, dynamic', 'enhanced')
+  .option('--ai-level <level>', 'AI level: basic, medium, high, advanced', 'medium')
+  .action(async (name, options) => {
+    try {
+      console.log('👁️ Attack Chain Enhancement Preview\n');
+      
+      const enhancedManager = new EnhancedAttackChainManager();
+      
+      const preview = await enhancedManager.previewEnhancement(name, options.mode, options.aiLevel);
+
+      console.log(`📋 Original Chain: ${preview.originalChain.name}`);
+      console.log(`   Category: ${preview.originalChain.category}`);
+      console.log(`   Difficulty: ${preview.originalChain.difficulty}`);
+      console.log(`   Steps: ${preview.originalChain.chain.steps.length}`);
+      console.log();
+
+      console.log(`🤖 Enhanced Chain:`);
+      console.log(`   Enhancement Mode: ${options.mode}`);
+      console.log(`   AI Level: ${options.aiLevel}`);
+      console.log(`   Enhancement Type: ${preview.enhancedChain.enhancementType}`);
+      console.log(`   AI Generated: ${preview.enhancedChain.aiGenerated ? 'Yes' : 'No'}`);
+      console.log(`   Confidence Score: ${preview.enhancedChain.metadata.confidenceScore.toFixed(2)}`);
+      console.log(`   Realism Score: ${preview.enhancedChain.metadata.realismScore.toFixed(2)}`);
+      console.log();
+
+      console.log(`📝 Enhancements Applied:`);
+      preview.changes.forEach((change: any) => {
+        console.log(`   ✓ ${change}`);
+      });
+      console.log();
+
+      console.log(`⏱️ Estimated Impact:`);
+      console.log(`   Duration: ~${Math.round(preview.estimatedDuration / 60000)} minutes`);
+      console.log(`   Logs: ~${preview.estimatedLogs} log entries`);
+
+    } catch (error) {
+      console.error('❌ Error previewing enhancement:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('attack-chains:ai-options')
+  .description('Show available AI enhancement options for a chain')
+  .argument('<name>', 'Attack chain name or ID')
+  .action(async (name) => {
+    try {
+      console.log('🤖 AI Enhancement Options\n');
+      
+      const enhancedManager = new EnhancedAttackChainManager();
+      const options = enhancedManager.getEnhancementOptions(name);
+
+      console.log(`📋 Chain: ${options.template.name}`);
+      console.log(`   Category: ${options.template.category}`);
+      console.log(`   Difficulty: ${options.template.difficulty}`);
+      console.log();
+
+      console.log(`🎛️ Available Enhancement Modes:`);
+      options.availableModes.forEach((mode: any) => {
+        console.log(`   ${mode.mode.toUpperCase()}:`);
+        console.log(`     Description: ${mode.description}`);
+        console.log(`     Requirements: ${mode.requirements.join(', ')}`);
+        console.log();
+      });
+
+      console.log(`🎯 Available AI Levels:`);
+      options.availableLevels.forEach((level: any) => {
+        console.log(`   ${level.level.toUpperCase()}:`);
+        console.log(`     Description: ${level.description}`);
+        console.log(`     Features: ${level.features.join(', ')}`);
+        console.log();
+      });
+
+      console.log(`💡 Recommendations:`);
+      console.log(`   Beginner: --mode ${options.recommendations.beginnerMode} --ai-level ${options.recommendations.beginnerLevel}`);
+      console.log(`   Expert: --mode ${options.recommendations.expertMode} --ai-level ${options.recommendations.expertLevel}`);
+
+    } catch (error) {
+      console.error('❌ Error showing AI options:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('attack-chains:ai-statistics')
+  .description('Show AI enhancement execution statistics')
+  .option('--limit <count>', 'Number of recent executions to analyze', '50')
+  .action(async (options) => {
+    try {
+      console.log('📊 AI Enhancement Statistics\n');
+      
+      const enhancedManager = new EnhancedAttackChainManager();
+      const history = enhancedManager.getExecutionHistory(parseInt(options.limit));
+
+      console.log(`📈 Execution Summary:`);
+      console.log(`   Total Executions: ${history.statistics.totalExecutions}`);
+      console.log(`   Recent Executions Analyzed: ${history.executions.length}`);
+      console.log(`   Average Logs Generated: ${history.statistics.averageLogsGenerated}`);
+      console.log(`   Average Duration: ${Math.round(history.statistics.averageDuration / 1000)}s`);
+      console.log();
+
+      console.log(`🎛️ Mode Distribution:`);
+      Object.entries(history.statistics.modeDistribution).forEach(([mode, count]) => {
+        const percentage = history.executions.length > 0 ? (((count as number) / history.executions.length) * 100).toFixed(1) : '0.0';
+        console.log(`   ${mode.toUpperCase()}: ${count} (${percentage}%)`);
+      });
+      console.log();
+
+      console.log(`🎯 AI Level Distribution:`);
+      Object.entries(history.statistics.levelDistribution).forEach(([level, count]) => {
+        const percentage = history.executions.length > 0 ? (((count as number) / history.executions.length) * 100).toFixed(1) : '0.0';
+        console.log(`   ${level.toUpperCase()}: ${count} (${percentage}%)`);
+      });
+      console.log();
+
+      console.log(`🏆 Most Used Chains:`);
+      history.statistics.mostUsedChains.forEach((chain: any, index: number) => {
+        console.log(`   ${index + 1}. ${chain.chainName}: ${chain.count} executions`);
+      });
+
+    } catch (error) {
+      console.error('❌ Error showing AI statistics:', error);
+      process.exit(1);
+    }
+  });
+
 // ML Pattern Commands
+// SOC Simulation Commands
+program
+  .command('soc-simulation')
+  .description('Manage Security Operations Center (SOC) simulations')
+  .action(() => {
+    console.log('🛡️ SOC Simulation Management');
+    console.log('Available subcommands:');
+    console.log('  scenarios          - List available SOC simulation scenarios');
+    console.log('  run <scenario>     - Run a specific SOC simulation scenario');
+    console.log('  status             - Show status of running SOC simulations');
+    console.log('  stop               - Stop all running SOC simulations');
+    console.log('  d3fend-coverage    - Show D3FEND defensive technique coverage');
+    console.log('\nExample: npm run soc-simulation:run incident-response');
+  });
+
+program
+  .command('soc-simulation:scenarios')
+  .description('List available SOC simulation scenarios')
+  .action(async () => {
+    try {
+      console.log('🛡️ Available SOC Simulation Scenarios:\n');
+      
+      const scenarios = [
+        {
+          name: 'incident-response',
+          description: 'Simulate SOC incident response workflow',
+          duration: '15-30 minutes',
+          techniques: ['D3-IAM', 'D3-NTA', 'D3-FA', 'D3-LAM']
+        },
+        {
+          name: 'threat-hunting',
+          description: 'Simulate proactive threat hunting activities',
+          duration: '20-45 minutes',
+          techniques: ['D3-NTA', 'D3-BHA', 'D3-PSA', 'D3-SCA']
+        },
+        {
+          name: 'network-defense',
+          description: 'Simulate network security monitoring and defense',
+          duration: '10-25 minutes',
+          techniques: ['D3-NTA', 'D3-ITF', 'D3-NI', 'D3-AC']
+        },
+        {
+          name: 'malware-analysis',
+          description: 'Simulate malware detection and analysis workflow',
+          duration: '25-40 minutes',
+          techniques: ['D3-FA', 'D3-DA', 'D3-SYMON', 'D3-PSA']
+        },
+        {
+          name: 'compliance-audit',
+          description: 'Simulate security compliance monitoring',
+          duration: '15-30 minutes',
+          techniques: ['D3-LAM', 'D3-AC', 'D3-SYMON']
+        }
+      ];
+
+      scenarios.forEach((scenario, index) => {
+        console.log(`${index + 1}. ${scenario.name}`);
+        console.log(`   Description: ${scenario.description}`);
+        console.log(`   Duration: ${scenario.duration}`);
+        console.log(`   D3FEND Techniques: ${scenario.techniques.join(', ')}`);
+        console.log();
+      });
+
+      console.log('💡 Usage: npm run soc-simulation:run <scenario-name>');
+    } catch (error) {
+      console.error('❌ Error listing SOC scenarios:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('soc-simulation:run')
+  .description('Run a specific SOC simulation scenario')
+  .argument('<scenario>', 'SOC scenario name (e.g., incident-response, threat-hunting)')
+  .option('-c, --config <path>', 'Path to configuration file')
+  .option('-d, --duration <time>', 'Duration to run simulation (e.g., 30m, 1h)')
+  .option('--analysts <count>', 'Number of SOC analysts to simulate', '3')
+  .option('--intensity <level>', 'Simulation intensity (low, medium, high)', 'medium')
+  .action(async (scenario, options) => {
+    try {
+      const validScenarios = ['incident-response', 'threat-hunting', 'network-defense', 'malware-analysis', 'compliance-audit'];
+      
+      if (!validScenarios.includes(scenario)) {
+        console.error(`❌ Invalid scenario: ${scenario}`);
+        console.error(`Valid scenarios: ${validScenarios.join(', ')}`);
+        process.exit(1);
+      }
+
+      // Parse duration if provided
+      let durationMs: number | undefined;
+      if (options.duration) {
+        const parsed = parseDuration(options.duration);
+        if (!parsed) {
+          console.error(`Invalid duration format: ${options.duration}`);
+          process.exit(1);
+        }
+        durationMs = parsed;
+      }
+
+      console.log(`🛡️ Starting SOC Simulation: ${scenario}`);
+      console.log(`   Analysts: ${options.analysts}`);
+      console.log(`   Intensity: ${options.intensity}`);
+      if (durationMs) {
+        console.log(`   Duration: ${options.duration}`);
+      }
+      console.log();
+
+      // Create a specialized configuration for SOC simulation
+      const logGenerator = new LogGeneratorManager(options.config);
+      
+      // Enable only SecurityOperationsGenerator with scenario-specific settings
+      const socConfig = {
+        scenario: scenario,
+        analysts: parseInt(options.analysts),
+        intensity: options.intensity
+      };
+
+      // Start SOC simulation
+      await logGenerator.start();
+      
+      if (durationMs) {
+        setTimeout(() => {
+          logGenerator.stop();
+          console.log('🛡️ SOC simulation completed');
+          process.exit(0);
+        }, durationMs);
+      }
+
+      // Handle graceful shutdown
+      process.on('SIGINT', () => {
+        console.log('\n🛑 Stopping SOC simulation...');
+        logGenerator.stop();
+        process.exit(0);
+      });
+
+    } catch (error) {
+      console.error('❌ Error running SOC simulation:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('soc-simulation:d3fend-coverage')
+  .description('Show D3FEND defensive technique coverage')
+  .option('--json', 'Output in JSON format')
+  .action(async (options) => {
+    try {
+      const { d3fendMapper } = await import('./utils/d3fendMapper');
+      const coverage = d3fendMapper.getCoverageReport();
+
+      if (options.json) {
+        console.log(JSON.stringify(coverage, null, 2));
+        return;
+      }
+
+      console.log('🛡️ D3FEND Defensive Technique Coverage:\n');
+      
+      console.log('📊 Coverage by Category:');
+      Object.entries(coverage.byCategory).forEach(([category, techniques]) => {
+        console.log(`   ${category}: ${techniques.length} techniques`);
+      });
+      console.log();
+
+      console.log('🔧 Available Techniques:');
+      coverage.techniques.forEach(technique => {
+        console.log(`   ${technique.technique} - ${technique.description}`);
+        console.log(`     Category: ${technique.category} | Effectiveness: ${technique.effectiveness || 'N/A'}`);
+      });
+      console.log();
+
+      console.log(`📈 Total Coverage: ${coverage.techniques.length} D3FEND techniques`);
+      console.log(`🤖 Automated: ${coverage.techniques.filter(t => t.automated).length} techniques`);
+      
+    } catch (error) {
+      console.error('❌ Error getting D3FEND coverage:', error);
+      process.exit(1);
+    }
+  });
+
 program
   .command('ml-patterns')
   .description('Manage ML-based log pattern learning and generation')
@@ -1062,7 +1577,7 @@ program
 
       if (results.recommendations.configurationChanges.length > 0) {
         console.log('\n💡 Recommendations:');
-        results.recommendations.configurationChanges.forEach(rec => {
+        results.recommendations.configurationChanges.forEach((rec: any) => {
           console.log(`   • ${rec}`);
         });
       }
@@ -1300,13 +1815,13 @@ program
       if (analysisResults.recommendations.modelUpdates.length > 0) {
         console.log('💡 Recommendations:');
         console.log('   Model Updates:');
-        analysisResults.recommendations.modelUpdates.forEach(update => {
+        analysisResults.recommendations.modelUpdates.forEach((update: any) => {
           console.log(`     • ${update}`);
         });
         
         if (analysisResults.recommendations.configurationChanges.length > 0) {
           console.log('   Configuration Changes:');
-          analysisResults.recommendations.configurationChanges.forEach(change => {
+          analysisResults.recommendations.configurationChanges.forEach((change: any) => {
             console.log(`     • ${change}`);
           });
         }
@@ -1525,5 +2040,108 @@ function parseDuration(duration: string): number | null {
   
   return totalMs > 0 ? totalMs : null;
 }
+
+program
+  .command('performance-test')
+  .description('Run comprehensive performance tests with worker threads')
+  .option('-c, --config <path>', 'Path to configuration file')
+  .option('--workers <count>', 'Number of worker threads to use', '4')
+  .option('--duration <time>', 'Test duration (e.g., 10s, 2m)', '10s')
+  .option('--mode <mode>', 'Test mode: disk, http, syslog, worker', 'worker')
+  .action(async (options) => {
+    try {
+      console.log('🚀 Starting Performance Test...\n');
+      
+      const { LogGeneratorManager } = await import('./LogGeneratorManager');
+      const workerCount = parseInt(options.workers);
+      const duration = options.duration;
+      
+      // Parse duration
+      const durationMatch = duration.match(/^(\d+)([smh])$/);
+      if (!durationMatch) {
+        console.error('❌ Invalid duration format. Use format like: 10s, 2m, 1h');
+        process.exit(1);
+      }
+      
+      const durationValue = parseInt(durationMatch[1]);
+      const durationUnit = durationMatch[2];
+      let durationMs: number;
+      
+      switch (durationUnit) {
+        case 's': durationMs = durationValue * 1000; break;
+        case 'm': durationMs = durationValue * 60 * 1000; break;
+        case 'h': durationMs = durationValue * 60 * 60 * 1000; break;
+        default: durationMs = 10000;
+      }
+      
+      console.log(`🔧 Configuration:`);
+      console.log(`   Mode: ${options.mode}`);
+      console.log(`   Workers: ${workerCount}`);
+      console.log(`   Duration: ${duration} (${durationMs}ms)`);
+      console.log(`   Config: ${options.config || 'default'}\n`);
+      
+      // Select appropriate config based on mode
+      let configPath = options.config;
+      if (!configPath) {
+        switch (options.mode) {
+          case 'http':
+            configPath = 'src/config/siem-http-test.yaml';
+            break;
+          case 'syslog':
+            configPath = 'src/config/siem-syslog-test.yaml';
+            break;
+          case 'worker':
+            configPath = 'src/config/high-performance-worker-test.yaml';
+            break;
+          default:
+            configPath = 'src/config/extreme-performance.yaml';
+        }
+      }
+      
+      const logGenerator = new LogGeneratorManager(configPath);
+      
+      // Enable high-performance mode if using worker mode
+      if (options.mode === 'worker') {
+        logGenerator.enableHighPerformanceMode(workerCount);
+        console.log(`⚡ High-performance mode enabled with ${workerCount} workers\n`);
+      }
+      
+      const startTime = Date.now();
+      console.log(`🏁 Starting performance test at ${new Date().toISOString()}`);
+      
+      // Start generation
+      logGenerator.start();
+      
+      // Run for specified duration
+      await new Promise(resolve => setTimeout(resolve, durationMs));
+      
+      // Stop generation
+      logGenerator.stop();
+      
+      const endTime = Date.now();
+      const actualDuration = (endTime - startTime) / 1000;
+      
+      console.log(`\n🏁 Performance test completed in ${actualDuration.toFixed(2)}s`);
+      
+      // Get performance stats
+      const stats = logGenerator.getPerformanceStats();
+      console.log('\n📊 Performance Statistics:');
+      console.log(`   High-performance mode: ${stats.isHighPerformanceMode ? '✅' : '❌'}`);
+      console.log(`   Worker threads active: ${stats.workerThreadsActive ? '✅' : '❌'}`);
+      console.log(`   Active generators: ${stats.runningGenerators.length}`);
+      console.log(`   Generator names: ${stats.runningGenerators.join(', ')}`);
+      
+      // Cleanup
+      if (options.mode === 'worker') {
+        await logGenerator.disableHighPerformanceMode();
+      }
+      
+      console.log('\n✅ Performance test completed successfully!');
+      
+    } catch (error) {
+      console.error('❌ Error running performance test:', error);
+      process.exit(1);
+    }
+  });
 
 program.parse();

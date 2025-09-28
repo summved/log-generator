@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-generator
+  namespace: log-generator
+  labels:
+    app.kubernetes.io/name: log-generator
+    app.kubernetes.io/component: generator
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: log-generator
+      app.kubernetes.io/component: generator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: log-generator
+        app.kubernetes.io/component: generator
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: log-generator
+        image: ghcr.io/your-org/log-generator:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: CONFIG_PATH
+          value: "/app/config/config.yaml"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: SIEM_HTTP_URL
+          valueFrom:
+            secretKeyRef:
+              name: log-generator-secrets
+              key: SIEM_HTTP_URL
+        - name: SIEM_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: log-generator-secrets
+              key: SIEM_API_TOKEN
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: models-volume
+          mountPath: /app/models
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+      volumes:
+      - name: config-volume
+        configMap:
+          name: log-generator-config
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: log-generator-logs-pvc
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: log-generator-models-pvc
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

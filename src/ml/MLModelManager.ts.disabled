@@ -1,0 +1,666 @@
+/**
+ * ML Model Manager
+ * Central manager for all ML models, loading, caching, and inference
+ */
+
+import { EventEmitter } from 'events';
+import { logger } from '../utils/logger';
+import { 
+  EnhancedMLConfig, 
+  MLModelRegistry, 
+  MLModelInfo, 
+  AnomalyResult, 
+  NLPAnalysisResult,
+  ModelPerformanceMetrics,
+  ThreatIntelligenceResult
+} from '../types/enhancedMlPatterns';
+import { LogEntry } from '../types';
+import * as path from 'path';
+import { existsSync, mkdirSync } from 'fs';
+
+// ML Library Imports
+import { pipeline } from '@xenova/transformers';
+import * as natural from 'natural';
+import * as sentiment from 'sentiment';
+import { IsolationForest } from 'ml-isolation-forest';
+import { Matrix } from 'ml-matrix';
+import * as ss from 'simple-statistics';
+
+export interface MLModelManagerEvents {
+  'model.loaded': (modelId: string, info: MLModelInfo) => void;
+  'model.unloaded': (modelId: string) => void;
+  'model.error': (modelId: string, error: Error) => void;
+  'inference.completed': (modelId: string, duration: number) => void;
+  'performance.updated': (modelId: string, metrics: ModelPerformanceMetrics) => void;
+}
+
+export declare interface MLModelManager {
+  on<U extends keyof MLModelManagerEvents>(event: U, listener: MLModelManagerEvents[U]): this;
+  emit<U extends keyof MLModelManagerEvents>(event: U, ...args: Parameters<MLModelManagerEvents[U]>): boolean;
+}
+
+export class MLModelManager extends EventEmitter {
+  private config: EnhancedMLConfig;
+  private registry: MLModelRegistry;
+  private modelsDirectory: string;
+  private cacheDirectory: string;
+  private performanceCache: Map<string, any> = new Map();
+
+  constructor(config: EnhancedMLConfig, modelsDirectory?: string) {
+    super();
+    
+    this.config = config;
+    this.modelsDirectory = modelsDirectory || path.join(process.cwd(), 'models', 'enhanced-ml');
+    this.cacheDirectory = path.join(this.modelsDirectory, 'cache');
+    
+    this.registry = {
+      models: new Map(),
+      loadedModels: new Map(),
+      modelConfigs: new Map(),
+      performanceHistory: new Map()
+    };
+
+    this.ensureDirectories();
+    this.initializeDefaultModels();
+    
+    logger.info('MLModelManager initialized', {
+      modelsDirectory: this.modelsDirectory,
+      cacheDirectory: this.cacheDirectory
+    });
+  }
+
+  /**
+   * Load a model by ID
+   */
+  async loadModel(modelId: string): Promise<void> {
+    const modelInfo = this.registry.models.get(modelId);
+    if (!modelInfo) {
+      throw new Error(`Model not found: ${modelId}`);
+    }
+
+    if (this.registry.loadedModels.has(modelId)) {
+      logger.debug(`Model already loaded: ${modelId}`);
+      return;
+    }
+
+    const startTime = Date.now();
+    
+    try {
+      let model: any;
+      
+      switch (modelInfo.type) {
+        case 'nlp':
+          model = await this.loadNLPModel(modelInfo);
+          break;
+        case 'anomaly_detection':
+          model = await this.loadAnomalyModel(modelInfo);
+          break;
+        case 'time_series':
+          model = await this.loadTimeSeriesModel(modelInfo);
+          break;
+        case 'threat_intelligence':
+          model = await this.loadThreatIntelModel(modelInfo);
+          break;
+        default:
+          throw new Error(`Unsupported model type: ${modelInfo.type}`);
+      }
+
+      this.registry.loadedModels.set(modelId, model);
+      modelInfo.status = 'loaded';
+      
+      const loadTime = Date.now() - startTime;
+      logger.info(`Model loaded successfully: ${modelId}`, {
+        type: modelInfo.type,
+        framework: modelInfo.framework,
+        loadTime: `${loadTime}ms`
+      });
+
+      this.emit('model.loaded', modelId, modelInfo);
+
+    } catch (error) {
+      logger.error(`Failed to load model: ${modelId}`, error);
+      this.emit('model.error', modelId, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unload a model from memory
+   */
+  async unloadModel(modelId: string): Promise<void> {
+    const model = this.registry.loadedModels.get(modelId);
+    if (!model) {
+      logger.debug(`Model not loaded: ${modelId}`);
+      return;
+    }
+
+    // Clean up model resources
+    if (model.dispose) {
+      await model.dispose();
+    }
+
+    this.registry.loadedModels.delete(modelId);
+    
+    const modelInfo = this.registry.models.get(modelId);
+    if (modelInfo) {
+      modelInfo.status = 'available';
+    }
+
+    logger.info(`Model unloaded: ${modelId}`);
+    this.emit('model.unloaded', modelId);
+  }
+
+  /**
+   * Perform NLP analysis on text
+   */
+  async analyzeText(text: string, modelId?: string): Promise<NLPAnalysisResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Use default NLP model if none specified
+      const defaultModelId = modelId || 'distilbert-base-uncased';
+      
+      // Ensure model is loaded
+      if (!this.registry.loadedModels.has(defaultModelId)) {
+        await this.loadModel(defaultModelId);
+      }
+
+      const model = this.registry.loadedModels.get(defaultModelId);
+      
+      // Perform sentiment analysis
+      const sentimentAnalyzer = new sentiment();
+      const sentimentResult = sentimentAnalyzer.analyze(text);
+      
+      // Extract entities using NER
+      const entities = await this.extractEntities(text, model);
+      
+      // Extract keywords
+      const keywords = this.extractKeywords(text);
+      
+      // Analyze topics (simplified implementation)
+      const topics = await this.analyzeTopics(text);
+
+      const result: NLPAnalysisResult = {
+        text,
+        sentiment: {
+          polarity: sentimentResult.score / Math.max(text.split(' ').length, 1),
+          subjectivity: 0.5, // Simplified
+          label: sentimentResult.score > 0 ? 'positive' : sentimentResult.score < 0 ? 'negative' : 'neutral'
+        },
+        entities,
+        topics,
+        keywords,
+        readability: this.calculateReadability(text),
+        language: 'en', // Simplified
+        confidence: 0.85
+      };
+
+      const duration = Date.now() - startTime;
+      this.emit('inference.completed', defaultModelId, duration);
+
+      return result;
+
+    } catch (error) {
+      logger.error('Text analysis failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Detect anomalies in log entry
+   */
+  async detectAnomaly(logEntry: LogEntry, modelId?: string): Promise<AnomalyResult> {
+    const startTime = Date.now();
+    
+    try {
+      const defaultModelId = modelId || 'isolation-forest';
+      
+      if (!this.registry.loadedModels.has(defaultModelId)) {
+        await this.loadModel(defaultModelId);
+      }
+
+      const model = this.registry.loadedModels.get(defaultModelId);
+      
+      // Extract features from log entry
+      const features = this.extractLogFeatures(logEntry);
+      
+      // Perform anomaly detection
+      let anomalyScore: number;
+      let isAnomaly: boolean;
+      
+      if (model.predict) {
+        // For ML models like Isolation Forest
+        const prediction = model.predict([features]);
+        anomalyScore = Math.abs(prediction[0]);
+        isAnomaly = anomalyScore > this.config.anomalyDetection.thresholds.anomalyScore;
+      } else {
+        // Fallback to statistical methods
+        anomalyScore = this.calculateStatisticalAnomaly(features);
+        isAnomaly = anomalyScore > this.config.anomalyDetection.thresholds.statisticalThreshold;
+      }
+
+      const result: AnomalyResult = {
+        isAnomaly,
+        anomalyScore,
+        confidence: Math.min(anomalyScore * 1.2, 1.0),
+        modelName: defaultModelId,
+        features: Object.keys(features),
+        explanation: this.generateAnomalyExplanation(features, anomalyScore),
+        severity: this.calculateSeverity(anomalyScore),
+        timestamp: new Date()
+      };
+
+      const duration = Date.now() - startTime;
+      this.emit('inference.completed', defaultModelId, duration);
+
+      return result;
+
+    } catch (error) {
+      logger.error('Anomaly detection failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze threat intelligence for IOCs
+   */
+  async analyzeThreatIntelligence(ioc: string, type: string): Promise<ThreatIntelligenceResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Simple threat intelligence analysis (can be enhanced with external APIs)
+      const result: ThreatIntelligenceResult = {
+        ioc,
+        type: type as any,
+        threat: await this.checkThreatDatabase(ioc, type),
+        confidence: 0.7,
+        sources: ['internal_analysis'],
+        lastSeen: new Date(),
+        tags: await this.generateThreatTags(ioc, type),
+        riskScore: this.calculateRiskScore(ioc, type)
+      };
+
+      // Add MITRE mapping if it's a threat
+      if (result.threat) {
+        result.mitreMapping = await this.mapToMitre(ioc, type);
+      }
+
+      const duration = Date.now() - startTime;
+      this.emit('inference.completed', 'threat-intelligence', duration);
+
+      return result;
+
+    } catch (error) {
+      logger.error('Threat intelligence analysis failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get model performance metrics
+   */
+  getModelPerformance(modelId: string): ModelPerformanceMetrics | null {
+    const history = this.registry.performanceHistory.get(modelId);
+    return history && history.length > 0 ? history[history.length - 1] : null;
+  }
+
+  /**
+   * List all available models
+   */
+  listModels(): MLModelInfo[] {
+    return Array.from(this.registry.models.values());
+  }
+
+  /**
+   * Get loaded models
+   */
+  getLoadedModels(): string[] {
+    return Array.from(this.registry.loadedModels.keys());
+  }
+
+  /**
+   * Update model configuration
+   */
+  updateModelConfig(modelId: string, config: Record<string, any>): void {
+    this.registry.modelConfigs.set(modelId, { ...this.registry.modelConfigs.get(modelId), ...config });
+    logger.info(`Model configuration updated: ${modelId}`, config);
+  }
+
+  // Private helper methods
+
+  private ensureDirectories(): void {
+    [this.modelsDirectory, this.cacheDirectory].forEach(dir => {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+    });
+  }
+
+  private initializeDefaultModels(): void {
+    // NLP Models
+    this.registerModel({
+      id: 'distilbert-base-uncased',
+      name: 'DistilBERT Base Uncased',
+      version: '1.0.0',
+      type: 'nlp',
+      framework: 'transformers',
+      status: 'available',
+      size: 268000000, // ~268MB
+      lastUpdated: new Date(),
+      description: 'Lightweight BERT model for text classification and analysis',
+      tags: ['nlp', 'classification', 'sentiment'],
+      requirements: ['@xenova/transformers'],
+      configuration: {
+        task: 'text-classification',
+        model: 'distilbert-base-uncased'
+      }
+    });
+
+    // Anomaly Detection Models
+    this.registerModel({
+      id: 'isolation-forest',
+      name: 'Isolation Forest',
+      version: '1.0.0',
+      type: 'anomaly_detection',
+      framework: 'scikit-learn',
+      status: 'available',
+      size: 1000000, // ~1MB
+      lastUpdated: new Date(),
+      description: 'Unsupervised anomaly detection using isolation forest',
+      tags: ['anomaly', 'unsupervised', 'outlier'],
+      requirements: ['ml-isolation-forest'],
+      configuration: {
+        contamination: 0.1,
+        n_estimators: 100,
+        random_state: 42
+      }
+    });
+
+    // Threat Intelligence Model
+    this.registerModel({
+      id: 'threat-intelligence',
+      name: 'Threat Intelligence Analyzer',
+      version: '1.0.0',
+      type: 'threat_intelligence',
+      framework: 'custom',
+      status: 'available',
+      size: 500000, // ~500KB
+      lastUpdated: new Date(),
+      description: 'IOC analysis and threat detection',
+      tags: ['threat', 'ioc', 'security'],
+      requirements: [],
+      configuration: {
+        confidence_threshold: 0.7,
+        sources: ['internal']
+      }
+    });
+  }
+
+  private registerModel(modelInfo: MLModelInfo): void {
+    this.registry.models.set(modelInfo.id, modelInfo);
+    logger.debug(`Model registered: ${modelInfo.id}`, {
+      type: modelInfo.type,
+      framework: modelInfo.framework
+    });
+  }
+
+  private async loadNLPModel(modelInfo: MLModelInfo): Promise<any> {
+    switch (modelInfo.framework) {
+      case 'transformers':
+        return await pipeline(modelInfo.configuration.task, modelInfo.configuration.model);
+      default:
+        throw new Error(`Unsupported NLP framework: ${modelInfo.framework}`);
+    }
+  }
+
+  private async loadAnomalyModel(modelInfo: MLModelInfo): Promise<any> {
+    switch (modelInfo.framework) {
+      case 'scikit-learn':
+        if (modelInfo.id === 'isolation-forest') {
+          return new IsolationForest(modelInfo.configuration);
+        }
+        break;
+      default:
+        throw new Error(`Unsupported anomaly detection framework: ${modelInfo.framework}`);
+    }
+  }
+
+  private async loadTimeSeriesModel(modelInfo: MLModelInfo): Promise<any> {
+    // Placeholder for time series models
+    return { predict: () => [] };
+  }
+
+  private async loadThreatIntelModel(modelInfo: MLModelInfo): Promise<any> {
+    // Custom threat intelligence model
+    return {
+      analyze: (ioc: string, type: string) => this.analyzeThreatIntelligence(ioc, type)
+    };
+  }
+
+  private async extractEntities(text: string, model: any): Promise<any[]> {
+    // Simplified entity extraction
+    const entities: any[] = [];
+    
+    // IP address pattern
+    const ipPattern = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g;
+    let match;
+    while ((match = ipPattern.exec(text)) !== null) {
+      entities.push({
+        text: match[0],
+        label: 'IP_ADDRESS',
+        confidence: 0.9,
+        start: match.index,
+        end: match.index + match[0].length
+      });
+    }
+
+    // Email pattern
+    const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+    while ((match = emailPattern.exec(text)) !== null) {
+      entities.push({
+        text: match[0],
+        label: 'EMAIL',
+        confidence: 0.9,
+        start: match.index,
+        end: match.index + match[0].length
+      });
+    }
+
+    return entities;
+  }
+
+  private extractKeywords(text: string): string[] {
+    const tokenizer = new natural.WordTokenizer();
+    const tokens = tokenizer.tokenize(text.toLowerCase()) || [];
+    
+    // Remove stop words and short words
+    const stopWords = natural.stopwords;
+    const keywords = tokens
+      .filter(token => token.length > 3 && !stopWords.includes(token))
+      .slice(0, 10); // Top 10 keywords
+
+    return keywords;
+  }
+
+  private async analyzeTopics(text: string): Promise<any[]> {
+    // Simplified topic analysis using keyword frequency
+    const keywords = this.extractKeywords(text);
+    const topicMap: Record<string, string[]> = {
+      'security': ['security', 'attack', 'threat', 'malware', 'breach', 'unauthorized'],
+      'authentication': ['login', 'password', 'user', 'auth', 'credential', 'session'],
+      'network': ['network', 'connection', 'traffic', 'firewall', 'proxy', 'router'],
+      'system': ['system', 'service', 'process', 'memory', 'disk', 'cpu']
+    };
+
+    const topics: any[] = [];
+    for (const [topic, topicKeywords] of Object.entries(topicMap)) {
+      const matches = keywords.filter(keyword => topicKeywords.includes(keyword)).length;
+      if (matches > 0) {
+        topics.push({
+          topic,
+          probability: matches / keywords.length
+        });
+      }
+    }
+
+    return topics.sort((a, b) => b.probability - a.probability).slice(0, 3);
+  }
+
+  private calculateReadability(text: string): number {
+    // Simplified readability score (Flesch Reading Ease approximation)
+    const words = text.split(/\s+/).length;
+    const sentences = text.split(/[.!?]+/).length;
+    const syllables = text.split(/[aeiouAEIOU]/).length - 1;
+
+    if (words === 0 || sentences === 0) return 0;
+
+    const avgWordsPerSentence = words / sentences;
+    const avgSyllablesPerWord = syllables / words;
+
+    return Math.max(0, Math.min(100, 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord)));
+  }
+
+  private extractLogFeatures(logEntry: LogEntry): Record<string, number> {
+    const features: Record<string, number> = {};
+    
+    // Temporal features
+    const timestamp = new Date(logEntry.timestamp);
+    features.hour = timestamp.getHours();
+    features.dayOfWeek = timestamp.getDay();
+    features.isWeekend = timestamp.getDay() === 0 || timestamp.getDay() === 6 ? 1 : 0;
+    features.isBusinessHours = (timestamp.getHours() >= 9 && timestamp.getHours() <= 17) ? 1 : 0;
+
+    // Message features
+    features.messageLength = logEntry.message.length;
+    features.wordCount = logEntry.message.split(/\s+/).length;
+    features.hasError = logEntry.message.toLowerCase().includes('error') ? 1 : 0;
+    features.hasWarning = logEntry.message.toLowerCase().includes('warning') ? 1 : 0;
+    features.hasFailure = logEntry.message.toLowerCase().includes('fail') ? 1 : 0;
+
+    // Level features
+    const levelMap: Record<string, number> = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3, 'CRITICAL': 4 };
+    features.logLevel = levelMap[logEntry.level] || 1;
+
+    // Source features
+    features.sourceHash = this.simpleHash(logEntry.source.name) % 1000;
+
+    // Metadata features
+    if (logEntry.metadata) {
+      features.hasMetadata = 1;
+      features.metadataCount = Object.keys(logEntry.metadata).length;
+      
+      // Extract numeric metadata
+      for (const [key, value] of Object.entries(logEntry.metadata)) {
+        if (typeof value === 'number') {
+          features[`metadata_${key}`] = value;
+        }
+      }
+    } else {
+      features.hasMetadata = 0;
+      features.metadataCount = 0;
+    }
+
+    return features;
+  }
+
+  private calculateStatisticalAnomaly(features: Record<string, number>): number {
+    const values = Object.values(features);
+    const mean = ss.mean(values);
+    const stdDev = ss.standardDeviation(values);
+    
+    // Calculate z-score for each feature and return max
+    const zScores = values.map(value => Math.abs((value - mean) / (stdDev || 1)));
+    return Math.max(...zScores) / 5; // Normalize to 0-1 range
+  }
+
+  private generateAnomalyExplanation(features: Record<string, number>, score: number): string {
+    const sortedFeatures = Object.entries(features)
+      .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+      .slice(0, 3);
+
+    const topFeatures = sortedFeatures.map(([key]) => key).join(', ');
+    return `Anomaly detected based on unusual patterns in: ${topFeatures}. Score: ${score.toFixed(3)}`;
+  }
+
+  private calculateSeverity(anomalyScore: number): 'low' | 'medium' | 'high' | 'critical' {
+    if (anomalyScore >= 0.9) return 'critical';
+    if (anomalyScore >= 0.7) return 'high';
+    if (anomalyScore >= 0.5) return 'medium';
+    return 'low';
+  }
+
+  private async checkThreatDatabase(ioc: string, type: string): Promise<boolean> {
+    // Simplified threat checking - in production, this would query external threat intel APIs
+    const knownThreats = [
+      '192.168.1.100', // Example malicious IP
+      'malware.example.com', // Example malicious domain
+      'd41d8cd98f00b204e9800998ecf8427e' // Example malicious hash
+    ];
+
+    return knownThreats.includes(ioc);
+  }
+
+  private async generateThreatTags(ioc: string, type: string): Promise<string[]> {
+    const tags: string[] = [type];
+    
+    // Add contextual tags based on IOC patterns
+    if (type === 'ip') {
+      if (ioc.startsWith('192.168.') || ioc.startsWith('10.') || ioc.startsWith('172.16.')) {
+        tags.push('internal');
+      } else {
+        tags.push('external');
+      }
+    }
+
+    if (type === 'domain') {
+      if (ioc.includes('temp') || ioc.includes('test') || ioc.includes('tmp')) {
+        tags.push('suspicious');
+      }
+    }
+
+    return tags;
+  }
+
+  private calculateRiskScore(ioc: string, type: string): number {
+    // Simplified risk scoring
+    let score = 0.1; // Base risk
+
+    if (type === 'ip') {
+      // Higher risk for external IPs
+      if (!ioc.startsWith('192.168.') && !ioc.startsWith('10.') && !ioc.startsWith('172.16.')) {
+        score += 0.3;
+      }
+    }
+
+    if (type === 'domain') {
+      // Higher risk for suspicious patterns
+      if (ioc.includes('temp') || ioc.includes('bit.ly') || ioc.includes('tinyurl')) {
+        score += 0.4;
+      }
+    }
+
+    return Math.min(score, 1.0);
+  }
+
+  private async mapToMitre(ioc: string, type: string): Promise<any> {
+    // Simplified MITRE mapping
+    const mappings: Record<string, any> = {
+      'ip': { technique: 'T1071', tactic: 'TA0011', subtechnique: 'Application Layer Protocol' },
+      'domain': { technique: 'T1071.001', tactic: 'TA0011', subtechnique: 'Web Protocols' },
+      'hash': { technique: 'T1059', tactic: 'TA0002', subtechnique: 'Command and Scripting Interpreter' }
+    };
+
+    return mappings[type] || { technique: 'T1078', tactic: 'TA0001', subtechnique: 'Valid Accounts' };
+  }
+
+  private simpleHash(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  }
+}
+

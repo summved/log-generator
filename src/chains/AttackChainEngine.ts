@@ -315,14 +315,14 @@ export class AttackChainEngine extends EventEmitter {
    */
   private calculateActualDelay(baseDelay: number, variance: number): number {
     if (!this.config.randomize_timing || variance === 0) {
-      return Math.round(baseDelay * this.config.speed_multiplier);
+      return Math.round(baseDelay / this.config.speed_multiplier);
     }
 
     const varianceAmount = baseDelay * variance;
     const randomVariance = (Math.random() - 0.5) * 2 * varianceAmount;
     const actualDelay = baseDelay + randomVariance;
     
-    return Math.round(Math.max(0, actualDelay) * this.config.speed_multiplier);
+    return Math.round(Math.max(0, actualDelay) / this.config.speed_multiplier);
   }
 
   /**

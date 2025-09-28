@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: log-generator
+  labels:
+    name: log-generator
+    app.kubernetes.io/name: log-generator
+    app.kubernetes.io/component: logging
+    app.kubernetes.io/part-of: siem-testing

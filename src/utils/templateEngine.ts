@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { v4 as uuidv4 } from 'uuid';
+import { timestampSequencer } from './timestampSequencer';
 
 export class TemplateEngine {
   private static readonly HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
@@ -25,7 +26,7 @@ export class TemplateEngine {
     
     // Replace common placeholders
     const replacements: Record<string, () => string> = {
-      '{timestamp}': () => new Date().toISOString(),
+      '{timestamp}': () => timestampSequencer.getUniqueTimestamp(),
       '{uuid}': () => uuidv4(),
       '{userId}': () => faker.string.uuid(),
       '{clientIP}': () => faker.internet.ip(),

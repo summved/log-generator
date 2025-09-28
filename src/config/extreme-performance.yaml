@@ -1,0 +1,66 @@
+# Extreme Performance Configuration - Target: 20,000 logs/second (1,200,000 logs/minute)
+generators:
+  endpoint:
+    enabled: true
+    frequency: 720000  # 12,000 logs/second
+    templates:
+      - level: INFO
+        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms"
+        probability: 1.0
+        metadata:
+          component: api-gateway
+  
+  application:
+    enabled: true
+    frequency: 480000  # 8,000 logs/second  
+    templates:
+      - level: INFO
+        messageTemplate: User {userId} action {action} resource {resourceId}
+        probability: 1.0
+        metadata:
+          component: business-logic
+
+  # Disable all other generators to maximize performance
+  server:
+    enabled: false
+  firewall:
+    enabled: false
+  cloud:
+    enabled: false
+  authentication:
+    enabled: false
+  database:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  microservices:
+    enabled: false
+  iot:
+    enabled: false
+
+replay:
+  enabled: false
+  speed: 1
+  loop: false
+
+output:
+  format: json
+  destination: file
+  batching:
+    maxBatchSize: 5000      # Very large batches
+    flushIntervalMs: 50     # Very fast flushing
+    enabled: true
+  file:
+    path: ./logs/current/logs.json
+    rotation: true
+    maxSize: 1GB            # Very large files
+    maxFiles: 50
+
+storage:
+  historicalPath: ./logs/historical
+  currentPath: ./logs/current
+  retention: 1              # Minimal retention for maximum performance

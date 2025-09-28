@@ -1,25 +1,26 @@
-# 🚀 Enterprise SIEM Log Generator and Replay Collector | MITRE ATT&CK | Cybersecurity Training
+# 🚀 Enterprise SIEM Log Generator
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![SIEM Compatible](https://img.shields.io/badge/SIEM-Wazuh%20%7C%20Splunk%20%7C%20ELK-orange)](https://github.com/your-username/log-generator)
-[![Security Training](https://img.shields.io/badge/Security-Training%20Ready-red)](https://github.com/your-username/log-generator)
 
-**The most comprehensive open-source cybersecurity log generator** for SIEM testing, security training, and threat simulation. Generate realistic enterprise logs with **MITRE ATT&CK framework integration**, **ML-based behavioral patterns**, and **attack chain simulation**.
+**The most comprehensive open-source cybersecurity log generator** for SIEM testing, security training, and threat simulation. Generate realistic enterprise logs with **MITRE ATT&CK framework integration**, **D3FEND defensive techniques**, **ML-based behavioral patterns**, **attack chain simulation**, and **high-performance worker threads**.
 
 Perfect for **SOC analysts**, **penetration testers**, **security researchers**, and **cybersecurity educators** who need realistic log data for testing SIEM rules, training detection capabilities, and simulating real-world attack scenarios.
-
-🎯 **Generate realistic logs from 12+ enterprise sources** | 🛡️ **MITRE ATT&CK technique mapping** | 🧠 **ML pattern learning** | ⚡ **94,149 logs/minute (max throughput)**
 
 ## 🎯 Key Features
 
 - **🎯 MITRE ATT&CK Integration** - Generate logs mapped to specific techniques and tactics
+- **🛡️ D3FEND Defensive Framework** - Generate defensive response logs and SOC activities  
 - **🔗 Attack Chain Simulation** - Execute multi-stage scenarios (APT29, Ransomware, Insider Threats)
+- **🤖 AI-Enhanced Attack Chains** - Dynamic, evolving attack scenarios with local AI (NO external APIs)
 - **🧠 ML-Based Pattern Learning** - Generate realistic, behavior-based logs using machine learning
-- **⚡ High-Volume Generation** - 94,149 logs/minute (maximum throughput) with batch generation across 12 enterprise sources
+- **⚡ High-Performance Generation** - 6,000+ logs/second native, up to 20,000+ with worker threads and memory-first approach
+- **📊 Real-time Monitoring** - Built-in Prometheus metrics, Grafana dashboards, and health endpoints
+- **🌐 SIEM Integration** - Direct integration with Splunk, ELK, Wazuh, QRadar via HTTP/Syslog (tested and verified)
+- **🐳 Docker & Kubernetes Ready** - Production-ready containers with complete monitoring stack
 - **🔄 Historical Replay** - Replay and analyze existing log data with advanced filtering
-- **🛡️ SIEM Ready** - Direct integration with Wazuh, Splunk, ELK, and other SIEM solutions
+- **📊 12+ Log Sources** - Endpoint, Application, Server, Firewall, Cloud, Authentication, Database, and more
 
 ## 🚀 Quick Start
 
@@ -30,213 +31,161 @@ cd log-generator
 npm install
 ```
 
-### Generate Logs
+### Basic Usage
 ```bash
-# Start generating logs from all sources
+# Generate logs (stored in logs/current/ folder with monitoring)
 npm run generate
 
-# Generate MITRE-specific logs for 30 minutes
-npm run generate -- --mitre-technique T1110 --duration 30m
+# Generate for specific duration
+npm run generate -- --duration 30m
 
-# Generate logs for specific MITRE tactic
-npm run generate -- --mitre-tactic TA0006 --duration 1h
+# Generate MITRE ATT&CK specific logs
+npm run generate -- --mitre-technique T1110 --duration 1h
 
 # Run attack chain simulation
-npm run attack-chains:execute apt29-cozy-bear --speed 2.0
-
-# Learn from historical data and generate ML-based logs
-npm run ml-patterns:learn logs/historical/*.jsonl
-npm run ml-patterns:generate authentication --count 100
-```
-
-## 📋 Log Sources (238 logs/min)
-
-| **Category** | **Sources** | **Logs/Min** |
-|---|---|---|
-| **🏗️ Infrastructure** | API Gateway, Applications, Linux Servers, Firewalls, Cloud (AWS) | 65 |
-| **🔐 Security & Identity** | Authentication, Web Servers | 40 |
-| **💾 Data & Storage** | Databases (PostgreSQL), Backup Systems | 38 |
-| **🚀 Modern Architecture** | Microservices, Email Systems, IoT Devices | 95 |
-
-## 🎯 MITRE ATT&CK Integration
-
-Generate logs mapped to **14 MITRE techniques** across **12 tactics**:
-
-```bash
-# Generate brute force attack logs for 1 hour
-npm run generate -- --mitre-technique T1110.001 --duration 1h
-
-# List all supported techniques
-npm run mitre-list
-
-# Analyze MITRE coverage in historical logs
-npm run mitre-coverage logs/historical/
-```
-
-**Supported Techniques**: T1110 (Brute Force), T1078 (Valid Accounts), T1098 (Account Manipulation), T1562 (Impair Defenses), and more.
-
-## 🔗 Attack Chain Simulation
-
-Execute realistic multi-stage attack scenarios:
-
-```bash
-# List available attack chains
-npm run attack-chains:list
-
-# Execute APT29 Cozy Bear attack (45 minutes, 10 stages)
 npm run attack-chains:execute apt29-cozy-bear
 
-# Execute Ryuk Ransomware attack (30 minutes, 11 stages)  
-npm run attack-chains:execute ransomware-ryuk
+# NEW: AI-Enhanced Attack Chains
+npm run attack-chains:execute-ai ransomware-ryuk --mode enhanced --ai-level medium
+npm run attack-chains:training apt29-cozy-bear --variations 5 --progressive
 
-# Monitor attack chain status
-npm run attack-chains:status
+# High-performance generation with worker threads
+npm run performance-test -- --mode worker --workers 4 --duration 30s
+
+# Test SIEM integrations
+npm run performance-test -- --mode http --duration 10s
+npm run performance-test -- --mode syslog --duration 10s
+
+# Validate configuration (advisory warnings)
+npm run validate-config
+
+# Check status and performance
+npm run status
+
+# Access monitoring endpoints (when generator is running with monitoring enabled)
+curl http://localhost:3000/health     # Health check
+curl http://localhost:3000/metrics    # Prometheus metrics
+curl http://localhost:3000/status     # Detailed status
+
+# Disable monitoring if not needed (optional)
+ENABLE_MONITORING=false npm run generate
 ```
 
-**Available Chains:**
-- **🐻 APT29 Cozy Bear** - Advanced nation-state attack (45 min, 10 stages)
-- **💀 Ryuk Ransomware** - Enterprise ransomware campaign (30 min, 11 stages)
-- **🕵️ Malicious Insider** - Data theft scenario (25 min, 11 stages)
+### Log Storage
+All logs are automatically stored in the `logs/current/` folder in JSON format by default. Historical logs are rotated to `logs/historical/` for long-term storage and analysis.
 
-## 🧠 ML-Based Pattern Learning
+## 🐳 Docker & Monitoring Stack
 
-Learn from historical data to generate realistic, behavior-based logs:
-
+### Quick Docker Setup
 ```bash
-# Learn patterns from historical data
-npm run ml-patterns:learn logs/historical/*.jsonl --min-samples 100
+# Start complete monitoring stack (Prometheus + Grafana + SIEM testing)
+SIEM_HTTP_URL="http://localhost:8000/post" \
+SIEM_API_TOKEN="test-token" \
+GRAFANA_PASSWORD="admin123" \
+docker-compose -f docker-compose.production.yml up -d
 
-# Generate ML-enhanced logs (50 logs with 10% anomalies)
-npm run ml-patterns:generate authentication --count 50 --anomaly-rate 0.1
-
-# Check ML engine status
-npm run ml-patterns:status
-
-# Analyze existing patterns
-npm run ml-patterns:analyze logs/current/*.jsonl
+# Access monitoring dashboards
+# Grafana: http://localhost:3001 (admin/admin123)
+# Prometheus: http://localhost:9090
+# SIEM Test Endpoint: http://localhost:8000/post (POST requests)
+# Log Generator Metrics: http://localhost:3000/metrics
 ```
 
-**ML Capabilities:**
-- **User Behavior Analysis** - Login patterns, application usage, error rates
-- **System Performance Modeling** - CPU, memory, network usage patterns  
-- **Security Event Correlation** - Attack patterns and threat indicators
-- **Anomaly Generation** - Realistic security anomalies with configurable severity
-
-## 🔄 Log Replay & Analysis
-
-Replay and analyze historical log data:
-
+### Production Kubernetes Deployment
 ```bash
-# Replay logs with speed control
-npm run replay -- --file logs/historical/dataset.jsonl --speed 2.0 --loop
+# Deploy to Kubernetes with auto-scaling
+kubectl apply -f k8s/
 
-# Analyze timestamp quality and fix issues
-npm run analyze -- --file logs/historical/dataset.jsonl --fix
-
-# Replay specific time range
-npm run replay -- --file logs/historical/dataset.jsonl --start-time "2024-01-01T00:00:00Z" --end-time "2024-01-02T00:00:00Z"
+# Check deployment status
+kubectl get pods -n log-generator
+kubectl get services -n log-generator
 ```
 
-## 🛡️ SIEM Integration
-
-### Wazuh Integration
-```bash
-# Generate logs and monitor with Wazuh agent
-npm run generate -- --duration 1h
-# Then configure Wazuh agent to monitor logs/current/ directory
-```
-
-### ELK Stack Integration
-```bash
-# Generate logs in JSON format (default) for Elasticsearch
-npm run generate -- --duration 2h
-# Logs are saved to logs/current/ in JSON format by default
-```
-
-### Splunk Integration
-```bash
-# Generate logs for Splunk ingestion
-npm run generate -- --duration 1h
-# Use Universal Forwarder to monitor logs/current/ directory
-```
-
-## 📊 Output Formats
-
-- **JSON** - Structured data for modern SIEM solutions
-- **Syslog** - RFC 3164/5424 compliant for traditional systems  
-- **CEF** - Common Event Format for security tools
-- **Wazuh** - Native Wazuh agent format
-
-## ⚙️ Configuration
-
-Customize log generation with YAML configuration:
-
-```yaml
-# config/custom.yaml
-sources:
-  authentication:
-    enabled: true
-    frequency: 30  # logs per minute
-    templates:
-      - messageTemplate: "User {{user}} login from {{ip}}"
-        level: INFO
-        probability: 0.8
-        mitre:
-          technique: "T1078"
-          tactic: "TA0001"
-```
-
-```bash
-npm run generate -- --config config/custom.yaml
-```
-
-## 🔧 CLI Commands
+## 📋 Available Commands
 
 | **Category** | **Command** | **Description** |
 |---|---|---|
-| **Generation** | `npm run generate [--duration <time>] [--mitre-technique <id>]` | Start log generation |
-| **Replay** | `npm run replay [--file <filename>] [--speed <multiplier>]` | Replay historical logs |
-| **Analysis** | `npm run analyze [--file <filename>] [--fix]` | Analyze log quality |
-| **MITRE** | `npm run mitre-list [--techniques] [--tactics]` | List MITRE techniques |
-| **Attack Chains** | `npm run attack-chains:list [--category <type>]` | List attack scenarios |
-| **ML Patterns** | `npm run ml-patterns:learn <files...>` | Learn from historical data |
-| **Status** | `npm run status` | Show generation status |
+| **Generation** | `npm run generate` | Generate logs from all configured sources |
+| **Performance** | `npm run performance-test` | High-performance testing with worker threads |
+| **MITRE ATT&CK** | `npm run mitre-list` | List supported MITRE techniques |
+| **Attack Chains** | `npm run attack-chains:list` | List available attack scenarios |
+| **AI Attack Chains** | `npm run attack-chains:execute-ai <name>` | Execute with AI enhancements |
+| **AI Training** | `npm run attack-chains:training <name>` | Run progressive AI training sessions |
+| **ML Patterns** | `npm run ml-patterns:learn <files>` | Learn from historical data |
+| **SOC Simulation** | `npm run soc-simulation:scenarios` | List SOC simulation scenarios |
+| **Replay** | `npm run replay` | Replay historical logs |
+| **Analysis** | `npm run analyze` | Analyze log files for issues |
+| **Configuration** | `npm run validate-config` | Validate configuration files (advisory warnings) |
+| **Status** | `npm run status` | Show current system status and performance |
+| **Monitoring** | `curl localhost:3000/health` | Health check endpoint (optional) |
+| **Monitoring** | `curl localhost:3000/metrics` | Prometheus metrics endpoint (optional) |
+| **Monitoring** | `ENABLE_MONITORING=false npm run generate` | Disable monitoring features |
 
-## 📚 Documentation & Resources
+For a complete list of commands, run: `npx ts-node src/cli.ts --help`
+
+## 🛡️ SIEM Integration
+
+The log generator supports multiple output formats and destinations:
+
+**Output Formats:**
+- **JSON** - Default format, stored in `logs/current/`
+- **Syslog** - RFC3164/5424 compliant
+- **CEF** - Common Event Format
+- **HTTP** - Direct SIEM integration via REST API
+
+**Supported SIEMs:**
+- Splunk (HTTP Event Collector)
+- Elastic/ELK Stack
+- Wazuh
+- QRadar
+- Sentinel
+- Any syslog-compatible SIEM
+
+See **[SIEM_INTEGRATION.md](SIEM_INTEGRATION.md)** for detailed integration guides.
+
+## ⚡ High-Performance Features
+
+- **Worker Threads** - Parallel log generation across multiple CPU cores
+- **Memory-First Approach** - 10,000 log buffer before disk writes
+- **Network Output** - Direct HTTP/Syslog streaming to SIEM (10-50x faster than disk)
+- **Batch Processing** - Configurable batch sizes for optimal performance
+- **Real-time Monitoring** - Performance statistics and system health monitoring
+
+Expected performance: **5,000-20,000+ logs/second** with proper configuration.
+
+## 📚 Documentation
 
 | **Guide** | **Description** | **Audience** |
 |---|---|---|
-| **[🚀 Quick Start Guide](QUICK_START.md)** | Get started in 5 minutes | All users |
-| **[❓ FAQ - Common Questions](FAQ.md)** | Frequently asked questions and troubleshooting | All users |
-| **[🎯 Use Cases & Solutions](USE_CASES.md)** | Role-specific implementation guides | SOC, Red Team, Educators |
-| **[📋 Log Types Reference](LOG_TYPES_REFERENCE.md)** | Complete breakdown of all 12 log sources | Technical users |
+| **[🛠️ System Setup](SYSTEM_SETUP.md)** | Platform-specific setup and requirements | All users |
+| **[❓ FAQ](FAQ.md)** | Frequently asked questions | All users |
+| **[🎯 Use Cases](USE_CASES.md)** | Role-specific implementation guides | SOC, Red Team, Educators |
+| **[📋 Log Types Reference](LOG_TYPES_REFERENCE.md)** | Complete breakdown of all log sources | Technical users |
 | **[⚙️ Configuration Guide](CONFIGURATION.md)** | Detailed configuration options | Advanced users |
-| **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | Integration with Wazuh, Splunk, ELK Stack | SIEM administrators |
+| **[🛡️ SIEM Integration](SIEM_INTEGRATION.md)** | Integration with major SIEM platforms | SIEM administrators |
 | **[🔧 Technical Guide](SIEM_TECHNICAL_GUIDE.md)** | Advanced usage and troubleshooting | DevOps, Engineers |
-| **[📊 System Requirements](SYSTEM_REQUIREMENTS.md)** | Performance specs and requirements | IT administrators |
-| **[🚀 Performance Guide](PERFORMANCE_GUIDE.md)** | Complete performance analysis, benchmarking & optimization | Performance engineers |
+| **[🚀 Performance Guide](PERFORMANCE_GUIDE.md)** | Performance optimization and benchmarking | Performance engineers |
 | **[📈 Log Analysis](LOG_ANALYSIS.md)** | Analysis tools and quality metrics | Security analysts |
 | **[🏗️ Code Architecture](CODE_ARCHITECTURE.md)** | Developer documentation and API reference | Developers |
-| **[🤝 Community & Support](COMMUNITY_OUTREACH.md)** | Getting help and contributing | Community members |
+| **[🔧 Advanced Features](ADVANCED_FEATURES.md)** | ML patterns, attack chains, D3FEND integration | Advanced users |
 
 ## 🎯 Use Cases
 
 - **🔒 Security Testing** - Test SIEM rules and detection capabilities
-- **📚 Training & Education** - Cybersecurity training with realistic scenarios
+- **📚 Training & Education** - Cybersecurity training with realistic scenarios  
 - **🧪 Development** - Generate consistent test data for applications
-- **⚡ Performance Testing** - Load test log ingestion systems
+- **⚡ Performance Testing** - Load test log ingestion systems with high-volume generation
 - **🎭 Incident Simulation** - Recreate attack scenarios for analysis
 - **🔄 Continuous Testing** - Automated testing in CI/CD pipelines
 
-## 🚀 Performance
+## 🔧 System Requirements
 
-- **94,149 logs/minute** maximum throughput (1,800x improvement with batch generation)
-- **Batch generation** - Up to 17 logs per 10ms timer tick for extreme frequencies  
-- **Memory efficient** - <100MB RAM usage during high-throughput operations
-- **High-volume replay** - Tested with 1M+ log datasets
-- **Concurrent generation** - Multi-source parallel processing
-- **Sweet spot** - 94K logs/minute with 90%+ efficiency
-- **Timestamp accuracy** - Microsecond precision with duplicate detection
+- **Node.js** 18.0.0 or higher
+- **Memory** 4GB+ RAM (8GB+ recommended for high-performance mode)
+- **Storage** SSD recommended for high-volume generation
+- **Network** For SIEM integration via HTTP/Syslog
+
+See **[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for detailed specifications.
 
 ## 🤝 Contributing
 
@@ -253,7 +202,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ## 🙏 Acknowledgments
 
 - **MITRE ATT&CK Framework** - For the comprehensive threat modeling framework
-- **Wazuh Community** - For SIEM integration insights
+- **MITRE D3FEND Framework** - For the defensive cybersecurity ontology
 - **Security Research Community** - For attack pattern validation
 
 ---

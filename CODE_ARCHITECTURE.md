@@ -30,6 +30,7 @@ log-generator/
 │   ├── types/                   # TypeScript type definitions
 │   │   ├── index.ts             # Core types (LogEntry, LogSource, etc.)
 │   │   ├── attackChain.ts       # Attack chain simulation types
+│   │   ├── aiAttackChain.ts     # AI-enhanced attack chain types
 │   │   └── mlPatterns.ts        # ML pattern learning types
 │   │
 │   ├── utils/                   # Utility modules
@@ -53,21 +54,27 @@ log-generator/
 │   ├── chains/                  # Attack chain simulation
 │   │   ├── AttackChainEngine.ts # Chain execution engine
 │   │   ├── AttackChainManager.ts # Chain management and templates
+│   │   ├── EnhancedAttackChainEngine.ts # AI-enhanced chain execution
+│   │   ├── EnhancedAttackChainManager.ts # AI-enhanced chain management
 │   │   └── templates/           # YAML attack chain definitions
 │   │       ├── apt29-cozy-bear.yaml
 │   │       ├── ransomware-ryuk.yaml
 │   │       └── insider-threat-data-theft.yaml
 │   │
-│   └── ml/                      # ML-based pattern learning
-│       ├── PatternLearningEngine.ts # Core ML pattern learning
-│       └── MLEnhancedLogGenerator.ts # ML-enhanced log generation
+│   ├── ml/                      # ML-based pattern learning
+│   │   ├── PatternLearningEngine.ts # Core ML pattern learning
+│   │   └── MLEnhancedLogGenerator.ts # ML-enhanced log generation
+│   │
+│   └── ai/                      # AI enhancement system
+│       └── LocalAIOrchestrator.ts # Local AI for attack chain enhancement
 │
 ├── logs/                        # Generated log files
 │   ├── current/                 # Real-time generated logs
 │   └── historical/              # Historical logs for replay/analysis
 │
 ├── models/                      # ML models and patterns
-│   └── ml-patterns/             # Learned pattern models
+│   ├── ml-patterns/             # Learned pattern models
+│   └── local-ai/                # Local AI models and knowledge base
 │
 ├── examples/                    # Usage examples
 │   └── basic-usage.js           # Basic JavaScript usage example

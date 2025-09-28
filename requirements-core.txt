@@ -1,0 +1,26 @@
+# Core ML Dependencies - Python 3.13 Compatible
+# Minimal secure installation for basic ML functionality
+
+# Essential ML Libraries
+scikit-learn==1.5.2    # Core ML algorithms
+pandas==2.2.3          # Data manipulation
+numpy==2.1.3           # Numerical computing
+
+# Basic Statistics
+statsmodels==0.14.4    # Statistical modeling
+
+# Security and HTTP (PATCHED VERSIONS - No known vulnerabilities)
+requests==2.32.4       # HTTP library with security patches - FIXED CVE
+cryptography==44.0.1   # Cryptographic functions - FIXED CVE  
+certifi==2024.12.14    # Certificate validation
+urllib3==2.5.0         # HTTP client with security patches - FIXED CVE
+
+# Utilities
+joblib==1.4.2          # Parallel processing
+tqdm==4.67.1           # Progress bars
+python-dateutil==2.9.0.post0  # Date utilities
+pyyaml==6.0.2          # YAML parser with security fixes
+
+# Development Tools
+pytest==8.3.4          # Testing framework
+safety==3.2.11         # Security vulnerability scanner

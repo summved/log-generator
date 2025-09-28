@@ -149,6 +149,18 @@ export abstract class BaseGenerator {
   }
 
   private selectTemplate(): LogTemplate {
+    // Handle missing templates by creating a default one
+    if (!this.config.templates || !Array.isArray(this.config.templates) || this.config.templates.length === 0) {
+      return {
+        level: 'INFO',
+        messageTemplate: `${this.source.type} activity on ${this.source.name || this.source.host}`,
+        probability: 1.0,
+        metadata: {
+          component: this.source.component || this.source.type
+        }
+      };
+    }
+
     const random = Math.random();
     let cumulativeProbability = 0;
 

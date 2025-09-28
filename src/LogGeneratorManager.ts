@@ -5,6 +5,7 @@ import { OutputManager } from './utils/outputManager';
 import { ReplayManager } from './replay';
 import { logger } from './utils/logger';
 import { mitreMapper } from './utils/mitreMapper';
+import { ConfigValidator } from './utils/configValidator';
 import * as cron from 'node-cron';
 import {
   EndpointGenerator,
@@ -21,6 +22,10 @@ import {
   IoTGenerator,
   BaseGenerator
 } from './generators';
+import { HighPerformanceGenerator } from './generators/HighPerformanceGenerator';
+import { WorkerPoolManager } from './workers/LogGeneratorWorker';
+import { MetricsCollector } from './utils/metricsCollector';
+import { HttpServer } from './utils/httpServer';
 
 export interface MitreFilterOptions {
   technique?: string;
@@ -34,15 +39,33 @@ export class LogGeneratorManager {
   private outputManager: OutputManager;
   private replayManager: ReplayManager;
   private generators: Map<string, BaseGenerator> = new Map();
+  private workerPool?: WorkerPoolManager;
   private isRunning: boolean = false;
   private cleanupCron?: cron.ScheduledTask;
   private rotationCron?: cron.ScheduledTask;
   private mitreFilter?: MitreFilterOptions;
+  private useWorkerThreads: boolean = false;
+  private metricsCollector: MetricsCollector;
+  private httpServer?: HttpServer;
 
   constructor(configPath?: string, mitreFilter?: MitreFilterOptions) {
     this.configManager = new ConfigManager(configPath);
     const config = this.configManager.getConfig();
     this.mitreFilter = mitreFilter;
+    
+    // Validate configuration - Advisory only, does not block execution
+    const validationResult = ConfigValidator.validateConfig(config);
+    ConfigValidator.logValidationResults(validationResult);
+    
+    // Only block if there are actual configuration errors (missing required fields, etc.)
+    // Performance warnings are advisory and don't prevent execution
+    const criticalErrors = validationResult.errors.filter(error => 
+      !error.includes('frequency') && !error.includes('batch size') && !error.includes('flush interval')
+    );
+    
+    if (criticalErrors.length > 0) {
+      throw new Error(`Critical configuration errors: ${criticalErrors.join(', ')}`);
+    }
     
     this.storageManager = new StorageManager(
       config.storage.currentPath,
@@ -52,9 +75,16 @@ export class LogGeneratorManager {
     
     this.outputManager = new OutputManager(config.output, this.storageManager);
     this.replayManager = new ReplayManager(config.replay, this.storageManager);
+    this.metricsCollector = MetricsCollector.getInstance();
     
     this.initializeGenerators();
     this.setupCronJobs();
+    
+    // Only setup HTTP server if monitoring is enabled (default: true)
+    const enableMonitoring = process.env.ENABLE_MONITORING !== 'false';
+    if (enableMonitoring) {
+      this.setupHttpServer();
+    }
   }
 
   private initializeGenerators(): void {
@@ -107,7 +137,7 @@ export class LogGeneratorManager {
       } catch (error) {
         logger.error('Failed to run daily cleanup:', error);
       }
-    }, { scheduled: false });
+    }, { timezone: 'UTC' });
 
     // Daily rotation at 1 AM
     this.rotationCron = cron.schedule('0 1 * * *', async () => {
@@ -117,7 +147,7 @@ export class LogGeneratorManager {
       } catch (error) {
         logger.error('Failed to run daily rotation:', error);
       }
-    }, { scheduled: false });
+    }, { timezone: 'UTC' });
   }
 
   public async start(): Promise<void> {
@@ -129,16 +159,30 @@ export class LogGeneratorManager {
     logger.info('Starting log generator');
     this.isRunning = true;
 
+    // Start HTTP server for metrics
+    if (this.httpServer) {
+      try {
+        await this.httpServer.start();
+      } catch (error) {
+        logger.error('Failed to start HTTP server:', error);
+      }
+    }
+
     // Start generators
     for (const [name, generator] of this.generators) {
+      this.metricsCollector.setGeneratorActive(name, true);
       generator.start(async (logEntry) => {
         try {
+          // Record metrics for each log
+          this.metricsCollector.recordLogGenerated(logEntry);
+          
           // Apply MITRE filtering if specified
           if (this.shouldIncludeLogEntry(logEntry)) {
             await this.outputManager.outputLog(logEntry);
           }
         } catch (error) {
           logger.error(`Failed to output log from ${name}:`, error);
+          this.metricsCollector.recordError();
         }
       });
     }
@@ -189,8 +233,18 @@ export class LogGeneratorManager {
     this.isRunning = false;
 
     // Stop generators
-    for (const generator of this.generators.values()) {
+    for (const [name, generator] of this.generators) {
       generator.stop();
+      this.metricsCollector.setGeneratorActive(name, false);
+    }
+
+    // Stop HTTP server
+    if (this.httpServer) {
+      try {
+        await this.httpServer.stop();
+      } catch (error) {
+        logger.error('Failed to stop HTTP server:', error);
+      }
     }
 
     // Stop replay if running
@@ -270,5 +324,55 @@ export class LogGeneratorManager {
   public async cleanupLogsManually(): Promise<void> {
     logger.info('Manual log cleanup triggered');
     await this.storageManager.cleanupOldLogs();
+  }
+
+  private setupHttpServer(): void {
+    const port = process.env.HTTP_PORT ? parseInt(process.env.HTTP_PORT) : 3000;
+    this.httpServer = new HttpServer(port);
+  }
+
+  /**
+   * Enable high-performance mode with worker threads
+   */
+  public enableHighPerformanceMode(workerCount: number = 4): void {
+    this.useWorkerThreads = true;
+    this.workerPool = new WorkerPoolManager(workerCount);
+    logger.info(`High-performance mode enabled with ${workerCount} worker threads`);
+  }
+
+  /**
+   * Disable high-performance mode and cleanup worker threads
+   */
+  public async disableHighPerformanceMode(): Promise<void> {
+    this.useWorkerThreads = false;
+    if (this.workerPool) {
+      await this.workerPool.terminate();
+      this.workerPool = undefined;
+    }
+    logger.info('High-performance mode disabled');
+  }
+
+  /**
+   * Get performance statistics
+   */
+  public getPerformanceStats(): {
+    isHighPerformanceMode: boolean;
+    workerThreadsActive: boolean;
+    generatorCount: number;
+    runningGenerators: string[];
+  } {
+    const runningGenerators: string[] = [];
+    this.generators.forEach((generator, name) => {
+      if ((generator as any).isRunning) {
+        runningGenerators.push(name);
+      }
+    });
+
+    return {
+      isHighPerformanceMode: this.useWorkerThreads,
+      workerThreadsActive: !!this.workerPool,
+      generatorCount: this.generators.size,
+      runningGenerators
+    };
   }
 }
