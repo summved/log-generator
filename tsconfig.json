@@ -23,12 +23,6 @@
     "node_modules",
     "dist",
     "**/*.test.ts",
-    "src/cli-working.ts",
-    "src/cli-basic.ts",
-    "src/ai/LocalAIOrchestrator.ts",
-    "src/chains/EnhancedAttackChainEngine.ts",
-    "src/chains/EnhancedAttackChainManager.ts",
-    "src/chains/SimpleEnhancedManager.ts",
-    "**/*.disabled"
+    "src/ai/LocalAIOrchestrator.ts"
   ]
 }
