@@ -124,3 +124,4 @@ docs/generated/
 # Note: Developer reference files are kept in repository:
 # - CODE_ARCHITECTURE.md (for developers)
 # - LOG_EXPANSION_SUGGESTIONS.md (for future development)
+wazuh-docker/
