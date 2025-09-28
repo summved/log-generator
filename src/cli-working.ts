@@ -56,7 +56,7 @@ program
       };
 
       // Start generation
-      await manager.startGeneration(filterOptions);
+      await manager.start();
 
       // Run for specified duration
       console.log(`⏱️ Running for ${options.duration}...`);
@@ -82,7 +82,7 @@ program
       const configPath = options.config || 'src/config/default.yaml';
       const configManager = new ConfigManager(configPath);
       const config = configManager.getConfig();
-      const manager = new LogGeneratorManager(config);
+      const manager = new LogGeneratorManager(configPath);
 
       console.log('📊 System Status\n');
       console.log('================');
@@ -287,8 +287,13 @@ program
 
       const chainManager = new AttackChainManager();
       const executionConfig: AttackChainExecutionConfig = {
-        logGeneratorConfig: config,
-        dryRun: options.dryRun || false
+        speed_multiplier: parseFloat(options.speed) || 1.0,
+        enable_progress_logging: true,
+        log_level: 'info',
+        generate_execution_report: true,
+        allow_step_skipping: false,
+        continue_on_failure: options.continueOnFailure || false,
+        randomize_timing: true
       };
 
       if (options.dryRun) {
@@ -298,9 +303,9 @@ program
       const execution = await chainManager.executeChain(name, executionConfig);
 
       console.log(`✅ Attack chain execution completed!`);
-      console.log(`   Execution ID: ${execution.id}`);
-      console.log(`   Steps executed: ${execution.steps.length}`);
-      console.log(`   Total duration: ${execution.duration}ms`);
+      console.log(`   Execution ID: ${execution.executionId}`);
+      console.log(`   Steps executed: ${execution.stats.stepsCompleted}`);
+      console.log(`   Total duration: ${execution.endTime && execution.startTime ? execution.endTime.getTime() - execution.startTime.getTime() : 0}ms`);
 
     } catch (error) {
       console.error('❌ Error executing attack chain:', error);
@@ -344,7 +349,9 @@ program
       console.log(`⚡ Speed: ${speed}x`);
       console.log(`🔄 Loop: ${options.loop ? 'Yes' : 'No'}\n`);
 
-      await replayManager.startReplay(replayConfig);
+      await replayManager.startReplay(async (log) => {
+        console.log(JSON.stringify(log));
+      });
 
     } catch (error) {
       console.error('❌ Error replaying logs:', error);
@@ -370,7 +377,7 @@ program
 
       const configManager = new ConfigManager(configPath);
       const config = configManager.getConfig();
-      const manager = new LogGeneratorManager(config);
+      const manager = new LogGeneratorManager(configPath);
 
       const startTime = Date.now();
       await manager.start();

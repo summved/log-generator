@@ -1,0 +1,164 @@
+# Wazuh Integration Configuration
+# Optimized for sending logs to Wazuh SIEM via syslog and file monitoring
+
+generators:
+  endpoint:
+    enabled: true
+    frequency: 30000  # 500 logs/second - moderate rate for testing
+    templates:
+      - level: INFO
+        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms - IP: {clientIP} User: {userId}"
+        probability: 0.7
+        metadata:
+          component: web-server
+          mitre_technique: "T1190"  # Exploit Public-Facing Application
+      - level: WARN
+        messageTemplate: "Suspicious HTTP {method} {path} - {status} Multiple attempts from IP: {clientIP}"
+        probability: 0.2
+        metadata:
+          component: web-server
+          mitre_technique: "T1110"  # Brute Force
+      - level: ERROR
+        messageTemplate: "HTTP {method} {path} - {status} {errorMessage} - Potential attack from IP: {clientIP}"
+        probability: 0.1
+        metadata:
+          component: web-server
+          mitre_technique: "T1190"  # Exploit Public-Facing Application
+
+  authentication:
+    enabled: true
+    frequency: 15000  # 250 logs/second
+    templates:
+      - level: INFO
+        messageTemplate: "User {userId} successfully authenticated from IP: {clientIP}"
+        probability: 0.8
+        metadata:
+          component: auth-service
+          mitre_technique: "T1078"  # Valid Accounts
+      - level: WARN
+        messageTemplate: "Failed login attempt for user {userId} from IP: {clientIP}"
+        probability: 0.15
+        metadata:
+          component: auth-service
+          mitre_technique: "T1110"  # Brute Force
+      - level: ERROR
+        messageTemplate: "Account lockout for user {userId} after multiple failed attempts from IP: {clientIP}"
+        probability: 0.05
+        metadata:
+          component: auth-service
+          mitre_technique: "T1110.001"  # Password Guessing
+
+  firewall:
+    enabled: true
+    frequency: 24000  # 400 logs/second
+    templates:
+      - level: INFO
+        messageTemplate: "ACCEPT {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort}"
+        probability: 0.85
+        metadata:
+          component: firewall
+          mitre_technique: "T1095"  # Non-Application Layer Protocol
+      - level: WARN
+        messageTemplate: "DROP {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Blocked by rule"
+        probability: 0.1
+        metadata:
+          component: firewall
+          mitre_technique: "T1095"  # Non-Application Layer Protocol
+      - level: ERROR
+        messageTemplate: "DENY {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Potential port scan detected"
+        probability: 0.05
+        metadata:
+          component: firewall
+          mitre_technique: "T1046"  # Network Service Scanning
+
+  server:
+    enabled: true
+    frequency: 18000  # 300 logs/second
+    templates:
+      - level: INFO
+        messageTemplate: "System load: {loadAverage} - CPU: {cpuUsage}% Memory: {memoryUsage}%"
+        probability: 0.7
+        metadata:
+          component: system-monitor
+      - level: WARN
+        messageTemplate: "High CPU usage detected: {cpuUsage}% for {duration}s"
+        probability: 0.2
+        metadata:
+          component: performance-monitor
+          mitre_technique: "T1496"  # Resource Hijacking
+      - level: ERROR
+        messageTemplate: "Critical system alert: Memory usage {memoryUsage}% - Potential DoS attack"
+        probability: 0.1
+        metadata:
+          component: system-monitor
+          mitre_technique: "T1499"  # Endpoint Denial of Service
+
+  # Disable other generators for focused testing
+  application:
+    enabled: false
+  cloud:
+    enabled: false
+  database:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  microservices:
+    enabled: false
+  iot:
+    enabled: false
+
+# Wazuh Integration - Multiple output methods
+output:
+  format: "syslog"  # Wazuh-compatible syslog format
+  destination: "syslog"
+  batching:
+    maxBatchSize: 50      # Smaller batches for syslog reliability
+    flushIntervalMs: 500  # Moderate flushing for real-time monitoring
+    enabled: true
+  syslog:
+    host: "localhost"     # Wazuh manager listening on localhost
+    port: 514             # Standard syslog port
+    protocol: "udp"       # UDP for performance
+    facility: "local0"    # Syslog facility for log generator
+    tag: "log-generator"  # Tag to identify our logs in Wazuh
+
+# Also write to file for Wazuh agent monitoring
+file_output:
+  enabled: true
+  path: "/Users/summved/Documents/Work/log-generator/logs/wazuh/wazuh-logs.json"
+  format: "json"
+  rotation: true
+  maxSize: "100MB"
+  maxFiles: 5
+
+storage:
+  historicalPath: ./logs/historical
+  currentPath: ./logs/current
+  retention: 30  # Keep logs for 30 days
+
+# Wazuh-specific settings
+wazuh:
+  manager_host: "localhost"
+  manager_port: 55000
+  api_user: "wazuh-wui"
+  api_password: "MyS3cr37P450r.*-"
+  agent_name: "log-generator"
+  
+# Enable monitoring for integration testing
+monitoring:
+  enabled: true
+  port: 3000
+  metrics:
+    enabled: true
+    wazuh_integration: true
+
+# Performance settings optimized for Wazuh
+performance:
+  workers: 2              # Moderate worker count
+  memory_limit: "512MB"   # Conservative memory usage
+  batch_processing: true
+  real_time_mode: true    # Real-time log generation for SIEM

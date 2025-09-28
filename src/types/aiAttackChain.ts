@@ -38,6 +38,13 @@ export interface EnhancedAttackChain extends AttackChain {
   aiGenerated: boolean;
   variations: AttackChainVariation[];
   metadata: {
+    author: string;
+    version: string;
+    created: string;
+    tags: string[];
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    estimated_duration: number;
+    // AI-specific metadata
     baseTemplate: string;
     enhancementDate: Date;
     aiModel?: string;
