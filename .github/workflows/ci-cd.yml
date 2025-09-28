@@ -215,7 +215,7 @@ jobs:
         timeout 60s node src/scripts/performance-comparison.js || echo "Comparison completed"
         
     - name: Upload performance results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: performance-results
         path: performance-comparison-results.json
