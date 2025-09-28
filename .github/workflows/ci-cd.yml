@@ -96,6 +96,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
       
     steps:
     - name: Checkout code
@@ -137,10 +138,17 @@ jobs:
         
     - name: Run container security scan
       uses: aquasecurity/trivy-action@master
+      if: success()
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
         format: 'sarif'
         output: 'trivy-image-results.sarif'
+        
+    - name: Upload container scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-image-results.sarif'
         
   deploy-staging:
     name: Deploy to Staging
