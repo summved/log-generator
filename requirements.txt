@@ -33,7 +33,7 @@ python-dateutil==2.9.0.post0  # Date utilities
 pyyaml==6.0.2          # YAML parser with security fixes
 
 # Security and Validation
-cryptography==44.0.0   # Cryptographic recipes and primitives
+cryptography==44.0.1   # Cryptographic recipes and primitives
 certifi==2024.12.14    # Certificate validation
 urllib3==2.2.3         # HTTP client with security patches
 
