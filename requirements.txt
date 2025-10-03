@@ -16,7 +16,7 @@ pyod==2.0.2            # Python Outlier Detection toolkit
 # isolation-forest==0.1.2 # Not available for Python 3.13 - using sklearn.ensemble.IsolationForest instead
 
 # Natural Language Processing (Conservative versions for stability)
-transformers==4.48.0   # Hugging Face transformers - SECURITY FIX for CVE-2024-11394, CVE-2024-11393, CVE-2024-11392
+transformers==4.53.0   # Hugging Face transformers - SECURITY FIX for CVE-2024-11394, CVE-2024-11393, CVE-2024-11392
 torch==2.6.0           # PyTorch - SECURITY FIX for CVE-2025-32434
 sentence-transformers==3.3.1  # Sentence embeddings
 spacy==3.8.2           # Industrial-strength NLP
