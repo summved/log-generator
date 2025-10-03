@@ -22,7 +22,7 @@ sentence-transformers==3.3.1  # Sentence embeddings
 spacy==3.8.2           # Industrial-strength NLP
 
 # Threat Intelligence
-requests==2.32.3       # HTTP library with security patches
+requests==2.32.4       # HTTP library with security patches
 python-whois==0.9.4    # WHOIS lookup functionality
 ipwhois==1.2.0         # IP address WHOIS and ASN lookup
 
