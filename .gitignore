@@ -133,6 +133,13 @@ continuous-*.log
 *temp*.log
 nohup.out
 
+# Python cache files
+python/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
 # Note: Developer reference files are kept in repository:
 # - CODE_ARCHITECTURE.md (for developers)
 # - LOG_EXPANSION_SUGGESTIONS.md (for future development)
