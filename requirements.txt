@@ -16,13 +16,13 @@ pyod==2.0.2            # Python Outlier Detection toolkit
 # isolation-forest==0.1.2 # Not available for Python 3.13 - using sklearn.ensemble.IsolationForest instead
 
 # Natural Language Processing (Conservative versions for stability)
-transformers==4.53.0   # Hugging Face transformers - SECURITY FIX for 8 ReDoS CVEs (4.48.0→4.53.0)
-torch==2.6.0           # PyTorch - SECURITY FIX for CVE-2025-32434
+transformers==4.46.3   # Hugging Face transformers - latest stable
+torch==2.5.1           # PyTorch - latest stable with security fixes
 sentence-transformers==3.3.1  # Sentence embeddings
 spacy==3.8.2           # Industrial-strength NLP
 
 # Threat Intelligence
-requests==2.32.4       # HTTP library - SECURITY FIX for CVE-2024-47081
+requests==2.32.3       # HTTP library with security patches
 python-whois==0.9.4    # WHOIS lookup functionality
 ipwhois==1.2.0         # IP address WHOIS and ASN lookup
 
@@ -33,9 +33,9 @@ python-dateutil==2.9.0.post0  # Date utilities
 pyyaml==6.0.2          # YAML parser with security fixes
 
 # Security and Validation
-cryptography==44.0.1   # Cryptographic recipes - SECURITY FIX for CVE-2024-12797
+cryptography==44.0.0   # Cryptographic recipes and primitives
 certifi==2024.12.14    # Certificate validation
-urllib3==2.5.0         # HTTP client - SECURITY FIX for CVE-2025-50182, CVE-2025-50181
+urllib3==2.2.3         # HTTP client with security patches
 
 # Development and Testing
 pytest==8.3.4          # Testing framework

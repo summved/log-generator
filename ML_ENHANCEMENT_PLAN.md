@@ -1,18 +1,41 @@
-# 🧠 ML Enhancement Plan for Log Generator
+# 🧠 ML Enhancement Plan for Your Log Generator
 
 ## 📊 Current ML Capabilities Assessment
 
 Your log generator tool already has impressive ML capabilities built in:
 
-### ✅ Existing Features
-- **ML-Enhanced Log Generator** (`src/ml/MLEnhancedLogGenerator.ts`)
-- **Pattern Learning Engine** (`src/ml/PatternLearningEngine.ts`)
-- **User Behavior Pattern Analysis**
-- **System Behavior Pattern Detection**
-- **Security Event Pattern Recognition**
-- **Anomaly Generation** (5% anomaly rate with severity distribution)
-- **Business Context Awareness** (working hours, departments, roles)
-- **MITRE ATT&CK Integration** with ML-generated mappings
+### ✅ Available ML Features
+- **ML-Enhanced Log Generator** - Intelligent log generation with pattern learning
+- **Pattern Learning Engine** - Learns from your historical log data
+- **User Behavior Pattern Analysis** - Generates realistic user behavior patterns
+- **System Behavior Pattern Detection** - Mimics real system behaviors
+- **Security Event Pattern Recognition** - Creates authentic security events
+- **Anomaly Generation** - 5% anomaly rate with severity distribution
+- **Business Context Awareness** - Working hours, departments, roles
+- **MITRE ATT&CK Integration** - ML-generated attack technique mappings
+
+### 🚀 **ML Commands Available**
+- `npm run ml-patterns` - Main ML patterns command
+- `npm run ml-patterns:learn` - Learn patterns from historical data
+- `npm run ml-patterns:status` - Check ML system status
+- `npm run ml-patterns:generate` - Generate ML-enhanced logs
+- `npm run ml-patterns:analyze` - Analyze logs with ML models
+- `npm run ml-patterns:config` - Configure ML settings
+- `npm run ml-patterns:reset` - Reset ML patterns and models
+- `npm run ml-patterns:train-nlp` - Train NLP models
+- `npm run ml-patterns:test-anomaly` - Test anomaly detection
+- `npm run ml-patterns:forecast` - Generate time series forecasts
+- `npm run ml-patterns:threat-intel` - Analyze threat intelligence
+
+### 📁 **ML System Files**
+- **`src/ml/MLEnhancedLogGenerator.ts`** - ML-enhanced log generation engine
+- **`src/ml/PatternLearningEngine.ts`** - Pattern learning and analysis engine
+- **`src/ml/PythonMLBridge.ts`** - Python ML models integration bridge
+- **`src/ml/NLPEnhancedGenerator.ts`** - NLP-enhanced log generation
+- **`src/ml/MLModelManager.ts`** - ML model management and caching
+- **`python/ml_models.py`** - Python ML models and algorithms
+- **`models/ml-patterns/`** - Directory for learned ML patterns
+- **`src/types/mlPatterns.ts`** - ML pattern type definitions
 
 ### 🎯 Current ML Architecture
 - Pattern learning from historical log data

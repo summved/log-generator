@@ -1,10 +1,37 @@
-# 🧠 ML Capabilities Summary - Log Generator Enhancement
+# 🧠 ML Capabilities Summary - Your Enhanced Log Generator
 
 ## 📊 Overview
 
-**YES, your log generator tool now has comprehensive ML capabilities!** I have successfully integrated authentic, reliable, and open-source ML models that significantly enhance your log generation and analysis capabilities.
+**YES, your log generator tool now has comprehensive ML capabilities!** The system includes authentic, reliable, and open-source ML models that significantly enhance your log generation and analysis capabilities.
 
-## ✅ What Has Been Added
+## ✅ Available ML Features
+
+### 🚀 **ML Commands Available**
+
+Your log generator includes **10 ML-specific commands**:
+
+- `npm run ml-patterns` - Main ML patterns command
+- `npm run ml-patterns:learn` - Learn patterns from historical data
+- `npm run ml-patterns:status` - Check ML system status
+- `npm run ml-patterns:generate` - Generate ML-enhanced logs
+- `npm run ml-patterns:analyze` - Analyze logs with ML models
+- `npm run ml-patterns:config` - Configure ML settings
+- `npm run ml-patterns:reset` - Reset ML patterns and models
+- `npm run ml-patterns:train-nlp` - Train NLP models
+- `npm run ml-patterns:test-anomaly` - Test anomaly detection
+- `npm run ml-patterns:forecast` - Generate time series forecasts
+- `npm run ml-patterns:threat-intel` - Analyze threat intelligence
+
+### 📁 **ML System Components**
+
+- **`src/ml/MLEnhancedLogGenerator.ts`** - ML-enhanced log generation engine
+- **`src/ml/PatternLearningEngine.ts`** - Pattern learning and analysis engine
+- **`src/ml/PythonMLBridge.ts`** - Python ML models integration bridge
+- **`src/ml/NLPEnhancedGenerator.ts`** - NLP-enhanced log generation
+- **`src/ml/MLModelManager.ts`** - ML model management and caching
+- **`python/ml_models.py`** - Python ML models and algorithms
+- **`models/ml-patterns/`** - Directory for learned ML patterns
+- **`src/types/mlPatterns.ts`** - ML pattern type definitions
 
 ### 🔤 1. Natural Language Processing (NLP) Models
 

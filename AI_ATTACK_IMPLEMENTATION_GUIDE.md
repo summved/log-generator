@@ -1,15 +1,32 @@
-# 🤖 AI Attack Evolution - Implementation Guide
+# 🤖 AI Attack Evolution - User Guide
 
-## 🎯 **What I've Built for You**
+## 🎯 **What You Now Have**
 
-I've implemented a **complete AI-enhanced attack chain system** that runs entirely locally with **NO external dependencies, NO tokens, NO API calls**. Here's what's ready to use:
+Your log generator includes a **complete AI-enhanced attack chain system** that runs entirely locally with **NO external dependencies, NO tokens, NO API calls**. Here's what's ready to use:
 
-### ✅ **Core Components Created:**
+### ✅ **Available AI Components:**
 
-1. **`LocalAIOrchestrator.ts`** - Local AI engine with built-in MITRE knowledge
-2. **`EnhancedAttackChainEngine.ts`** - Extends your existing engine with AI capabilities  
-3. **`EnhancedAttackChainManager.ts`** - User-friendly interface for AI features
-4. **`aiAttackChain.ts`** - Complete type definitions for AI enhancements
+1. **Local AI Engine** - Built-in MITRE knowledge base
+2. **Enhanced Attack Chain Engine** - Extends your existing engine with AI capabilities  
+3. **User-Friendly AI Interface** - Easy-to-use commands for AI features
+4. **Complete Type System** - Full TypeScript support for AI enhancements
+
+### ✅ **New AI Commands Available:**
+
+- `npm run attack-chains:execute-ai` - Execute AI-enhanced attack chains
+- `npm run attack-chains:training` - Progressive training sessions with variations
+- `npm run attack-chains:preview` - Preview AI enhancements without execution
+- `npm run attack-chains:ai-options` - Show available AI options for chains
+- `npm run attack-chains:ai-statistics` - View AI execution statistics
+
+### ✅ **Core AI System Files:**
+
+- **`src/types/aiAttackChain.ts`** - Complete TypeScript type definitions for AI enhancements
+- **`src/ai/LocalAIOrchestrator.ts`** - Local AI engine with built-in MITRE knowledge base
+- **`src/chains/EnhancedAttackChainEngine.ts`** - AI-enhanced execution engine that extends existing functionality
+- **`src/chains/EnhancedAttackChainManager.ts`** - User-friendly interface for all AI features
+- **`models/local-ai/`** - Directory for AI models and knowledge base
+- **`knowledge/mitre/`** - Directory for MITRE ATT&CK knowledge base
 
 ## 🚀 **Flexible Execution Modes**
 
@@ -282,6 +299,14 @@ This transforms your tool from a **static log generator** into an **intelligent 
 **Ready to revolutionize your attack simulation capabilities?** 
 
 Let me know and I'll integrate this into your existing codebase with full backward compatibility! 🚀
+
+
+
+
+
+
+
+
 
 
 

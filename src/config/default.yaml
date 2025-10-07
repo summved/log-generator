@@ -1,102 +1,1071 @@
-# High Performance Configuration - Target: 5,000 logs/second (300,000 logs/minute)
+# Complete Enterprise SIEM Log Generator Configuration
+# All 12 log source types with comprehensive templates and MITRE ATT&CK mapping
 generators:
   endpoint:
     enabled: true
-    frequency: 120000  # 2,000 logs/second
+    frequency: 10000
     templates:
       - level: INFO
-        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms - IP: {clientIP}"
-        probability: 0.8
+        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms - IP: {clientIP} - User: {userId}"
+        probability: 0.5
         metadata:
           component: api-gateway
+          sessionId: "{sessionId}"
+          userAgent: "{userAgent}"
+          correlationId: "{correlationId}"
       - level: ERROR
-        messageTemplate: "HTTP {method} {path} - {status} {errorMessage} - IP: {clientIP}"
+        messageTemplate: "HTTP {method} {path} - {status} {errorMessage} - IP: {clientIP} - User: {userId}"
+        probability: 0.1
+        metadata:
+          component: api-gateway
+          sessionId: "{sessionId}"
+          errorCode: "{errorCode}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1190
+          tactic: TA0001
+          subtechnique: Exploit Public-Facing Application
+          description: Adversaries may exploit software vulnerabilities in client-facing applications
+      - level: WARN
+        messageTemplate: "Rate limit exceeded for IP {clientIP} - {path} - Attempts: {attemptCount}/min"
+        probability: 0.15
+        metadata:
+          component: rate-limiter
+          attemptCount: "{attemptCount}"
+          limitThreshold: "100"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1110
+          tactic: TA0006
+          subtechnique: Brute Force
+          description: Adversaries may use brute force techniques to gain access to accounts
+      - level: DEBUG
+        messageTemplate: "Request headers: {headers} - {path} - Session: {sessionId}"
         probability: 0.2
         metadata:
           component: api-gateway
-  
+          sessionId: "{sessionId}"
+          headers: "{headers}"
+          correlationId: "{correlationId}"
+      - level: WARN
+        messageTemplate: "Suspicious request pattern detected: {method} {path} from {clientIP} - Pattern: {patternType}"
+        probability: 0.05
+        metadata:
+          component: security-monitor
+          patternType: "{patternType}"
+          riskScore: "{riskScore}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1071
+          tactic: TA0011
+          subtechnique: Application Layer Protocol
+          description: Adversaries may communicate using application layer protocols
+
   application:
     enabled: true
-    frequency: 60000   # 1,000 logs/second
+    frequency: 15
     templates:
       - level: INFO
-        messageTemplate: User {userId} performed action {action} on resource {resourceId}
-        probability: 0.7
-        metadata:
-          component: business-logic
-      - level: ERROR
-        messageTemplate: "Database connection failed: {errorMessage}"
-        probability: 0.3
-        metadata:
-          component: database
-  
-  server:
-    enabled: true
-    frequency: 60000   # 1,000 logs/second
-    templates:
-      - level: INFO
-        messageTemplate: "System load: {loadAverage} - CPU: {cpuUsage}% Memory: {memoryUsage}%"
-        probability: 0.6
-        metadata:
-          component: system-monitor
-      - level: WARN
-        messageTemplate: "High CPU usage detected: {cpuUsage}% for {duration}s"
+        messageTemplate: "User {userId} performed action {action} on resource {resourceId} - Duration: {duration}ms - Session: {sessionId}"
         probability: 0.4
         metadata:
-          component: performance-monitor
-  
-  firewall:
-    enabled: true
-    frequency: 60000   # 1,000 logs/second
-    templates:
-      - level: INFO
-        messageTemplate: "ACCEPT {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort}"
-        probability: 0.9
+          component: business-logic
+          userId: "{userId}"
+          action: "{action}"
+          resourceId: "{resourceId}"
+          duration: "{duration}"
+          sessionId: "{sessionId}"
+          userRole: "{userRole}"
+      - level: ERROR
+        messageTemplate: "Database connection failed: {errorMessage} - Pool: {poolName} - Retry: {retryCount} - Component: {component}"
+        probability: 0.08
         metadata:
-          component: packet-filter
+          component: database
+          errorMessage: "{errorMessage}"
+          poolName: "{poolName}"
+          retryCount: "{retryCount}"
+          sourceComponent: "{component}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1078
+          tactic: TA0001
+          subtechnique: Valid Accounts
+          description: Adversaries may exploit database connection issues
       - level: WARN
-        messageTemplate: "DROP {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort}"
+        messageTemplate: "High memory usage detected: {memoryUsage}% - PID: {pid} - Process: {processName} - Threshold: {threshold}%"
+        probability: 0.12
+        metadata:
+          component: monitoring
+          memoryUsage: "{memoryUsage}"
+          pid: "{pid}"
+          processName: "{processName}"
+          threshold: "{threshold}"
+          uptime: "{uptime}"
+        mitre:
+          technique: T1496
+          tactic: TA0040
+          subtechnique: Resource Hijacking
+          description: Adversaries may hijack system resources
+      - level: INFO
+        messageTemplate: "Cache {cacheOperation} for key {key} - Result: {result} - TTL: {ttl}s - Hit rate: {hitRate}%"
+        probability: 0.25
+        metadata:
+          component: cache
+          cacheOperation: "{cacheOperation}"
+          key: "{key}"
+          result: "{result}"
+          ttl: "{ttl}"
+          hitRate: "{hitRate}"
+          cacheType: "{cacheType}"
+      - level: DEBUG
+        messageTemplate: "API call: {apiEndpoint} - Method: {method} - Status: {status} - Duration: {duration}ms - User: {userId}"
         probability: 0.1
         metadata:
-          component: packet-filter
+          component: api-gateway
+          apiEndpoint: "{apiEndpoint}"
+          method: "{method}"
+          status: "{status}"
+          duration: "{duration}"
+          userId: "{userId}"
+          requestId: "{requestId}"
+      - level: WARN
+        messageTemplate: "Business rule violation: {ruleName} - User: {userId} - Action: {action} - Severity: {severity}"
+        probability: 0.05
+        metadata:
+          component: business-rules
+          ruleName: "{ruleName}"
+          userId: "{userId}"
+          action: "{action}"
+          severity: "{severity}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1078
+          tactic: TA0001
+          subtechnique: Valid Accounts
+          description: Adversaries may violate business rules using valid accounts
 
-  # Disable lower-priority generators to focus on high-volume sources
+  server:
+    enabled: true
+    frequency: 8
+    templates:
+      - level: INFO
+        messageTemplate: "System load: {loadAverage} - CPU: {cpuUsage}% Memory: {memoryUsage}% Disk: {diskUsage}% - Uptime: {uptime}h"
+        probability: 0.3
+        metadata:
+          component: system-monitor
+          loadAverage: "{loadAverage}"
+          cpuUsage: "{cpuUsage}"
+          memoryUsage: "{memoryUsage}"
+          diskUsage: "{diskUsage}"
+          uptime: "{uptime}"
+          hostname: "{hostname}"
+      - level: ERROR
+        messageTemplate: "Disk space critical on {mountPoint}: {freeSpace}GB remaining - Usage: {usage}% - Threshold: {threshold}%"
+        probability: 0.05
+        metadata:
+          component: disk-monitor
+          mountPoint: "{mountPoint}"
+          freeSpace: "{freeSpace}"
+          usage: "{usage}"
+          threshold: "{threshold}"
+          totalSpace: "{totalSpace}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause disk space exhaustion
+      - level: WARN
+        messageTemplate: "High CPU usage detected: {cpuUsage}% for {duration}s - Process: {topProcess} - Threshold: {threshold}%"
+        probability: 0.15
+        metadata:
+          component: performance-monitor
+          cpuUsage: "{cpuUsage}"
+          duration: "{duration}"
+          topProcess: "{topProcess}"
+          threshold: "{threshold}"
+          cpuCores: "{cpuCores}"
+        mitre:
+          technique: T1496
+          tactic: TA0040
+          subtechnique: Resource Hijacking
+          description: Adversaries may hijack CPU resources
+      - level: INFO
+        messageTemplate: "Service {serviceName} {action} - PID: {pid} - Status: {status} - Uptime: {serviceUptime}h"
+        probability: 0.3
+        metadata:
+          component: service-manager
+          serviceName: "{serviceName}"
+          action: "{action}"
+          pid: "{pid}"
+          status: "{status}"
+          serviceUptime: "{serviceUptime}"
+          serviceType: "{serviceType}"
+      - level: DEBUG
+        messageTemplate: "Network interface {interface} - RX: {rxBytes} TX: {txBytes} - Status: {status} - Speed: {speed}Mbps"
+        probability: 0.1
+        metadata:
+          component: network-monitor
+          interface: "{interface}"
+          rxBytes: "{rxBytes}"
+          txBytes: "{txBytes}"
+          status: "{status}"
+          speed: "{speed}"
+          macAddress: "{macAddress}"
+      - level: WARN
+        messageTemplate: "Memory pressure detected: {memoryUsage}% - Swap usage: {swapUsage}% - Available: {availableMemory}MB"
+        probability: 0.1
+        metadata:
+          component: memory-monitor
+          memoryUsage: "{memoryUsage}"
+          swapUsage: "{swapUsage}"
+          availableMemory: "{availableMemory}"
+          totalMemory: "{totalMemory}"
+          threshold: "{threshold}"
+        mitre:
+          technique: T1496
+          tactic: TA0040
+          subtechnique: Resource Hijacking
+          description: Adversaries may cause memory exhaustion
+
+  firewall:
+    enabled: true
+    frequency: 20
+    templates:
+      - level: INFO
+        messageTemplate: "ACCEPT {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Rule: {ruleId} - Bytes: {bytes}"
+        probability: 0.6
+        metadata:
+          component: packet-filter
+          ruleId: "{ruleId}"
+          bytes: "{bytes}"
+          connectionId: "{connectionId}"
+          timestamp: "{timestamp}"
+      - level: WARN
+        messageTemplate: "DROP {protocol} {srcIP}:{srcPort} -> {dstIP}:{dstPort} - Rule: {ruleId} - Reason: {reason} - Threat: {threatLevel}"
+        probability: 0.25
+        metadata:
+          component: packet-filter
+          ruleId: "{ruleId}"
+          reason: "{reason}"
+          threatLevel: "{threatLevel}"
+          connectionId: "{connectionId}"
+        mitre:
+          technique: T1562.004
+          tactic: TA0005
+          subtechnique: Disable or Modify System Firewall
+          description: Adversaries may disable or modify system firewalls
+      - level: ERROR
+        messageTemplate: "INTRUSION DETECTED: {attackType} from {srcIP} - Blocked by rule {ruleId} - Severity: {severity}"
+        probability: 0.05
+        metadata:
+          component: intrusion-detection
+          ruleId: "{ruleId}"
+          attackType: "{attackType}"
+          severity: "{severity}"
+          connectionId: "{connectionId}"
+        mitre:
+          technique: T1562.001
+          tactic: TA0005
+          subtechnique: Disable or Modify Tools
+          description: Adversaries may disable security tools to avoid detection
+      - level: DEBUG
+        messageTemplate: "Connection state: {state} {srcIP}:{srcPort} <-> {dstIP}:{dstPort} - Duration: {duration}s"
+        probability: 0.05
+        metadata:
+          component: connection-tracker
+          state: "{state}"
+          duration: "{duration}"
+          connectionId: "{connectionId}"
+      - level: WARN
+        messageTemplate: "Port scan detected from {srcIP} - Ports: {portRange} - Scan type: {scanType}"
+        probability: 0.05
+        metadata:
+          component: port-scan-detector
+          portRange: "{portRange}"
+          scanType: "{scanType}"
+          connectionId: "{connectionId}"
+        mitre:
+          technique: T1046
+          tactic: TA0007
+          subtechnique: Network Service Scanning
+          description: Adversaries may attempt to get a listing of services running on remote hosts
+
   cloud:
-    enabled: false
+    enabled: true
+    frequency: 12
+    templates:
+      - level: INFO
+        messageTemplate: "AWS {service} API call: {awsOperation} by {user} - RequestId: {requestId} - Region: {region} - Duration: {duration}ms"
+        probability: 0.4
+        metadata:
+          component: aws-cloudtrail
+          service: "{service}"
+          awsOperation: "{awsOperation}"
+          user: "{user}"
+          requestId: "{requestId}"
+          region: "{region}"
+          duration: "{duration}"
+      - level: WARN
+        messageTemplate: "Auto-scaling triggered: {action} instance {instanceId} in {region} - Reason: {reason} - Current capacity: {currentCapacity}"
+        probability: 0.2
+        metadata:
+          component: aws-autoscaling
+          action: "{action}"
+          instanceId: "{instanceId}"
+          region: "{region}"
+          reason: "{reason}"
+          currentCapacity: "{currentCapacity}"
+        mitre:
+          technique: T1059.003
+          tactic: TA0002
+          subtechnique: Windows Command Shell
+          description: Adversaries may abuse cloud auto-scaling for resource hijacking
+      - level: ERROR
+        messageTemplate: "S3 bucket {bucketName} access denied for {user} - Action: {action} - IP: {clientIP} - Reason: {reason}"
+        probability: 0.1
+        metadata:
+          component: aws-s3
+          bucketName: "{bucketName}"
+          user: "{user}"
+          action: "{action}"
+          clientIP: "{clientIP}"
+          reason: "{reason}"
+        mitre:
+          technique: T1078
+          tactic: TA0001
+          subtechnique: Valid Accounts
+          description: Adversaries may use valid accounts to access cloud storage
+      - level: INFO
+        messageTemplate: "Lambda function {functionName} executed - Duration: {duration}ms Memory: {memoryUsed}MB - Cold start: {coldStart}"
+        probability: 0.15
+        metadata:
+          component: aws-lambda
+          functionName: "{functionName}"
+          duration: "{duration}"
+          memoryUsed: "{memoryUsed}"
+          coldStart: "{coldStart}"
+          requestId: "{requestId}"
+      - level: WARN
+        messageTemplate: "EC2 instance {instanceId} stopped unexpectedly - Reason: {reason} - Uptime: {uptime}h"
+        probability: 0.1
+        metadata:
+          component: aws-ec2
+          instanceId: "{instanceId}"
+          reason: "{reason}"
+          uptime: "{uptime}"
+          region: "{region}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause cloud instances to fail
+      - level: DEBUG
+        messageTemplate: "CloudWatch metric {metricName} threshold exceeded - Value: {value} Threshold: {threshold} - Namespace: {namespace}"
+        probability: 0.05
+        metadata:
+          component: aws-cloudwatch
+          metricName: "{metricName}"
+          value: "{value}"
+          threshold: "{threshold}"
+          namespace: "{namespace}"
+          region: "{region}"
+
   authentication:
-    enabled: false
+    enabled: true
+    frequency: 25
+    templates:
+      - level: INFO
+        messageTemplate: "User {username} login successful from {clientIP} - Session: {sessionId} - Method: {authMethod}"
+        probability: 0.5
+        metadata:
+          component: auth-service
+          sessionId: "{sessionId}"
+          authMethod: "{authMethod}"
+          userRole: "{userRole}"
+          loginTime: "{timestamp}"
+      - level: WARN
+        messageTemplate: "Failed login attempt for {username} from {clientIP} - Attempts: {attemptCount}/5 - Reason: {failureReason}"
+        probability: 0.2
+        metadata:
+          component: auth-service
+          attemptCount: "{attemptCount}"
+          failureReason: "{failureReason}"
+          userAgent: "{userAgent}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1110.001
+          tactic: TA0006
+          subtechnique: Password Guessing
+          description: Adversaries may use password guessing to gain access
+      - level: ERROR
+        messageTemplate: "Account {username} locked due to multiple failed attempts from {clientIP} - Lock duration: {lockDuration}min"
+        probability: 0.05
+        metadata:
+          component: auth-service
+          lockDuration: "{lockDuration}"
+          totalAttempts: "{totalAttempts}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1110
+          tactic: TA0006
+          subtechnique: Brute Force
+          description: Account lockout due to multiple failed attempts
+      - level: INFO
+        messageTemplate: "Password changed for user {username} from {clientIP} - Password policy: {policyName}"
+        probability: 0.05
+        metadata:
+          component: auth-service
+          policyName: "{policyName}"
+          passwordAge: "{passwordAge}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1098
+          tactic: TA0003
+          subtechnique: Account Manipulation
+          description: Adversaries may manipulate accounts to maintain access
+      - level: WARN
+        messageTemplate: "Suspicious login: {username} from unusual location {location} ({clientIP}) - Risk score: {riskScore}"
+        probability: 0.08
+        metadata:
+          component: security-monitor
+          location: "{location}"
+          riskScore: "{riskScore}"
+          previousLocation: "{previousLocation}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1078
+          tactic: TA0001
+          subtechnique: Valid Accounts
+          description: Login from unusual geographic location
+      - level: INFO
+        messageTemplate: "User {username} logout - Session duration: {duration}min - Reason: {logoutReason}"
+        probability: 0.02
+        metadata:
+          component: auth-service
+          duration: "{duration}"
+          logoutReason: "{logoutReason}"
+          sessionId: "{sessionId}"
+          correlationId: "{correlationId}"
+      - level: DEBUG
+        messageTemplate: "Authentication token refresh for user {username} - Token type: {tokenType} - Expires: {expiryTime}"
+        probability: 0.1
+        metadata:
+          component: auth-service
+          tokenType: "{tokenType}"
+          expiryTime: "{expiryTime}"
+          sessionId: "{sessionId}"
+          correlationId: "{correlationId}"
+
   database:
-    enabled: false
+    enabled: true
+    frequency: 30
+    templates:
+      - level: INFO
+        messageTemplate: "Query executed: {queryType} on table {tableName} - Duration: {duration}ms - User: {dbUser} - Rows: {rowCount}"
+        probability: 0.4
+        metadata:
+          component: query-engine
+          dbUser: "{dbUser}"
+          rowCount: "{rowCount}"
+          queryId: "{queryId}"
+          database: "{database}"
+      - level: WARN
+        messageTemplate: "Slow query detected: {query} - Duration: {duration}ms (threshold: 1000ms) - User: {dbUser}"
+        probability: 0.15
+        metadata:
+          component: performance-monitor
+          dbUser: "{dbUser}"
+          threshold: "1000"
+          queryId: "{queryId}"
+          database: "{database}"
+        mitre:
+          technique: T1505.003
+          tactic: TA0003
+          subtechnique: Server Software Component
+          description: Adversaries may install malicious software components on database servers
+      - level: ERROR
+        messageTemplate: "Database connection failed: {errorMessage} - Pool: {poolName} - User: {dbUser} - Retry: {retryCount}"
+        probability: 0.05
+        metadata:
+          component: connection-pool
+          poolName: "{poolName}"
+          dbUser: "{dbUser}"
+          retryCount: "{retryCount}"
+          errorCode: "{errorCode}"
+        mitre:
+          technique: T1078
+          tactic: TA0001
+          subtechnique: Valid Accounts
+          description: Adversaries may use valid accounts to access database systems
+      - level: INFO
+        messageTemplate: "Transaction {transactionId} committed - Tables: {tableCount} - Duration: {duration}ms - User: {dbUser}"
+        probability: 0.2
+        metadata:
+          component: transaction-manager
+          transactionId: "{transactionId}"
+          tableCount: "{tableCount}"
+          dbUser: "{dbUser}"
+          database: "{database}"
+      - level: ERROR
+        messageTemplate: "Deadlock detected: Transaction {transactionId} rolled back - Tables: {affectedTables} - User: {dbUser}"
+        probability: 0.02
+        metadata:
+          component: deadlock-detector
+          transactionId: "{transactionId}"
+          affectedTables: "{affectedTables}"
+          dbUser: "{dbUser}"
+          database: "{database}"
+      - level: WARN
+        messageTemplate: "High connection count: {connectionCount}/{maxConnections} - Database: {dbName} - Pool: {poolName}"
+        probability: 0.08
+        metadata:
+          component: connection-monitor
+          connectionCount: "{connectionCount}"
+          maxConnections: "{maxConnections}"
+          poolName: "{poolName}"
+          database: "{dbName}"
+      - level: DEBUG
+        messageTemplate: "Database backup started: {backupName} - Size: {estimatedSize}GB - User: {dbUser}"
+        probability: 0.05
+        metadata:
+          component: backup-service
+          backupName: "{backupName}"
+          estimatedSize: "{estimatedSize}"
+          dbUser: "{dbUser}"
+          database: "{database}"
+      - level: WARN
+        messageTemplate: "Suspicious database access: User {dbUser} accessing sensitive table {tableName} - Query: {queryType}"
+        probability: 0.05
+        metadata:
+          component: security-monitor
+          dbUser: "{dbUser}"
+          tableName: "{tableName}"
+          queryType: "{queryType}"
+          riskLevel: "{riskLevel}"
+          correlationId: "{correlationId}"
+        mitre:
+          technique: T1003
+          tactic: TA0006
+          subtechnique: OS Credential Dumping
+          description: Adversaries may attempt to dump credentials from database systems
+
   webserver:
-    enabled: false
+    enabled: true
+    frequency: 40
+    templates:
+      - level: INFO
+        messageTemplate: '{clientIP} - {method} {path} {status} {responseSize} "{userAgent}" - Duration: {duration}ms'
+        probability: 0.5
+        metadata:
+          component: access-log
+          clientIP: "{clientIP}"
+          method: "{method}"
+          path: "{path}"
+          status: "{status}"
+          responseSize: "{responseSize}"
+          userAgent: "{userAgent}"
+          duration: "{duration}"
+      - level: WARN
+        messageTemplate: "Rate limiting activated for {clientIP} - Requests: {requestCount}/min - Threshold: {threshold} - Path: {path}"
+        probability: 0.1
+        metadata:
+          component: rate-limiter
+          clientIP: "{clientIP}"
+          requestCount: "{requestCount}"
+          threshold: "{threshold}"
+          path: "{path}"
+          blockDuration: "{blockDuration}"
+        mitre:
+          technique: T1110
+          tactic: TA0006
+          subtechnique: Brute Force
+          description: Adversaries may use brute force techniques to overwhelm web servers
+      - level: ERROR
+        messageTemplate: "Backend server {backendHost} unreachable - Error: {errorCode} - Retry: {retryCount} - Client: {clientIP}"
+        probability: 0.05
+        metadata:
+          component: load-balancer
+          backendHost: "{backendHost}"
+          errorCode: "{errorCode}"
+          retryCount: "{retryCount}"
+          clientIP: "{clientIP}"
+          backendPool: "{backendPool}"
+      - level: INFO
+        messageTemplate: "SSL certificate {certName} expires in {daysToExpiry} days - Domain: {domain} - Issuer: {issuer}"
+        probability: 0.02
+        metadata:
+          component: ssl-monitor
+          certName: "{certName}"
+          daysToExpiry: "{daysToExpiry}"
+          domain: "{domain}"
+          issuer: "{issuer}"
+          certType: "{certType}"
+      - level: WARN
+        messageTemplate: "Large response detected: {responseSize}MB for {path} - Client: {clientIP} - Threshold: {threshold}MB"
+        probability: 0.08
+        metadata:
+          component: performance-monitor
+          responseSize: "{responseSize}"
+          path: "{path}"
+          clientIP: "{clientIP}"
+          threshold: "{threshold}"
+          processingTime: "{processingTime}"
+      - level: ERROR
+        messageTemplate: "Request timeout: {path} exceeded {timeout}s - Client: {clientIP} - Backend: {backendHost}"
+        probability: 0.15
+        metadata:
+          component: timeout-monitor
+          path: "{path}"
+          timeout: "{timeout}"
+          clientIP: "{clientIP}"
+          backendHost: "{backendHost}"
+          requestId: "{requestId}"
+      - level: DEBUG
+        messageTemplate: "Cache hit for {path} - Cache key: {cacheKey} - TTL: {ttl}s - Client: {clientIP}"
+        probability: 0.1
+        metadata:
+          component: cache-manager
+          path: "{path}"
+          cacheKey: "{cacheKey}"
+          ttl: "{ttl}"
+          clientIP: "{clientIP}"
+          cacheType: "{cacheType}"
+
   email:
-    enabled: false
+    enabled: true
+    frequency: 15
+    templates:
+      - level: INFO
+        messageTemplate: "Email sent: From {sender} to {recipient} - Subject: {subject} - MessageId: {messageId} - Size: {size}KB"
+        probability: 0.4
+        metadata:
+          component: smtp-server
+          sender: "{sender}"
+          recipient: "{recipient}"
+          subject: "{subject}"
+          messageId: "{messageId}"
+          size: "{size}"
+          priority: "{priority}"
+      - level: WARN
+        messageTemplate: "Email delivery delayed: {messageId} to {recipient} - Retry attempt {retryCount} - Reason: {reason}"
+        probability: 0.2
+        metadata:
+          component: delivery-queue
+          messageId: "{messageId}"
+          recipient: "{recipient}"
+          retryCount: "{retryCount}"
+          reason: "{reason}"
+          delayTime: "{delayTime}"
+          maxRetries: "{maxRetries}"
+        mitre:
+          technique: T1566
+          tactic: TA0001
+          subtechnique: Phishing
+          description: Adversaries may delay email delivery to avoid detection
+      - level: ERROR
+        messageTemplate: "Email delivery failed: {messageId} to {recipient} - Error: {errorMessage} - Final attempt"
+        probability: 0.1
+        metadata:
+          component: delivery-engine
+          messageId: "{messageId}"
+          recipient: "{recipient}"
+          errorMessage: "{errorMessage}"
+          errorCode: "{errorCode}"
+          bounceReason: "{bounceReason}"
+        mitre:
+          technique: T1566
+          tactic: TA0001
+          subtechnique: Phishing
+          description: Failed email delivery may indicate malicious activity
+      - level: WARN
+        messageTemplate: "Spam detected: From {sender} to {recipient} - Score: {spamScore} - Action: {action}"
+        probability: 0.15
+        metadata:
+          component: spam-filter
+          sender: "{sender}"
+          recipient: "{recipient}"
+          spamScore: "{spamScore}"
+          action: "{action}"
+          filterRule: "{filterRule}"
+          threatType: "{threatType}"
+        mitre:
+          technique: T1566
+          tactic: TA0001
+          subtechnique: Phishing
+          description: Spam emails may contain malicious content
+      - level: ERROR
+        messageTemplate: "Email quota exceeded: {sender} - Limit: {quotaLimit}MB - Current: {currentUsage}MB"
+        probability: 0.05
+        metadata:
+          component: quota-manager
+          sender: "{sender}"
+          quotaLimit: "{quotaLimit}"
+          currentUsage: "{currentUsage}"
+          quotaType: "{quotaType}"
+          resetTime: "{resetTime}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may exhaust email quotas
+      - level: DEBUG
+        messageTemplate: "Email authentication: {authMethod} for {sender} - Result: {result} - Score: {score}"
+        probability: 0.1
+        metadata:
+          component: auth-verifier
+          authMethod: "{authMethod}"
+          sender: "{sender}"
+          result: "{result}"
+          score: "{score}"
+          domain: "{domain}"
+          ipAddress: "{ipAddress}"
+
   backup:
-    enabled: false
+    enabled: true
+    frequency: 8
+    templates:
+      - level: INFO
+        messageTemplate: "Backup completed: {backupName} - Size: {backupSize}GB - Duration: {duration}min - Files: {fileCount}"
+        probability: 0.3
+        metadata:
+          component: backup-engine
+          backupName: "{backupName}"
+          backupSize: "{backupSize}"
+          duration: "{duration}"
+          fileCount: "{fileCount}"
+          backupType: "{backupType}"
+          compressionRatio: "{compressionRatio}"
+      - level: WARN
+        messageTemplate: "Backup size increased: {backupName} - Current: {currentSize}GB - Previous: {previousSize}GB - Growth: {growthRate}%"
+        probability: 0.2
+        metadata:
+          component: size-monitor
+          backupName: "{backupName}"
+          currentSize: "{currentSize}"
+          previousSize: "{previousSize}"
+          growthRate: "{growthRate}"
+          trend: "{trend}"
+          threshold: "{threshold}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause backup storage exhaustion
+      - level: ERROR
+        messageTemplate: "Backup failed: {backupName} - Error: {errorMessage} - Retry: {retryCount}/{maxRetries}"
+        probability: 0.1
+        metadata:
+          component: backup-engine
+          backupName: "{backupName}"
+          errorMessage: "{errorMessage}"
+          retryCount: "{retryCount}"
+          maxRetries: "{maxRetries}"
+          errorCode: "{errorCode}"
+          lastSuccess: "{lastSuccess}"
+        mitre:
+          technique: T1490
+          tactic: TA0040
+          subtechnique: Inhibit System Recovery
+          description: Adversaries may prevent backup operations
+      - level: INFO
+        messageTemplate: "Backup retention cleanup: Removed {deletedCount} old backups - Freed: {freedSpace}GB"
+        probability: 0.15
+        metadata:
+          component: cleanup-service
+          deletedCount: "{deletedCount}"
+          freedSpace: "{freedSpace}"
+          retentionPolicy: "{retentionPolicy}"
+          oldestBackup: "{oldestBackup}"
+          cleanupDuration: "{cleanupDuration}"
+      - level: WARN
+        messageTemplate: "Storage space low: {availableSpace}GB remaining on {storagePath} - Usage: {usage}% - Threshold: {threshold}%"
+        probability: 0.15
+        metadata:
+          component: storage-monitor
+          availableSpace: "{availableSpace}"
+          storagePath: "{storagePath}"
+          usage: "{usage}"
+          threshold: "{threshold}"
+          totalSpace: "{totalSpace}"
+          nextCleanup: "{nextCleanup}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may exhaust backup storage space
+      - level: DEBUG
+        messageTemplate: "Backup verification: {backupName} - Integrity: {integrity} - Checksum: {checksum} - Duration: {verifyDuration}s"
+        probability: 0.1
+        metadata:
+          component: verification-service
+          backupName: "{backupName}"
+          integrity: "{integrity}"
+          checksum: "{checksum}"
+          verifyDuration: "{verifyDuration}"
+          algorithm: "{algorithm}"
+          corruptionCount: "{corruptionCount}"
+
   microservices:
-    enabled: false
+    enabled: true
+    frequency: 35
+    templates:
+      - level: INFO
+        messageTemplate: "Service {serviceName} called {targetService} - Method: {method} - Duration: {duration}ms - Status: {status}"
+        probability: 0.3
+        metadata:
+          component: service-mesh
+          serviceName: "{serviceName}"
+          targetService: "{targetService}"
+          method: "{method}"
+          duration: "{duration}"
+          status: "{status}"
+          requestId: "{requestId}"
+          version: "{version}"
+      - level: WARN
+        messageTemplate: "Circuit breaker opened for service {serviceName} - Failure rate: {failureRate}% - Threshold: {threshold}%"
+        probability: 0.1
+        metadata:
+          component: circuit-breaker
+          serviceName: "{serviceName}"
+          failureRate: "{failureRate}"
+          threshold: "{threshold}"
+          openDuration: "{openDuration}"
+          lastFailure: "{lastFailure}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause service failures
+      - level: ERROR
+        messageTemplate: "Service {serviceName} health check failed - Endpoint: {healthEndpoint} - Status: {status} - Response time: {responseTime}ms"
+        probability: 0.05
+        metadata:
+          component: health-monitor
+          serviceName: "{serviceName}"
+          healthEndpoint: "{healthEndpoint}"
+          status: "{status}"
+          responseTime: "{responseTime}"
+          consecutiveFailures: "{consecutiveFailures}"
+          lastSuccess: "{lastSuccess}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause service health check failures
+      - level: INFO
+        messageTemplate: "Service {serviceName} scaled: {oldInstances} -> {newInstances} instances - Reason: {reason} - CPU: {cpuUsage}%"
+        probability: 0.15
+        metadata:
+          component: auto-scaler
+          serviceName: "{serviceName}"
+          oldInstances: "{oldInstances}"
+          newInstances: "{newInstances}"
+          reason: "{reason}"
+          cpuUsage: "{cpuUsage}"
+          memoryUsage: "{memoryUsage}"
+          scalingDuration: "{scalingDuration}"
+      - level: WARN
+        messageTemplate: "High latency detected: {serviceName} -> {targetService} - {latency}ms - Threshold: {threshold}ms"
+        probability: 0.2
+        metadata:
+          component: latency-monitor
+          serviceName: "{serviceName}"
+          targetService: "{targetService}"
+          latency: "{latency}"
+          threshold: "{threshold}"
+          percentile: "{percentile}"
+          sampleSize: "{sampleSize}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause service latency issues
+      - level: INFO
+        messageTemplate: "Service discovery: {serviceName} registered at {serviceUrl} - Version: {version} - Health: {health}"
+        probability: 0.1
+        metadata:
+          component: service-registry
+          serviceName: "{serviceName}"
+          serviceUrl: "{serviceUrl}"
+          version: "{version}"
+          health: "{health}"
+          tags: "{tags}"
+          ttl: "{ttl}"
+      - level: DEBUG
+        messageTemplate: "Service mesh trace: {traceId} - Span: {spanId} - Service: {serviceName} - Operation: {operation} - Duration: {duration}ms"
+        probability: 0.1
+        metadata:
+          component: tracing-system
+          traceId: "{traceId}"
+          spanId: "{spanId}"
+          serviceName: "{serviceName}"
+          operation: "{operation}"
+          duration: "{duration}"
+          parentSpanId: "{parentSpanId}"
+          tags: "{tags}"
+
   iot:
-    enabled: false
+    enabled: true
+    frequency: 20
+    templates:
+      - level: INFO
+        messageTemplate: "Device {deviceId} connected - IP: {deviceIP} - Type: {deviceType} - Firmware: {firmwareVersion} - Signal: {signalStrength}dBm"
+        probability: 0.25
+        metadata:
+          component: device-manager
+          deviceId: "{deviceId}"
+          deviceIP: "{deviceIP}"
+          deviceType: "{deviceType}"
+          firmwareVersion: "{firmwareVersion}"
+          signalStrength: "{signalStrength}"
+          macAddress: "{macAddress}"
+          location: "{location}"
+      - level: WARN
+        messageTemplate: "Device {deviceId} battery low: {batteryLevel}% - Location: {location} - Last charge: {lastCharge}h ago"
+        probability: 0.2
+        metadata:
+          component: battery-monitor
+          deviceId: "{deviceId}"
+          batteryLevel: "{batteryLevel}"
+          location: "{location}"
+          lastCharge: "{lastCharge}"
+          batteryType: "{batteryType}"
+          estimatedRuntime: "{estimatedRuntime}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may drain device batteries
+      - level: ERROR
+        messageTemplate: "Device {deviceId} offline - Last seen: {lastSeen} - Uptime: {uptime}h - Reason: {reason}"
+        probability: 0.1
+        metadata:
+          component: connectivity-monitor
+          deviceId: "{deviceId}"
+          lastSeen: "{lastSeen}"
+          uptime: "{uptime}"
+          reason: "{reason}"
+          connectionType: "{connectionType}"
+          retryCount: "{retryCount}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Adversaries may cause IoT device outages
+      - level: INFO
+        messageTemplate: "Sensor data: Device {deviceId} - Temperature: {temperature}°C - Humidity: {humidity}% - Pressure: {pressure}hPa"
+        probability: 0.2
+        metadata:
+          component: sensor-collector
+          deviceId: "{deviceId}"
+          temperature: "{temperature}"
+          humidity: "{humidity}"
+          pressure: "{pressure}"
+          timestamp: "{timestamp}"
+          dataQuality: "{dataQuality}"
+          calibrationDate: "{calibrationDate}"
+      - level: WARN
+        messageTemplate: "Device {deviceId} firmware outdated - Current: {currentVersion} - Latest: {latestVersion} - Security patches: {patchCount}"
+        probability: 0.15
+        metadata:
+          component: firmware-manager
+          deviceId: "{deviceId}"
+          currentVersion: "{currentVersion}"
+          latestVersion: "{latestVersion}"
+          patchCount: "{patchCount}"
+          vulnerabilityCount: "{vulnerabilityCount}"
+          updateAvailable: "{updateAvailable}"
+        mitre:
+          technique: T1499
+          tactic: TA0040
+          subtechnique: Endpoint Denial of Service
+          description: Outdated firmware may contain vulnerabilities
+      - level: DEBUG
+        messageTemplate: "Device telemetry: {deviceId} - CPU: {cpuUsage}% - Memory: {memoryUsage}% - Storage: {storageUsage}% - Uptime: {uptime}d"
+        probability: 0.1
+        metadata:
+          component: telemetry-collector
+          deviceId: "{deviceId}"
+          cpuUsage: "{cpuUsage}"
+          memoryUsage: "{memoryUsage}"
+          storageUsage: "{storageUsage}"
+          uptime: "{uptime}"
+          networkLatency: "{networkLatency}"
+          dataTransmitted: "{dataTransmitted}"
+      - level: WARN
+        messageTemplate: "Suspicious device behavior: {deviceId} - Pattern: {patternType} - Risk score: {riskScore} - Location: {location}"
+        probability: 0.05
+        metadata:
+          component: behavior-analyzer
+          deviceId: "{deviceId}"
+          patternType: "{patternType}"
+          riskScore: "{riskScore}"
+          location: "{location}"
+          anomalyType: "{anomalyType}"
+          confidence: "{confidence}"
+        mitre:
+          technique: T1078
+          tactic: TA0001
+          subtechnique: Valid Accounts
+          description: Adversaries may compromise IoT devices
 
 replay:
   enabled: false
   speed: 1
   loop: false
+  filters:
+    sources: []
+    levels: []
 
 output:
   format: json
   destination: file
   batching:
-    maxBatchSize: 1000      # Larger batches for better performance
-    flushIntervalMs: 100    # Faster flushing
+    maxBatchSize: 1000
+    flushIntervalMs: 100
     enabled: true
   file:
     path: ./logs/current/logs.json
     rotation: true
-    maxSize: 500MB          # Larger files before rotation
-    maxFiles: 20
+    maxSize: 100MB
+    maxFiles: 10
+    compression: true
+    timestampFormat: "ISO8601"
+  syslog:
+    host: localhost
+    port: 514
+    protocol: udp
+    facility: local0
+    tag: "log-generator"
+    timestampFormat: "RFC3164"
+    structuredData: true
+  http:
+    url: http://localhost:55000/api/events
+    method: POST
+    headers:
+      Content-Type: application/json
+      Authorization: Bearer your-token
+      X-Source: log-generator
+    timeout: 5000
+    retries: 3
+    batchSize: 100
+  elasticsearch:
+    url: http://localhost:9200
+    index: "log-generator-%{+YYYY.MM.dd}"
+    type: "_doc"
+    username: "elastic"
+    password: "changeme"
+    timeout: 10000
+    batchSize: 500
+  kafka:
+    brokers: ["localhost:9092"]
+    topic: "log-generator"
+    partition: 0
+    compression: "gzip"
+    batchSize: 1000
+    timeout: 5000
 
 storage:
   historicalPath: ./logs/historical
   currentPath: ./logs/current
-  retention: 7              # Shorter retention for performance testing
+  retention: 30
