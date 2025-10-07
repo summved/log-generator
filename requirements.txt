@@ -17,7 +17,7 @@ pyod==2.0.2            # Python Outlier Detection toolkit
 
 # Natural Language Processing (Conservative versions for stability)
 transformers==4.46.3   # Hugging Face transformers - latest stable
-torch==2.5.1           # PyTorch - latest stable with security fixes
+torch==2.8.0           # PyTorch - latest stable with security fixes
 sentence-transformers==3.3.1  # Sentence embeddings
 spacy==3.8.2           # Industrial-strength NLP
 
