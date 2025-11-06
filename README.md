@@ -1,3 +1,4 @@
+# SOC_DEMO by Threat_OPS – an AI-Enhanced Log Generator for SOC Training.
 # 🚀 Enterprise SIEM Log Generator
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
