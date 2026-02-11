@@ -11,7 +11,7 @@ statsmodels==0.14.4    # Statistical modeling
 
 # Security and HTTP (PATCHED VERSIONS - No known vulnerabilities)
 requests==2.32.4       # HTTP library with security patches - FIXED CVE
-cryptography==44.0.1   # Cryptographic functions - FIXED CVE  
+cryptography==46.0.5   # Cryptographic functions - FIXED CVE  
 certifi==2024.12.14    # Certificate validation
 urllib3==2.5.0         # HTTP client with security patches - FIXED CVE
 
