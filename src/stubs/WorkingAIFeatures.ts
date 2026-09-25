@@ -4,9 +4,52 @@
  */
 
 import { AttackChainManager } from '../chains/AttackChainManager';
+import { calculateStepLogCount } from '../chains/StepLogFactory';
 import { logger } from '../utils/logger';
 
+const ENHANCEMENT_MODES = ['static', 'enhanced', 'dynamic'];
+const AI_LEVELS = ['basic', 'medium', 'high', 'advanced'];
+
+export interface PlannedChange {
+  type: string;
+  description: string;
+}
+
+export interface EnhancementPreview {
+  chain: { id: string; name: string; category: string; difficulty: string; stepCount: number };
+  mode: string;
+  aiLevel: string;
+  techniques: string[];
+  plannedChanges: PlannedChange[];
+  estimatedDurationMs: number;
+  estimatedLogs: number;
+}
+
+export interface AIExecutionRecord {
+  executionId: string;
+  chainId: string;
+  chainName: string;
+  mode: string;
+  aiLevel: string;
+  executionMode: 'simulation' | 'full';
+  status: string;
+  startTime: Date;
+  endTime: Date;
+}
+
+export interface AIExecutionHistory {
+  executions: AIExecutionRecord[];
+  statistics: {
+    totalExecutions: number;
+    modeDistribution: Record<string, number>;
+    levelDistribution: Record<string, number>;
+  };
+}
+
 export class EnhancedAttackChainManager extends AttackChainManager {
+  /** Executions run by this manager instance; not persisted between processes */
+  private executionHistory: AIExecutionRecord[] = [];
+
   constructor(templatesDirectory?: string) {
     super(templatesDirectory);
     logger.info('Enhanced Attack Chain Manager initialized with basic AI capabilities');
@@ -17,19 +60,21 @@ export class EnhancedAttackChainManager extends AttackChainManager {
    */
   async executeEnhancedChain(name: string, options: any = {}): Promise<any> {
     logger.info(`🤖 Starting AI-enhanced execution of: ${name}`);
-    
+    const startTime = new Date();
+
     // Check if user wants simulation mode or full execution
     const useSimulation = options.simulation !== false; // Default to simulation unless explicitly disabled
-    
+
+    // Get template info (try both ID and name)
+    const template = this.getTemplate(name) || this.getTemplateByName(name);
+    if (!template) {
+      throw new Error(`Attack chain template not found: ${name}`);
+    }
+
     let baseExecution;
-    
+
     if (useSimulation) {
       logger.info(`🚀 Running in SIMULATION mode (fast execution)`);
-      // Get template info for simulation (try both ID and name)
-      const template = this.getTemplate(name) || this.getTemplateByName(name);
-      if (!template) {
-        throw new Error(`Attack chain template not found: ${name}`);
-      }
       baseExecution = await this.simulateEnhancedExecution(template, options);
     } else {
       logger.info(`⚡ Running in FULL EXECUTION mode (may take up to 45+ minutes)`);
@@ -61,6 +106,18 @@ export class EnhancedAttackChainManager extends AttackChainManager {
       mode: useSimulation ? 'simulation' : 'full',
       enhancements: aiEnhancements.length,
       evasionScore: enhancedExecution.stats.detectionEvasion
+    });
+
+    this.executionHistory.push({
+      executionId: String(baseExecution.executionId || baseExecution.id || `ai-exec-${startTime.getTime()}`),
+      chainId: template.chain.id,
+      chainName: template.name,
+      mode: enhancedExecution.enhancementConfig.mode,
+      aiLevel: enhancedExecution.enhancementConfig.aiLevel,
+      executionMode: useSimulation ? 'simulation' : 'full',
+      status: String(baseExecution.status || 'completed'),
+      startTime,
+      endTime: new Date()
     });
 
     return enhancedExecution;
@@ -103,32 +160,33 @@ export class EnhancedAttackChainManager extends AttackChainManager {
   /**
    * Preview enhancement without execution
    */
-  async previewEnhancement(name: string, mode: string, aiLevel: string): Promise<any> {
+  async previewEnhancement(name: string, mode: string, aiLevel: string): Promise<EnhancementPreview> {
     const template = this.getTemplate(name) || this.getTemplateByName(name);
     if (!template) {
       throw new Error(`Attack chain template not found: ${name}`);
     }
+    if (!ENHANCEMENT_MODES.includes(mode)) {
+      throw new Error(`Unknown enhancement mode "${mode}". Use one of: ${ENHANCEMENT_MODES.join(', ')}`);
+    }
+    if (!AI_LEVELS.includes(aiLevel)) {
+      throw new Error(`Unknown AI level "${aiLevel}". Use one of: ${AI_LEVELS.join(', ')}`);
+    }
 
-    const enhancements = this.generateEnhancementPreview(template, mode, aiLevel);
-
+    const steps = template.chain.steps;
     return {
-      template: {
+      chain: {
+        id: template.chain.id,
         name: template.name,
-        description: template.description,
         category: template.category,
         difficulty: template.difficulty,
-        steps: template.chain.steps.length
+        stepCount: steps.length
       },
-      enhancements: {
-        mode,
-        aiLevel,
-        modifications: enhancements,
-        estimatedImprovements: {
-          stealthiness: Math.random() * 0.3 + 0.2, // 20-50% improvement
-          effectiveness: Math.random() * 0.2 + 0.1, // 10-30% improvement
-          adaptability: Math.random() * 0.4 + 0.3   // 30-70% improvement
-        }
-      }
+      mode,
+      aiLevel,
+      techniques: steps.map(step => step.mitre.technique),
+      plannedChanges: this.generateEnhancementPreview(mode, aiLevel),
+      estimatedDurationMs: steps.reduce((total, step) => total + step.timing.delayAfterPrevious + step.timing.duration, 0),
+      estimatedLogs: steps.reduce((total, step) => total + calculateStepLogCount(step), 0)
     };
   }
 
@@ -211,34 +269,23 @@ export class EnhancedAttackChainManager extends AttackChainManager {
   /**
    * Get execution history
    */
-  getExecutionHistory(limit: number = 10): any {
-    // Simulate some history for demo purposes
-    const mockHistory = [];
-    for (let i = 0; i < Math.min(limit, 5); i++) {
-      mockHistory.push({
-        id: `ai-exec-${Date.now() - i * 86400000}-${Math.random().toString(36).substr(2, 9)}`,
-        chainName: `Mock Chain ${i + 1}`,
-        mode: ['static', 'enhanced', 'dynamic'][i % 3],
-        aiLevel: ['basic', 'medium', 'high', 'advanced'][i % 4],
-        status: 'completed',
-        startTime: new Date(Date.now() - i * 86400000),
-        endTime: new Date(Date.now() - i * 86400000 + 300000),
-        stats: {
-          logsGenerated: Math.floor(Math.random() * 1000) + 100,
-          stepsCompleted: Math.floor(Math.random() * 10) + 5,
-          enhancementsApplied: Math.floor(Math.random() * 5) + 2,
-          detectionEvasion: Math.random() * 0.4 + 0.6
-        }
-      });
-    }
+  /**
+   * Executions actually run by this manager (most recent first), with summary statistics
+   */
+  getExecutionHistory(limit: number = 10): AIExecutionHistory {
+    const countBy = (key: 'mode' | 'aiLevel'): Record<string, number> =>
+      this.executionHistory.reduce<Record<string, number>>((counts, record) => ({
+        ...counts,
+        [record[key]]: (counts[record[key]] || 0) + 1
+      }), {});
 
     return {
+      executions: [...this.executionHistory].reverse().slice(0, limit),
       statistics: {
-        total: mockHistory.length,
-        successful: mockHistory.filter(e => e.status === 'completed').length,
-        failed: 0
-      },
-      executions: mockHistory
+        totalExecutions: this.executionHistory.length,
+        modeDistribution: countBy('mode'),
+        levelDistribution: countBy('aiLevel')
+      }
     };
   }
 
@@ -273,35 +320,20 @@ export class EnhancedAttackChainManager extends AttackChainManager {
     return enhancements;
   }
 
-  private generateEnhancementPreview(template: any, mode: string, aiLevel: string): any[] {
-    const modifications = [];
-    
-    modifications.push({
-      stepId: 'step-1',
-      type: 'timing_adjustment',
-      description: `Adaptive delay: 2-5s → 3-8s (${aiLevel} level)`,
-      reason: 'Evade behavioral detection'
-    });
+  private generateEnhancementPreview(mode: string, aiLevel: string): PlannedChange[] {
+    const changes: PlannedChange[] = [
+      { type: 'timing_variation', description: `Randomize step timing to avoid fixed intervals (${aiLevel} level)` }
+    ];
 
     if (mode !== 'static') {
-      modifications.push({
-        stepId: 'step-2',
-        type: 'technique_variation',
-        description: 'Alternative MITRE technique selection',
-        reason: 'Increase attack path diversity'
-      });
+      changes.push({ type: 'technique_variation', description: 'Substitute alternative MITRE sub-techniques where available' });
     }
 
     if (aiLevel === 'high' || aiLevel === 'advanced') {
-      modifications.push({
-        stepId: 'step-3',
-        type: 'evasion_tactic',
-        description: 'Anti-forensics measures',
-        reason: 'Minimize digital footprint'
-      });
+      changes.push({ type: 'evasion_tactic', description: 'Add anti-forensics and log-evasion behaviour' });
     }
 
-    return modifications;
+    return changes;
   }
 
   private getAvailableEnhancements(template: any): any[] {
