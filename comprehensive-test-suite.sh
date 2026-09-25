@@ -91,8 +91,8 @@ main() {
     # ========================================
     header "PHASE 1: ENVIRONMENT VALIDATION"
     
-    run_test "Node.js version check (>=18.0.0)" \
-        "node -e \"const v=process.version.slice(1).split('.'); if(parseInt(v[0])>=18) process.exit(0); else process.exit(1);\""
+    run_test "Node.js version check (>=22.12.0)" \
+        "node -e \"const v=process.version.slice(1).split('.'); if(parseInt(v[0])>22||(parseInt(v[0])===22&&parseInt(v[1])>=12)) process.exit(0); else process.exit(1);\""
     
     run_test "NPM package.json exists" \
         "test -f package.json"

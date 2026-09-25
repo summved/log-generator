@@ -1,7 +1,7 @@
 # 🚀 Enterprise SIEM Log Generator
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
 **The most comprehensive open-source cybersecurity log generator** for SIEM testing, security training, and threat simulation. Generate realistic enterprise logs with **MITRE ATT&CK framework integration**, **D3FEND defensive techniques**, **ML-based behavioral patterns**, **attack chain simulation**, and **high-performance worker threads**.
@@ -180,7 +180,7 @@ Expected performance: **5,000-20,000+ logs/second** with proper configuration.
 
 ## 🔧 System Requirements
 
-- **Node.js** 18.0.0 or higher
+- **Node.js** 22.12.0 or higher
 - **Memory** 4GB+ RAM (8GB+ recommended for high-performance mode)
 - **Storage** SSD recommended for high-volume generation
 - **Network** For SIEM integration via HTTP/Syslog
