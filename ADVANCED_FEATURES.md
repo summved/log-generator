@@ -197,7 +197,7 @@ Every log entry carries the step's MITRE mapping and correlation metadata, so a 
 }
 ```
 
-Each step emits `ceil(duration_minutes × frequency)` logs (at least one), based on the step's configured duration. `--speed` shortens the wall-clock run without reducing the number of logs. The report's `step_results` lists each step's status, start and end time, duration, `logs_generated`, and any errors. `output_files.logs` lists the JSONL file paths.
+Each step emits `ceil(duration_minutes × frequency)` logs (at least one), based on the step's configured duration. `--speed` shortens the wall-clock run without reducing the number of logs. A step's timestamps are spread evenly across the time it actually runs, and the logs are appended in up to 10 batches as that time passes, so a SIEM tailing the file sees them arrive progressively rather than all at once. The report's `step_results` lists each step's status, start and end time, duration, `logs_generated`, and any errors. `output_files.logs` lists the JSONL file paths.
 
 Template source names are mapped to generator types: `windows-server` and `file-server` → `server`, `mail-server` → `email`, `backup-server` → `backup`, `proxy-server` and `proxy` → `webserver`. A step that uses an unknown source fails with an error naming it.
 
