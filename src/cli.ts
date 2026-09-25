@@ -7,6 +7,7 @@ import { timestampValidator } from './utils/timestampValidator';
 import { StorageManager } from './utils/storage';
 import { mitreMapper } from './utils/mitreMapper';
 import { AttackChainManager } from './chains/AttackChainManager';
+import { chainDurationMs, speedForTargetDuration } from './chains/chainTiming';
 import { AttackChainExecutionConfig } from './types/attackChain';
 // Disabled features - using stubs to provide informative error messages
 import { 
@@ -822,7 +823,8 @@ program
   .description('Execute an attack chain simulation')
   .argument('<name>', 'Attack chain name or ID')
   .option('-c, --config <path>', 'Path to log generator configuration file')
-  .option('--speed <multiplier>', 'Speed multiplier (0.5 = half speed, 2.0 = double speed)', '1.0')
+  .option('--speed <multiplier>', 'Speed multiplier (0.5 = half speed, 2.0 = double speed; default 1)')
+  .option('--duration <time>', 'Fit the whole chain into this wall-clock time, e.g. 10m or 90s (instead of --speed)')
   .option('--output-dir <path>', 'Output directory for logs and reports')
   .option('--continue-on-failure', 'Continue execution even if steps fail')
   .option('--no-randomize-timing', 'Disable timing randomization')
@@ -857,9 +859,28 @@ program
         console.log();
       }
 
+      // Resolve speed: explicit --speed, or the speed that fits the chain into --duration
+      if (options.speed !== undefined && options.duration !== undefined) {
+        console.error('❌ Use either --speed or --duration, not both');
+        process.exit(1);
+      }
+      let speedMultiplier = options.speed !== undefined ? parseFloat(options.speed) : 1;
+      if (options.duration !== undefined) {
+        const targetMs = parseDuration(options.duration);
+        if (!targetMs) {
+          console.error(`❌ Invalid --duration "${options.duration}". Use formats like 10m, 90s or 1h30m`);
+          process.exit(1);
+        }
+        speedMultiplier = speedForTargetDuration(template.chain.steps, targetMs);
+      }
+      if (!(speedMultiplier > 0)) {
+        console.error(`❌ Invalid --speed "${options.speed}". Use a number greater than 0`);
+        process.exit(1);
+      }
+
       // Build execution configuration
       const executionConfig: Partial<AttackChainExecutionConfig> = {
-        speed_multiplier: parseFloat(options.speed),
+        speed_multiplier: speedMultiplier,
         enable_progress_logging: options.progressLogging !== false,
         continue_on_failure: options.continueOnFailure || false,
         randomize_timing: options.randomizeTiming !== false,
@@ -870,8 +891,9 @@ program
       console.log(`🚀 Starting attack chain execution: ${template.name}`);
       console.log(`   Category: ${template.category.toUpperCase()}`);
       console.log(`   Steps: ${template.chain.steps.length}`);
-      console.log(`   Estimated Duration: ${Math.round(template.chain.metadata.estimated_duration * executionConfig.speed_multiplier!)} minutes`);
-      console.log(`   Speed Multiplier: ${executionConfig.speed_multiplier}x`);
+      const estimatedMinutes = chainDurationMs(template.chain.steps) / speedMultiplier / 60000;
+      console.log(`   Estimated Duration: ${estimatedMinutes >= 1 ? `${Math.round(estimatedMinutes)} minutes` : `${Math.round(estimatedMinutes * 60)} seconds`}`);
+      console.log(`   Speed Multiplier: ${Number(speedMultiplier.toFixed(2))}x`);
       console.log();
 
       const execution = await chainManager.executeChain(
