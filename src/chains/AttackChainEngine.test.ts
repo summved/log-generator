@@ -95,6 +95,46 @@ describe('AttackChainEngine', () => {
     expect(execution.stats.logsGenerated).toBe(entries.length);
   });
 
+  it('writes a step\'s logs progressively, each batch after its share of the step duration', async () => {
+    const events: string[] = [];
+    const recordingSink: StepLogSink = {
+      write: async (_executionId, entries) => {
+        events.push(`write:${entries.length}`);
+        return 'memory://progressive.jsonl';
+      }
+    };
+    const progressiveEngine = new AttackChainEngine(
+      { randomize_timing: false, output_directory: dir },
+      { sink: recordingSink, sleep: async ms => { events.push(`sleep:${ms}`); } }
+    );
+
+    await progressiveEngine.executeChain(makeChain([makeStep('one', 'T1566')]));
+
+    // 1000ms delay before the step, then 3 logs over its 60000ms duration
+    expect(events).toEqual([
+      'sleep:1000',
+      'sleep:20000', 'write:1',
+      'sleep:20000', 'write:1',
+      'sleep:20000', 'write:1'
+    ]);
+  });
+
+  it('caps a busy step at 10 write batches that still span its full duration', async () => {
+    const sleeps: number[] = [];
+    const batchedEngine = new AttackChainEngine(
+      { randomize_timing: false, output_directory: dir },
+      { sink, sleep: async ms => { sleeps.push(ms); } }
+    );
+    const step = { ...makeStep('busy', 'T1486'), timing: { delayAfterPrevious: 0, duration: 60000, variance: 0 } };
+    step.logGeneration = { ...step.logGeneration, frequency: 11 };
+
+    await batchedEngine.executeChain(makeChain([step]));
+
+    expect(sink.writes).toHaveLength(10);
+    expect(sink.entries()).toHaveLength(11);
+    expect(sleeps.reduce((total, ms) => total + ms, 0)).toBeCloseTo(60000);
+  });
+
   it('writes a report with per-step results and the log and report file paths', async () => {
     const chain = makeChain([makeStep('one', 'T1566'), makeStep('two', 'T1059'), makeStep('three', 'T1003')]);
 
@@ -151,7 +191,8 @@ describe('AttackChainEngine', () => {
     const execution = await abortingEngine.executeChain(chain);
 
     expect(execution.status).toBe('aborted');
-    expect(sink.writes.map(write => write.entries[0].metadata.attack_chain.step_id)).toEqual(['one']);
+    const stepsWritten = new Set(sink.entries().map(entry => entry.metadata.attack_chain.step_id));
+    expect(stepsWritten).toEqual(new Set(['one']));
     expect(existsSync(path.join(dir, `${execution.executionId}-report.json`))).toBe(false);
   });
 
