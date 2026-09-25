@@ -6,16 +6,29 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
-import { LogGeneratorManager } from '../LogGeneratorManager';
-import { 
-  AttackChain, 
-  AttackChainStep, 
-  AttackChainExecution, 
+import {
+  AttackChain,
+  AttackChainStep,
+  AttackChainExecution,
   AttackChainExecutionConfig,
   AttackChainReport
 } from '../types/attackChain';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
+import { buildStepLogs } from './StepLogFactory';
+import { StepLogSink, StorageLogSink } from './StepLogSink';
+
+type StepResult = AttackChainReport['step_results'][number];
+
+/**
+ * Optional collaborators, injectable for testing
+ */
+export interface AttackChainEngineDeps {
+  sink?: StepLogSink;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Events emitted by the AttackChainEngine
@@ -41,12 +54,17 @@ export declare interface AttackChainEngine {
  */
 export class AttackChainEngine extends EventEmitter {
   private activeExecutions: Map<string, AttackChainExecution> = new Map();
-  private logGeneratorManager?: LogGeneratorManager;
+  private stepResults: Map<string, StepResult[]> = new Map();
+  private logFiles: Map<string, Set<string>> = new Map();
   private config: AttackChainExecutionConfig;
+  private sink?: StepLogSink;
+  private readonly sleep: (ms: number) => Promise<void>;
 
-  constructor(config?: Partial<AttackChainExecutionConfig>) {
+  constructor(config?: Partial<AttackChainExecutionConfig>, deps: AttackChainEngineDeps = {}) {
     super();
-    
+    this.sink = deps.sink;
+    this.sleep = deps.sleep || defaultSleep;
+
     this.config = {
       speed_multiplier: 1.0,
       enable_progress_logging: true,
@@ -63,10 +81,11 @@ export class AttackChainEngine extends EventEmitter {
 
   /**
    * Execute an attack chain
+   * @param _logGeneratorConfig Unused; kept for signature compatibility with existing callers
    */
   public async executeChain(
-    chain: AttackChain, 
-    logGeneratorConfig?: string
+    chain: AttackChain,
+    _logGeneratorConfig?: string
   ): Promise<AttackChainExecution> {
     const executionId = uuidv4();
     const execution: AttackChainExecution = {
@@ -86,7 +105,9 @@ export class AttackChainEngine extends EventEmitter {
     };
 
     this.activeExecutions.set(executionId, execution);
-    
+    this.stepResults.set(executionId, []);
+    this.logFiles.set(executionId, new Set());
+
     try {
       logger.info(`Starting attack chain execution: ${chain.name}`, { 
         executionId, 
@@ -101,11 +122,6 @@ export class AttackChainEngine extends EventEmitter {
       );
 
       this.emit('chain.started', execution);
-
-      // Initialize log generator if needed
-      if (!this.logGeneratorManager) {
-        this.logGeneratorManager = new LogGeneratorManager(logGeneratorConfig);
-      }
 
       // Execute steps in sequence
       for (const step of chain.steps) {
@@ -146,7 +162,10 @@ export class AttackChainEngine extends EventEmitter {
       
       // Calculate final statistics
       const totalDuration = execution.endTime.getTime() - execution.startTime!.getTime();
-      execution.stats.averageStepDuration = totalDuration / execution.stats.stepsCompleted;
+      execution.stats.averageStepDuration = execution.stats.stepsCompleted > 0
+        ? totalDuration / execution.stats.stepsCompleted
+        : 0;
+      execution.outputFiles = { logs: Array.from(this.logFiles.get(executionId) || []) };
 
       logger.info(`Attack chain completed: ${chain.name}`, {
         executionId,
@@ -174,6 +193,9 @@ export class AttackChainEngine extends EventEmitter {
       
       this.emit('chain.failed', execution, error instanceof Error ? error : new Error(String(error)));
     } finally {
+      this.stepResults.delete(executionId);
+      this.logFiles.delete(executionId);
+
       // Cleanup
       if (chain.config.cleanup_after_completion) {
         await this.cleanup(execution);
@@ -201,7 +223,9 @@ export class AttackChainEngine extends EventEmitter {
 
     this.emit('step.started', execution, step);
 
-    const stepStartTime = Date.now();
+    const stepStart = new Date();
+    const stepStartTime = stepStart.getTime();
+    let logsGenerated = 0;
 
     try {
       // Check dependencies
@@ -220,9 +244,6 @@ export class AttackChainEngine extends EventEmitter {
         await this.sleep(delay);
       }
 
-      // Configure log generation for this step
-      const stepConfig = await this.createStepConfiguration(step);
-      
       // Start log generation for this step's duration
       const stepDuration = this.calculateActualDelay(step.timing.duration, step.timing.variance);
       logger.debug(`Generating logs for ${stepDuration}ms for step: ${step.name}`, {
@@ -232,7 +253,7 @@ export class AttackChainEngine extends EventEmitter {
       });
 
       // Execute the step (generate logs with MITRE technique)
-      const logsGenerated = await this.generateStepLogs(step, stepDuration);
+      logsGenerated = await this.generateStepLogs(step, execution, stepDuration);
       execution.stats.logsGenerated += logsGenerated;
 
       // Check success criteria if defined
@@ -250,51 +271,68 @@ export class AttackChainEngine extends EventEmitter {
         mitreTechnique: step.mitre.technique
       });
 
+      this.recordStepResult(execution, step, 'completed', stepStart, logsGenerated);
       this.emit('step.completed', execution, step);
 
     } catch (error) {
-      logger.error(`Step failed: ${step.name}`, { 
-        stepId: step.id, 
-        error: error instanceof Error ? error.message : String(error) 
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Step failed: ${step.name}`, {
+        stepId: step.id,
+        error: message
       });
-      
+
+      this.recordStepResult(execution, step, 'failed', stepStart, logsGenerated, [message]);
       this.emit('step.failed', execution, step, error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
   /**
-   * Generate logs for a specific step
+   * Generate and persist the MITRE-tagged logs for a step, then hold for the step's duration
    */
-  private async generateStepLogs(step: AttackChainStep, duration: number): Promise<number> {
-    // This is a simplified implementation
-    // In a real scenario, we would integrate more deeply with the log generation system
-    
-    const logsPerSecond = step.logGeneration.frequency / 60;
-    const totalLogs = Math.ceil((duration / 1000) * logsPerSecond);
-    
-    // For now, we'll simulate log generation
-    // TODO: Integrate with actual LogGeneratorManager to generate specific logs
-    
+  private async generateStepLogs(
+    step: AttackChainStep,
+    execution: AttackChainExecution,
+    duration: number
+  ): Promise<number> {
+    const entries = buildStepLogs(step, {
+      chainId: execution.chainId,
+      executionId: execution.executionId
+    });
+
+    const filePath = await this.getSink().write(execution.executionId, entries);
+    this.logFiles.get(execution.executionId)?.add(filePath);
+
     await this.sleep(duration);
-    
-    return totalLogs;
+
+    return entries.length;
   }
 
-  /**
-   * Create step-specific configuration
-   */
-  private async createStepConfiguration(step: AttackChainStep): Promise<any> {
-    // TODO: Create dynamic configuration based on step requirements
-    return {
-      sources: step.logGeneration.sources,
-      templates: step.logGeneration.templates,
-      frequency: step.logGeneration.frequency,
-      mitre_filter: {
-        technique: step.mitre.technique,
-        enabledOnly: true
-      }
-    };
+  private getSink(): StepLogSink {
+    if (!this.sink) {
+      this.sink = new StorageLogSink(this.config.output_directory);
+    }
+    return this.sink;
+  }
+
+  private recordStepResult(
+    execution: AttackChainExecution,
+    step: AttackChainStep,
+    status: StepResult['status'],
+    startTime: Date,
+    logsGenerated: number,
+    errors?: string[]
+  ): void {
+    const endTime = new Date();
+    this.stepResults.get(execution.executionId)?.push({
+      step,
+      status,
+      start_time: startTime,
+      end_time: endTime,
+      duration: endTime.getTime() - startTime.getTime(),
+      logs_generated: logsGenerated,
+      ...(errors ? { errors } : {})
+    });
   }
 
   /**
@@ -326,20 +364,23 @@ export class AttackChainEngine extends EventEmitter {
   }
 
   /**
-   * Sleep for specified milliseconds
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
    * Generate execution report
    */
   private async generateExecutionReport(chain: AttackChain, execution: AttackChainExecution): Promise<void> {
+    // Ensure output directory exists
+    const outputDir = this.config.output_directory || 'logs/attack-chains';
+    if (!existsSync(outputDir)) {
+      mkdirSync(outputDir, { recursive: true });
+    }
+
+    const reportPath = path.join(outputDir, `${execution.executionId}-report.json`);
+    const logPaths = execution.outputFiles?.logs || [];
+    execution.outputFiles = { logs: logPaths, report: reportPath };
+
     const report: AttackChainReport = {
       execution,
       chain,
-      step_results: [], // TODO: Populate with actual step results
+      step_results: this.stepResults.get(execution.executionId) || [],
       summary: {
         total_duration: execution.endTime!.getTime() - execution.startTime!.getTime(),
         success_rate: execution.stats.stepsCompleted / execution.totalSteps,
@@ -348,20 +389,13 @@ export class AttackChainEngine extends EventEmitter {
         mitre_tactics_covered: [...new Set(chain.steps.map(s => s.mitre.tactic))]
       },
       output_files: {
-        logs: [], // TODO: Populate with actual log file paths
-        reports: [],
+        logs: logPaths,
+        reports: [reportPath],
         artifacts: []
       }
     };
 
-    // Ensure output directory exists
-    const outputDir = this.config.output_directory || 'logs/attack-chains';
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
-    }
-
     // Write report to file
-    const reportPath = path.join(outputDir, `${execution.executionId}-report.json`);
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
     
     logger.info(`Attack chain report generated: ${reportPath}`);
@@ -401,11 +435,6 @@ export class AttackChainEngine extends EventEmitter {
    * Cleanup after execution
    */
   private async cleanup(execution: AttackChainExecution): Promise<void> {
-    // Stop log generation if running
-    if (this.logGeneratorManager) {
-      await this.logGeneratorManager.stop();
-    }
-
     // Remove from active executions
     this.activeExecutions.delete(execution.executionId);
     
