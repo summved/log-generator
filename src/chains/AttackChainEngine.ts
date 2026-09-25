@@ -28,7 +28,9 @@ export interface AttackChainEngineDeps {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+const MAX_WRITE_BATCHES_PER_STEP = 10;
+
+const defaultSleep =(ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Events emitted by the AttackChainEngine
@@ -293,7 +295,8 @@ export class AttackChainEngine extends EventEmitter {
   }
 
   /**
-   * Generate and persist the MITRE-tagged logs for a step, then hold for the step's duration
+   * Generate the MITRE-tagged logs for a step and write them progressively over the
+   * step's duration, so each batch lands only once its timestamps have been reached
    */
   private async generateStepLogs(
     step: AttackChainStep,
@@ -302,13 +305,21 @@ export class AttackChainEngine extends EventEmitter {
   ): Promise<number> {
     const entries = buildStepLogs(step, {
       chainId: execution.chainId,
-      executionId: execution.executionId
+      executionId: execution.executionId,
+      startTime: new Date(),
+      windowMs: duration
     });
 
-    const filePath = await this.getSink().write(execution.executionId, entries);
-    this.logFiles.get(execution.executionId)?.add(filePath);
+    const batchCount = Math.min(entries.length, MAX_WRITE_BATCHES_PER_STEP);
+    const interval = duration / batchCount;
 
-    await this.sleep(duration);
+    for (let batch = 0; batch < batchCount; batch++) {
+      const start = Math.floor(batch * entries.length / batchCount);
+      const end = Math.floor((batch + 1) * entries.length / batchCount);
+      await this.sleep(interval);
+      const filePath = await this.getSink().write(execution.executionId, entries.slice(start, end));
+      this.logFiles.get(execution.executionId)?.add(filePath);
+    }
 
     return entries.length;
   }

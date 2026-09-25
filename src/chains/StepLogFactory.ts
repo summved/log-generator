@@ -6,11 +6,14 @@
 import { LogEntry, LogSource } from '../types';
 import { AttackChainStep } from '../types/attackChain';
 import { TemplateEngine } from '../utils/templateEngine';
-import { timestampSequencer } from '../utils/timestampSequencer';
 
 export interface StepLogContext {
   chainId: string;
   executionId: string;
+  /** When the step's log window begins */
+  startTime: Date;
+  /** Wall-clock length of the step's log window; timestamps are spread evenly across it */
+  windowMs: number;
 }
 
 const GENERATOR_TYPES: ReadonlyArray<LogSource['type']> = [
@@ -52,6 +55,15 @@ export function calculateStepLogCount(step: AttackChainStep): number {
   return Math.max(1, Math.ceil(minutes * step.logGeneration.frequency));
 }
 
+/**
+ * ISO timestamp with the microsecond precision used by the other generators.
+ * The sequence number fills the microsecond digits so entries sharing a millisecond stay unique.
+ */
+function stepTimestamp(epochMs: number, sequence: number): string {
+  const microseconds = String(sequence % 1000).padStart(3, '0');
+  return new Date(epochMs).toISOString().slice(0, -1) + microseconds + 'Z';
+}
+
 export function buildStepLogs(step: AttackChainStep, context: StepLogContext): LogEntry[] {
   const { templates, sources, customData } = step.logGeneration;
   const templateNames = templates.length > 0 ? templates : [step.id];
@@ -66,6 +78,7 @@ export function buildStepLogs(step: AttackChainStep, context: StepLogContext): L
   }
 
   const count = calculateStepLogCount(step);
+  const spacingMs = context.windowMs / count;
   const logs: LogEntry[] = [];
 
   for (let i = 0; i < count; i++) {
@@ -73,7 +86,7 @@ export function buildStepLogs(step: AttackChainStep, context: StepLogContext): L
     const source = logSources[i % logSources.length];
 
     logs.push({
-      timestamp: timestampSequencer.getUniqueTimestamp(),
+      timestamp: stepTimestamp(context.startTime.getTime() + Math.floor(i * spacingMs), i),
       level: 'WARN',
       source,
       message: `[${step.mitre.technique}] ${template}: ${step.name} on ${source.name}`,

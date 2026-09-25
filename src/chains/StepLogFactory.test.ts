@@ -21,7 +21,8 @@ function makeStep(overrides: Partial<AttackChainStep> = {}): AttackChainStep {
   };
 }
 
-const ctx = { chainId: 'apt29-cozy-bear-campaign', executionId: 'exec-123' };
+const startTime = new Date('2026-01-01T00:00:00.000Z');
+const ctx = { chainId: 'apt29-cozy-bear-campaign', executionId: 'exec-123', startTime, windowMs: 60000 };
 
 describe('calculateStepLogCount', () => {
   it('derives the count from logical step duration and per-minute frequency', () => {
@@ -55,6 +56,17 @@ describe('buildStepLogs', () => {
       }));
       expect(log.metadata.tool).toBe('mimikatz');
     }
+  });
+
+  it('spreads timestamps evenly across the step window, in order', () => {
+    const logs = buildStepLogs(makeStep(), ctx);
+
+    const offsets = logs.map(log => Date.parse(log.timestamp) - startTime.getTime());
+    expect(offsets[0]).toBe(0);
+    expect(offsets[1]).toBe(3000);
+    expect(offsets[19]).toBe(57000);
+    expect([...offsets].sort((a, b) => a - b)).toEqual(offsets);
+    expect(new Set(logs.map(log => log.timestamp)).size).toBe(logs.length);
   });
 
   it('rotates through the configured templates and sources', () => {
