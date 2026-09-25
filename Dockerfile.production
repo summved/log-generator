@@ -35,8 +35,10 @@ RUN addgroup -g 1001 -S loggen && \
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install only production dependencies, then remove npm/npx: the app runs with
+# plain `node`, and the bundled npm only adds packages to the image's attack surface
+RUN npm ci --only=production && npm cache clean --force && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
