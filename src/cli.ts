@@ -1191,29 +1191,22 @@ program
       
       const preview = await enhancedManager.previewEnhancement(name, options.mode, options.aiLevel);
 
-      console.log(`📋 Original Chain: ${preview.originalChain.name}`);
-      console.log(`   Category: ${preview.originalChain.category}`);
-      console.log(`   Difficulty: ${preview.originalChain.difficulty}`);
-      console.log(`   Steps: ${preview.originalChain.chain.steps.length}`);
+      console.log(`📋 Chain: ${preview.chain.name} (${preview.chain.id})`);
+      console.log(`   Category: ${preview.chain.category}`);
+      console.log(`   Difficulty: ${preview.chain.difficulty}`);
+      console.log(`   Steps: ${preview.chain.stepCount}`);
+      console.log(`   Techniques: ${preview.techniques.join(', ')}`);
       console.log();
 
-      console.log(`🤖 Enhanced Chain:`);
-      console.log(`   Enhancement Mode: ${options.mode}`);
-      console.log(`   AI Level: ${options.aiLevel}`);
-      console.log(`   Enhancement Type: ${preview.enhancedChain.enhancementType}`);
-      console.log(`   AI Generated: ${preview.enhancedChain.aiGenerated ? 'Yes' : 'No'}`);
-      console.log(`   Confidence Score: ${preview.enhancedChain.metadata.confidenceScore.toFixed(2)}`);
-      console.log(`   Realism Score: ${preview.enhancedChain.metadata.realismScore.toFixed(2)}`);
-      console.log();
-
-      console.log(`📝 Enhancements Applied:`);
-      preview.changes.forEach((change: any) => {
-        console.log(`   ✓ ${change}`);
+      console.log(`🤖 Enhancement: mode ${preview.mode}, AI level ${preview.aiLevel}`);
+      console.log(`📝 Planned Changes:`);
+      preview.plannedChanges.forEach(change => {
+        console.log(`   • ${change.description} [${change.type}]`);
       });
       console.log();
 
-      console.log(`⏱️ Estimated Impact:`);
-      console.log(`   Duration: ~${Math.round(preview.estimatedDuration / 60000)} minutes`);
+      console.log(`⏱️ Estimates at 1x speed (from the chain template):`);
+      console.log(`   Duration: ~${Math.round(preview.estimatedDurationMs / 60000)} minutes`);
       console.log(`   Logs: ~${preview.estimatedLogs} log entries`);
 
     } catch (error) {
@@ -1275,30 +1268,34 @@ program
       const enhancedManager = new EnhancedAttackChainManager();
       const history = enhancedManager.getExecutionHistory(parseInt(options.limit));
 
+      const { totalExecutions, modeDistribution, levelDistribution } = history.statistics;
+      if (totalExecutions === 0) {
+        console.log('No AI-enhanced executions recorded yet.');
+        console.log('   Execution history is kept in memory for the current process only and is not saved between runs.');
+        return;
+      }
+
+      const percent = (count: number): string => ((count / totalExecutions) * 100).toFixed(1);
+
       console.log(`📈 Execution Summary:`);
-      console.log(`   Total Executions: ${history.statistics.totalExecutions}`);
-      console.log(`   Recent Executions Analyzed: ${history.executions.length}`);
-      console.log(`   Average Logs Generated: ${history.statistics.averageLogsGenerated}`);
-      console.log(`   Average Duration: ${Math.round(history.statistics.averageDuration / 1000)}s`);
+      console.log(`   Total Executions: ${totalExecutions}`);
       console.log();
 
       console.log(`🎛️ Mode Distribution:`);
-      Object.entries(history.statistics.modeDistribution).forEach(([mode, count]) => {
-        const percentage = history.executions.length > 0 ? (((count as number) / history.executions.length) * 100).toFixed(1) : '0.0';
-        console.log(`   ${mode.toUpperCase()}: ${count} (${percentage}%)`);
+      Object.entries(modeDistribution).forEach(([mode, count]) => {
+        console.log(`   ${mode.toUpperCase()}: ${count} (${percent(count)}%)`);
       });
       console.log();
 
       console.log(`🎯 AI Level Distribution:`);
-      Object.entries(history.statistics.levelDistribution).forEach(([level, count]) => {
-        const percentage = history.executions.length > 0 ? (((count as number) / history.executions.length) * 100).toFixed(1) : '0.0';
-        console.log(`   ${level.toUpperCase()}: ${count} (${percentage}%)`);
+      Object.entries(levelDistribution).forEach(([level, count]) => {
+        console.log(`   ${level.toUpperCase()}: ${count} (${percent(count)}%)`);
       });
       console.log();
 
-      console.log(`🏆 Most Used Chains:`);
-      history.statistics.mostUsedChains.forEach((chain: any, index: number) => {
-        console.log(`   ${index + 1}. ${chain.chainName}: ${chain.count} executions`);
+      console.log(`🕒 Recent Executions:`);
+      history.executions.forEach(execution => {
+        console.log(`   ${execution.startTime.toISOString()}  ${execution.chainName}  ${execution.mode}/${execution.aiLevel}  ${execution.status} (${execution.executionMode})`);
       });
 
     } catch (error) {
