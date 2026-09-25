@@ -3,7 +3,7 @@
 ## 📋 Prerequisites
 
 ### System Requirements
-- **Node.js**: >= 18.0.0
+- **Node.js**: >= 22.12.0
 - **Python**: >= 3.8.0
 - **Memory**: >= 4GB RAM (8GB+ recommended for large models)
 - **Storage**: >= 2GB free space for models
