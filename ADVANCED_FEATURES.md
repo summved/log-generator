@@ -157,8 +157,8 @@ npm run attack-chains:list
 # Get detailed information about a specific chain
 npm run attack-chains:info apt29-cozy-bear
 
-# Execute attack chain with custom speed
-npm run attack-chains:execute apt29-cozy-bear --speed 2.0
+# Execute attack chain with custom speed (writes logs + report to --output-dir)
+npm run attack-chains:execute apt29-cozy-bear-campaign -- --speed 2.0 --output-dir ./logs/attack-chains
 
 # Monitor execution status
 npm run attack-chains:status
@@ -169,6 +169,37 @@ npm run attack-chains:abort <execution-id>
 # Check MITRE coverage across all chains
 npm run attack-chains:coverage
 ```
+
+### Execution Output
+
+Each `attack-chains:execute` run writes two files:
+
+| File | Location | Contents |
+|---|---|---|
+| `attack-chain-<executionId>.jsonl` | `--output-dir`, or `logs/current/` by default | One JSON log entry per line |
+| `<executionId>-report.json` | `--output-dir`, or `logs/attack-chains/` by default | Execution summary; written when the chain completes |
+
+Every log entry carries the step's MITRE mapping and correlation metadata, so a SIEM can group one run's events:
+
+```json
+{
+  "message": "[T1078] successful_login: Normal User Login on authentication",
+  "source": { "type": "authentication", "name": "authentication" },
+  "mitre": { "technique": "T1078", "tactic": "TA0001" },
+  "metadata": {
+    "attack_chain": {
+      "chain_id": "malicious-insider-data-theft",
+      "execution_id": "24561679-df43-458d-b83e-9b457401e75d",
+      "step_id": "legitimate_access",
+      "template": "successful_login"
+    }
+  }
+}
+```
+
+Each step emits `ceil(duration_minutes × frequency)` logs (at least one), based on the step's configured duration. `--speed` shortens the wall-clock run without reducing the number of logs. The report's `step_results` lists each step's status, start and end time, duration, `logs_generated`, and any errors. `output_files.logs` lists the JSONL file paths.
+
+Template source names are mapped to generator types: `windows-server` and `file-server` → `server`, `mail-server` → `email`, `backup-server` → `backup`, `proxy-server` and `proxy` → `webserver`. A step that uses an unknown source fails with an error naming it.
 
 ## 🤖 AI-Enhanced Attack Chains
 
