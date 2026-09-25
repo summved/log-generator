@@ -199,7 +199,7 @@ Our ML engine achieves:
 
 ### What are the system requirements?
 **Minimum**:
-- Node.js 18+
+- Node.js 22.12+
 - 512MB RAM
 - 1GB disk space
 

@@ -82,7 +82,7 @@ export class TemplateEngine {
       '{result}': () => faker.helpers.arrayElement(['SUCCESS', 'FAILED']),
       
       // Authentication variables
-      '{username}': () => faker.internet.userName(),
+      '{username}': () => faker.internet.username(),
       '{sessionId}': () => faker.string.uuid(),
       '{attemptCount}': () => faker.number.int({ min: 1, max: 5 }).toString(),
       '{location}': () => `${faker.location.city()}, ${faker.location.country()}`,
