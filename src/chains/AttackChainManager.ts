@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export class AttackChainManager {
   private templates: Map<string, AttackChainTemplate> = new Map();
+  private aliases: Map<string, string> = new Map();
   private engine: AttackChainEngine;
   private templatesDirectory: string;
 
@@ -61,7 +62,8 @@ export class AttackChainManager {
         };
         
         this.templates.set(chainId, fullTemplate);
-        
+        this.registerAliases(chainId, template.aliases || [], file);
+
         logger.info(`Loaded attack chain template: ${template.name} (${chainId})`, {
           category: template.category,
           difficulty: template.difficulty,
@@ -168,8 +170,23 @@ export class AttackChainManager {
   /**
    * Get template by ID
    */
-  public getTemplate(id: string): AttackChainTemplate | undefined {
-    return this.templates.get(id);
+  public getTemplate(idOrAlias: string): AttackChainTemplate | undefined {
+    const chainId = this.templates.has(idOrAlias) ? idOrAlias : this.aliases.get(idOrAlias);
+    return chainId ? this.templates.get(chainId) : undefined;
+  }
+
+  /**
+   * Map template aliases to a chain id. The first template to claim an alias keeps it.
+   */
+  private registerAliases(chainId: string, aliases: string[], file: string): void {
+    for (const alias of aliases) {
+      const owner = this.templates.has(alias) ? alias : this.aliases.get(alias);
+      if (owner && owner !== chainId) {
+        logger.error(`Ignoring attack chain alias "${alias}" from ${file}: already used by ${owner}`);
+        continue;
+      }
+      this.aliases.set(alias, chainId);
+    }
   }
 
   /**
@@ -189,7 +206,7 @@ export class AttackChainManager {
     config?: Partial<AttackChainExecutionConfig>,
     logGeneratorConfig?: string
   ): Promise<AttackChainExecution> {
-    const template = this.templates.get(chainId);
+    const template = this.getTemplate(chainId);
     if (!template) {
       throw new Error(`Attack chain template not found: ${chainId}`);
     }
@@ -334,7 +351,7 @@ export class AttackChainManager {
     issues: string[];
     warnings: string[];
   } {
-    const template = this.templates.get(chainId);
+    const template = this.getTemplate(chainId);
     if (!template) {
       return {
         valid: false,

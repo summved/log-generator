@@ -119,6 +119,12 @@ export interface AttackChainExecution {
     message: string;
     timestamp: Date;
   };
+
+  // Files written by this execution
+  outputFiles?: {
+    logs: string[];
+    report?: string;
+  };
 }
 
 /**
@@ -130,6 +136,7 @@ export interface AttackChainTemplate {
   category: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
   use_cases: string[];
+  aliases?: string[]; // alternative names accepted wherever a chain id is
   chain: AttackChain;
 }
 
