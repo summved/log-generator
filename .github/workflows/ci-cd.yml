@@ -33,14 +33,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Run linting
-      run: npm run lint || echo "Linting not configured"
-      
     - name: Run type checking
       run: npx tsc --noEmit
-      
+
     - name: Run unit tests
-      run: npm test || echo "Tests not configured yet"
+      run: npm test -- --ci
       
     - name: Run integration tests
       run: |
