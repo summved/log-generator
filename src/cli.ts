@@ -896,6 +896,13 @@ program
         console.log(`   Last Error: ${execution.lastError.message} (Step: ${execution.lastError.stepId})`);
       }
 
+      for (const logFile of execution.outputFiles?.logs || []) {
+        console.log(`   Log File: ${logFile}`);
+      }
+      if (execution.outputFiles?.report) {
+        console.log(`   Report: ${execution.outputFiles.report}`);
+      }
+
       // Explicitly exit to prevent hanging due to lingering timers/handles
       process.exit(0);
 
