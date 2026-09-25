@@ -5,6 +5,7 @@
 
 import { AttackChainManager } from '../chains/AttackChainManager';
 import { calculateStepLogCount } from '../chains/StepLogFactory';
+import { chainDurationMs } from '../chains/chainTiming';
 import { logger } from '../utils/logger';
 
 const ENHANCEMENT_MODES = ['static', 'enhanced', 'dynamic'];
@@ -185,7 +186,7 @@ export class EnhancedAttackChainManager extends AttackChainManager {
       aiLevel,
       techniques: steps.map(step => step.mitre.technique),
       plannedChanges: this.generateEnhancementPreview(mode, aiLevel),
-      estimatedDurationMs: steps.reduce((total, step) => total + step.timing.delayAfterPrevious + step.timing.duration, 0),
+      estimatedDurationMs: chainDurationMs(steps),
       estimatedLogs: steps.reduce((total, step) => total + calculateStepLogCount(step), 0)
     };
   }
