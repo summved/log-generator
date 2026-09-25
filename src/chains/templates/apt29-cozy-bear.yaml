@@ -12,6 +12,9 @@ use_cases:
   - "Testing detection capabilities against sophisticated threats"
   - "Purple team exercises"
 
+# Alternative names accepted by the attack-chains commands
+aliases: ["apt29-cozy-bear", "apt29"]
+
 chain:
   name: "APT29 Cozy Bear Campaign"
   description: "Multi-stage attack simulating APT29 tactics, techniques, and procedures"
