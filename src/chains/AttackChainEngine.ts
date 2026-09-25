@@ -126,8 +126,7 @@ export class AttackChainEngine extends EventEmitter {
       // Execute steps in sequence
       for (const step of chain.steps) {
         // Check if execution has been aborted
-        const currentExecution = this.activeExecutions.get(executionId);
-        if (currentExecution && currentExecution.status === 'aborted') {
+        if (this.isAborted(executionId)) {
           break;
         }
 
@@ -155,6 +154,12 @@ export class AttackChainEngine extends EventEmitter {
         }
 
         this.emit('progress.updated', execution);
+      }
+
+      // abortChain already set the aborted status and end time; don't report it as completed
+      if (this.isAborted(executionId)) {
+        execution.outputFiles = { logs: Array.from(this.logFiles.get(executionId) || []) };
+        return execution;
       }
 
       execution.status = 'completed';
@@ -306,6 +311,10 @@ export class AttackChainEngine extends EventEmitter {
     await this.sleep(duration);
 
     return entries.length;
+  }
+
+  private isAborted(executionId: string): boolean {
+    return this.activeExecutions.get(executionId)?.status === 'aborted';
   }
 
   private getSink(): StepLogSink {

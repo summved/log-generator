@@ -132,6 +132,52 @@ describe('AttackChainEngine', () => {
     expect(execution.stats.logsGenerated).toBe(6);
   });
 
+  it('keeps an aborted chain aborted, stops running steps and writes no report', async () => {
+    const abortingEngine: AttackChainEngine = new AttackChainEngine(
+      { randomize_timing: false, output_directory: dir },
+      {
+        sink,
+        // Abort as soon as the first step starts holding for its duration
+        sleep: async () => {
+          const [running] = abortingEngine.getActiveExecutions();
+          if (running && running.completedSteps.length === 0 && running.status === 'running') {
+            await abortingEngine.abortChain(running.executionId);
+          }
+        }
+      }
+    );
+    const chain = makeChain([makeStep('one', 'T1566'), makeStep('two', 'T1059')]);
+
+    const execution = await abortingEngine.executeChain(chain);
+
+    expect(execution.status).toBe('aborted');
+    expect(sink.writes.map(write => write.entries[0].metadata.attack_chain.step_id)).toEqual(['one']);
+    expect(existsSync(path.join(dir, `${execution.executionId}-report.json`))).toBe(false);
+  });
+
+  it('fails a step whose success criteria are not met but still counts its logs', async () => {
+    const step = { ...makeStep('one', 'T1566'), successCriteria: { minLogsGenerated: 100, requiredPatterns: [] } };
+
+    const execution = await engine.executeChain(makeChain([step, makeStep('two', 'T1059')]));
+    const report = readReport(dir, execution.executionId);
+
+    expect(execution.failedSteps).toEqual(['one']);
+    expect(report.step_results[0]).toEqual(expect.objectContaining({ status: 'failed', logs_generated: 3 }));
+    expect(report.step_results[0].errors).toEqual([expect.stringContaining('expected 100 logs, got 3')]);
+  });
+
+  it('stops the chain and writes no report when abort_on_step_failure is set', async () => {
+    const chain = makeChain([makeStep('bad', 'T1059', ['bogus']), makeStep('two', 'T1003')]);
+    chain.config.abort_on_step_failure = true;
+
+    const execution = await engine.executeChain(chain);
+
+    expect(execution.status).toBe('failed');
+    expect(execution.lastError?.message).toContain('Unknown attack-chain source "bogus"');
+    expect(sink.writes).toHaveLength(0);
+    expect(existsSync(path.join(dir, `${execution.executionId}-report.json`))).toBe(false);
+  });
+
   it('gives separate executions distinct correlation ids', async () => {
     const chain = makeChain([makeStep('one', 'T1566')]);
 
