@@ -119,6 +119,12 @@ export interface AttackChainExecution {
     message: string;
     timestamp: Date;
   };
+
+  // Files written by this execution
+  outputFiles?: {
+    logs: string[];
+    report?: string;
+  };
 }
 
 /**
