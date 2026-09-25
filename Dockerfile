@@ -1,5 +1,5 @@
 # Use official Node.js image from Docker Hub (authentic source)
-FROM node:18-alpine@sha256:c7620fdecfefb96813da62519897808775230386f4c8482e972e37b8b18cb460
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 
 # Set working directory
 WORKDIR /app

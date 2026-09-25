@@ -329,7 +329,7 @@ kubectl describe hpa log-generator-hpa -n log-generator
 The CI/CD pipeline (`.github/workflows/ci-cd.yml`) includes:
 
 #### **Test Suite**
-- **Multi-version testing** - Node.js 18.x and 20.x
+- **Multi-version testing** - Node.js 22.x and 24.x
 - **Linting and type checking** - Code quality validation
 - **Integration tests** - Functional testing of core features
 - **Security audit** - npm audit for vulnerabilities

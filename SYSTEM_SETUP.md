@@ -5,7 +5,7 @@ This guide helps you set up your system with all the required tools for optimal 
 ## 📋 Required Tools
 
 ### **Core Requirements** ✅
-- **Node.js** >= 18.0.0 (Required)
+- **Node.js** >= 22.12.0 (Required)
 - **npm** (Comes with Node.js)
 - **TypeScript** (Installed via npm)
 
@@ -169,7 +169,7 @@ chmod +x scripts/timeout.sh
 ```
 
 ### **Node.js version issues**
-✅ **Solution**: Update Node.js to >= 18.0.0:
+✅ **Solution**: Update Node.js to >= 22.12.0:
 ```bash
 # Check version
 node --version
@@ -223,7 +223,7 @@ See [SIEM_INTEGRATION.md](SIEM_INTEGRATION.md) for detailed setup instructions f
 
 ## ✅ Verification Checklist
 
-- [ ] Node.js >= 18.0.0 installed
+- [ ] Node.js >= 22.12.0 installed
 - [ ] npm working correctly
 - [ ] Project dependencies installed (`npm install`)
 - [ ] Timeout script executable (`chmod +x scripts/timeout.sh`)
