@@ -12,6 +12,9 @@ use_cases:
   - "User behavior analytics validation"
   - "HR security awareness training"
 
+# Alternative names accepted by the attack-chains commands
+aliases: ["insider-threat-data-theft", "insider-threat"]
+
 chain:
   name: "Malicious Insider Data Theft"
   description: "Simulates insider threat scenario with legitimate access abuse"
