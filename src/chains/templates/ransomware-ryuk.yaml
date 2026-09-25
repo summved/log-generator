@@ -12,6 +12,9 @@ use_cases:
   - "SOC team training for ransomware detection"
   - "Business continuity planning exercises"
 
+# Alternative names accepted by the attack-chains commands
+aliases: ["ransomware-ryuk", "ryuk"]
+
 chain:
   name: "Ryuk Ransomware Campaign"
   description: "Multi-stage ransomware attack simulating Ryuk TTPs"
