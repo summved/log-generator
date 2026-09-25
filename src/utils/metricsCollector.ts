@@ -27,10 +27,11 @@ export class MetricsCollector {
   private lastSecondTimestamp: number = Date.now();
 
   private constructor() {
-    // Update logs per second calculation every second
+    // Update logs per second calculation every second. unref() so this background
+    // sampler never keeps the process alive after generators and servers stop.
     setInterval(() => {
       this.updateLogsPerSecond();
-    }, 1000);
+    }, 1000).unref();
   }
 
   public static getInstance(): MetricsCollector {
