@@ -116,17 +116,17 @@ sources:
 ### What attack chains are available?
 We provide three comprehensive attack chains:
 
-1. **APT29 Cozy Bear** (45 minutes, 10 stages)
+1. **APT29 Cozy Bear** (20 minutes, 10 stages)
    - Nation-state attack simulation
    - Advanced persistent threat patterns
    - Stealth techniques and living-off-the-land
 
-2. **Ryuk Ransomware** (30 minutes, 11 stages)
+2. **Ryuk Ransomware** (15 minutes, 11 stages)
    - Enterprise ransomware campaign
    - Lateral movement and privilege escalation
    - Data encryption and ransom demands
 
-3. **Malicious Insider** (25 minutes, 11 stages)
+3. **Malicious Insider** (12 minutes, 11 stages)
    - Data theft scenario
    - Privilege abuse and data exfiltration
    - Cover-up attempts

@@ -1,4 +1,7 @@
-import { AttackChainStep } from '../types/attackChain';
+import { readdirSync, readFileSync } from 'fs';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+import { AttackChainStep, AttackChainTemplate } from '../types/attackChain';
 import { chainDurationMs, speedForTargetDuration } from './chainTiming';
 
 function step(delayAfterPrevious: number, duration: number): AttackChainStep {
@@ -28,5 +31,21 @@ describe('speedForTargetDuration', () => {
 
   it('rejects a non-positive target', () => {
     expect(() => speedForTargetDuration(steps, 0)).toThrow('Target duration must be greater than zero');
+  });
+});
+
+describe('shipped attack chain templates', () => {
+  const templatesDir = path.join(__dirname, 'templates');
+  const templates = readdirSync(templatesDir)
+    .filter(file => file.endsWith('.yaml'))
+    .map(file => ({ file, template: yaml.load(readFileSync(path.join(templatesDir, file), 'utf8')) as AttackChainTemplate }));
+
+  it.each(templates.map(t => [t.file, t.template]))('%s states its real 1x run time', (_file, template) => {
+    const minutes = Math.round(chainDurationMs(template.chain.steps) / 60000);
+    expect(template.chain.metadata.estimated_duration).toBe(minutes);
+  });
+
+  it.each(templates.map(t => [t.file, t.template]))('%s fits within its max_duration', (_file, template) => {
+    expect(chainDurationMs(template.chain.steps)).toBeLessThanOrEqual(template.chain.config.max_duration);
   });
 });
