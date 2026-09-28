@@ -76,27 +76,3 @@ export function analyzeD3fendCoverage(logs: CoverageLog[]): D3fendCoverageReport
 
   return { totalLogs: logs.length, logsWithDefense, techniques, categories, unseenTechniques };
 }
-
-/** Parse JSON-lines text into log entries; blank lines are ignored, other non-log lines are counted as skipped */
-export function parseLogLines(text: string): { logs: CoverageLog[]; skipped: number } {
-  const logs: CoverageLog[] = [];
-  let skipped = 0;
-
-  for (const line of text.split('\n')) {
-    if (!line.trim()) {
-      continue;
-    }
-    try {
-      const parsed: unknown = JSON.parse(line);
-      if (parsed && typeof parsed === 'object' && typeof (parsed as CoverageLog).message === 'string') {
-        logs.push(parsed as CoverageLog);
-      } else {
-        skipped++;
-      }
-    } catch {
-      skipped++;
-    }
-  }
-
-  return { logs, skipped };
-}

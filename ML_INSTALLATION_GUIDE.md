@@ -173,17 +173,17 @@ npm run generate -- --ml-enhanced --forecast-enabled --hours 24
 ### Advanced ML Commands
 
 ```bash
-# Train NLP models on historical data
-npm run ml-patterns:train-nlp -- --data logs/historical/
+# Train a text classifier that predicts level, source or MITRE technique from the message
+npm run ml-patterns:train-nlp logs/historical/ -- --label level --classify "Failed password for admin"
 
-# Test anomaly detection
-npm run ml-patterns:test-anomaly -- --threshold 0.8 --input logs/current/
+# Find unusual log volume per time window, plus rare levels and sources
+npm run ml-patterns:test-anomaly logs/current/ -- --window 1m --threshold 3
 
-# Generate forecasts
-npm run ml-patterns:forecast -- --horizon 48h --confidence 0.9
+# Forecast log volume per window from a linear trend (reports R² fit)
+npm run ml-patterns:forecast logs/historical/ -- --window 1h --horizon 24
 
-# Analyze threat intelligence
-npm run ml-patterns:threat-intel -- --input logs/security/
+# Extract IPs, domains and file hashes, and match them against your own list
+npm run ml-patterns:threat-intel logs/current/ -- --iocs my-indicators.txt
 ```
 
 ### Python ML Analysis

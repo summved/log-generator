@@ -8,7 +8,11 @@ import { StorageManager } from './utils/storage';
 import { mitreMapper } from './utils/mitreMapper';
 import { AttackChainManager } from './chains/AttackChainManager';
 import { chainDurationMs, speedForTargetDuration } from './chains/chainTiming';
-import { analyzeD3fendCoverage, CoverageLog, listD3fendTechniques, parseLogLines } from './utils/d3fendCoverage';
+import { analyzeD3fendCoverage, listD3fendTechniques } from './utils/d3fendCoverage';
+import { LogFilesResult, readLogFiles } from './utils/logFiles';
+import { bucketByWindow, detectVolumeAnomalies, forecastVolume, rareValues, RareValue } from './ml/volumeAnalysis';
+import { extractIndicators, matchIndicators, parseIndicatorList } from './ml/indicators';
+import { ClassifierLabel, loadTextClassifier, trainTextClassifier } from './ml/logTextClassifier';
 import { AttackChainExecutionConfig } from './types/attackChain';
 // Disabled features - using stubs to provide informative error messages
 import { 
@@ -1552,27 +1556,14 @@ program
         ? inputPaths
         : [options.file ? path.join('./logs/historical', options.file) : './logs/historical'];
 
-      const files: string[] = [];
-      for (const target of targets) {
-        if (!(await fs.pathExists(target))) {
-          console.error(`❌ Not found: ${target}`);
-          process.exit(1);
-        }
-        if ((await fs.stat(target)).isDirectory()) {
-          const names = (await fs.readdir(target)).filter(name => name.endsWith('.jsonl') || name.endsWith('.json')).sort();
-          files.push(...names.map(name => path.join(target, name)));
-        } else {
-          files.push(target);
-        }
+      let loaded;
+      try {
+        loaded = await readLogFiles(targets);
+      } catch (error) {
+        console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
       }
-
-      const logs: CoverageLog[] = [];
-      let skipped = 0;
-      for (const file of files) {
-        const parsed = parseLogLines(await fs.readFile(file, 'utf8'));
-        logs.push(...parsed.logs);
-        skipped += parsed.skipped;
-      }
+      const { files, logs, skipped } = loaded;
 
       const report = analyzeD3fendCoverage(logs);
 
@@ -2176,6 +2167,217 @@ function parseDuration(duration: string): number | null {
   
   return totalMs > 0 ? totalMs : null;
 }
+
+/** Read logs for the analysis commands, or print the error and exit */
+async function loadLogsForAnalysis(paths: string[]): Promise<LogFilesResult> {
+  try {
+    const result = await readLogFiles(paths.length > 0 ? paths : ['./logs/historical']);
+    if (result.logs.length === 0) {
+      console.error('❌ No logs found in the given files');
+      process.exit(1);
+    }
+    return result;
+  } catch (error) {
+    console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+}
+
+function parsePositiveNumber(value: string, name: string): number {
+  const parsed = Number(value);
+  if (!(parsed > 0)) {
+    console.error(`❌ Invalid ${name} "${value}". Use a number greater than 0`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
+function parseWindow(value: string): number {
+  const windowMs = parseDuration(value);
+  if (!windowMs) {
+    console.error(`❌ Invalid --window "${value}". Use formats like 30s, 1m or 1h`);
+    process.exit(1);
+  }
+  return windowMs;
+}
+
+program
+  .command('ml-patterns:train-nlp')
+  .description('Train a text classifier on log messages and report held-out accuracy')
+  .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
+  .option('--label <field>', 'Field to predict: level, source or technique', 'level')
+  .option('--output <file>', 'Where to save the model (default: models/ml-patterns/nlp-<label>-classifier.json)')
+  .option('--classify <text>', 'Classify this text with the trained model')
+  .option('--json', 'Output in JSON format')
+  .action(async (paths: string[], options) => {
+    if (!['level', 'source', 'technique'].includes(options.label)) {
+      console.error(`❌ Invalid --label "${options.label}". Use level, source or technique`);
+      process.exit(1);
+    }
+    const { files, logs } = await loadLogsForAnalysis(paths);
+
+    try {
+      const result = trainTextClassifier(logs, options.label as ClassifierLabel);
+      const output = options.output || path.join('models', 'ml-patterns', `nlp-${result.label}-classifier.json`);
+      await fs.ensureDir(path.dirname(output));
+      await fs.writeFile(output, result.model);
+      const prediction = options.classify ? loadTextClassifier(result.model).classify(options.classify) : undefined;
+
+      if (options.json) {
+        const { model, ...summary } = result;
+        console.log(JSON.stringify({ files, modelFile: output, ...summary, ...(prediction !== undefined ? { prediction } : {}) }, null, 2));
+        return;
+      }
+
+      console.log('\n🧠 Text Classifier Training\n');
+      console.log(`   Files: ${files.length}  |  Label: ${result.label}`);
+      console.log(`   Trained on ${result.trainSize} logs, tested on ${result.testSize} held-out logs`);
+      console.log(`   Accuracy: ${(result.accuracy * 100).toFixed(1)}%  (always guessing the most common ${result.label}: ${(result.baselineAccuracy * 100).toFixed(1)}%)`);
+      console.log(`   Classes: ${result.labels.map(l => `${l.label} (${l.count})`).join(', ')}`);
+      if (result.excludedLabels.length > 0) {
+        console.log(`   Left out (fewer than 5 examples): ${result.excludedLabels.map(l => `${l.label} (${l.count})`).join(', ')}`);
+      }
+      console.log(`   Model saved to: ${output}`);
+      if (prediction !== undefined) {
+        console.log(`\n   "${options.classify}" → ${prediction}`);
+      }
+    } catch (error) {
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('ml-patterns:test-anomaly')
+  .description('Find unusual log volume per time window and rare levels/sources')
+  .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
+  .option('--window <time>', 'Time window size, e.g. 30s, 1m, 1h', '1m')
+  .option('--threshold <number>', 'Flag windows more than this many standard deviations from the mean', '3')
+  .option('--rare-share <number>', 'List levels/sources seen in less than this share of logs', '0.01')
+  .option('--json', 'Output in JSON format')
+  .action(async (paths: string[], options) => {
+    const windowMs = parseWindow(options.window);
+    const threshold = parsePositiveNumber(options.threshold, '--threshold');
+    const rareShare = parsePositiveNumber(options.rareShare, '--rare-share');
+    const { files, logs } = await loadLogsForAnalysis(paths);
+
+    const buckets = bucketByWindow(logs, windowMs);
+    const volume = detectVolumeAnomalies(buckets, threshold);
+    const rareLevels = rareValues(logs, 'level', rareShare);
+    const rareSources = rareValues(logs, 'source', rareShare);
+
+    if (options.json) {
+      console.log(JSON.stringify({ files, totalLogs: logs.length, windowMs, windows: buckets.length, emptyWindows: buckets.filter(bucket => bucket.count === 0).length, ...volume, rareLevels, rareSources }, null, 2));
+      return;
+    }
+
+    console.log('\n🔎 Anomaly Check\n');
+    const emptyWindows = buckets.filter(bucket => bucket.count === 0).length;
+    console.log(`   Files: ${files.length}  |  Logs: ${logs.length}  |  Windows: ${buckets.length} × ${options.window}${emptyWindows > 0 ? ` (${emptyWindows} with no logs)` : ''}`);
+    if (buckets.length === 0) {
+      console.log('   ⚠️  No logs with valid timestamps; volume check skipped');
+    } else {
+      console.log(`   Logs per window: mean ${volume.mean.toFixed(1)}, standard deviation ${volume.stdDev.toFixed(1)}`);
+      console.log(`\n📈 Unusual windows (beyond ${threshold} standard deviations): ${volume.anomalies.length}`);
+      for (const anomaly of volume.anomalies.slice(0, 20)) {
+        console.log(`   ${new Date(anomaly.start).toISOString()}  ${String(anomaly.count).padStart(6)} logs  ${anomaly.direction} (z=${anomaly.zScore.toFixed(1)})`);
+      }
+    }
+    const printRare = (title: string, values: RareValue[]) => {
+      console.log(`\n${title}: ${values.length}`);
+      for (const value of values.slice(0, 20)) {
+        console.log(`   ${value.value.padEnd(24)} ${String(value.count).padStart(6)} logs (${(value.share * 100).toFixed(2)}%)`);
+      }
+    };
+    printRare(`🔸 Rare levels (under ${(rareShare * 100).toFixed(2)}% of logs)`, rareLevels);
+    printRare(`🔸 Rare sources (under ${(rareShare * 100).toFixed(2)}% of logs)`, rareSources);
+  });
+
+program
+  .command('ml-patterns:forecast')
+  .description('Forecast log volume per time window from a linear trend')
+  .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
+  .option('--window <time>', 'Time window size, e.g. 30s, 1m, 1h', '1m')
+  .option('--horizon <number>', 'How many future windows to forecast', '10')
+  .option('--json', 'Output in JSON format')
+  .action(async (paths: string[], options) => {
+    const windowMs = parseWindow(options.window);
+    const horizon = Math.round(parsePositiveNumber(options.horizon, '--horizon'));
+    const { files, logs } = await loadLogsForAnalysis(paths);
+
+    try {
+      const buckets = bucketByWindow(logs, windowMs);
+      const result = forecastVolume(buckets, horizon, windowMs);
+
+      if (options.json) {
+        console.log(JSON.stringify({ files, totalLogs: logs.length, windowMs, history: buckets.length, ...result }, null, 2));
+        return;
+      }
+
+      console.log('\n📉 Volume Forecast\n');
+      console.log(`   Files: ${files.length}  |  Logs: ${logs.length}  |  History: ${buckets.length} × ${options.window}`);
+      console.log(`   Trend: ${result.slopePerWindow >= 0 ? '+' : ''}${result.slopePerWindow.toFixed(2)} logs per window  |  Fit (R²): ${result.rSquared.toFixed(3)}`);
+      if (result.rSquared < 0.3) {
+        console.log('   ⚠️  Low R²: volume does not follow a clear trend, so treat the forecast as rough');
+      }
+      console.log('\n   Next windows:');
+      for (const point of result.forecast) {
+        console.log(`   ${new Date(point.start).toISOString()}  ~${point.count} logs`);
+      }
+    } catch (error) {
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('ml-patterns:threat-intel')
+  .description('Extract IPs, domains and file hashes from logs and match them against an indicator list')
+  .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
+  .option('--iocs <file>', 'Indicator list to match against, one value per line (# comments allowed)')
+  .option('--top <number>', 'How many of the most frequent indicators to show', '20')
+  .option('--json', 'Output in JSON format')
+  .action(async (paths: string[], options) => {
+    const top = Math.round(parsePositiveNumber(options.top, '--top'));
+    let list: Set<string> | undefined;
+    if (options.iocs) {
+      if (!(await fs.pathExists(options.iocs))) {
+        console.error(`❌ Not found: ${options.iocs}`);
+        process.exit(1);
+      }
+      list = parseIndicatorList(await fs.readFile(options.iocs, 'utf8'));
+    }
+    const { files, logs } = await loadLogsForAnalysis(paths);
+
+    const indicators = extractIndicators(logs);
+    const matches = list ? matchIndicators(indicators, list) : undefined;
+    const byType = indicators.reduce<Record<string, number>>((counts, indicator) => ({
+      ...counts, [indicator.type]: (counts[indicator.type] || 0) + 1
+    }), {});
+
+    if (options.json) {
+      console.log(JSON.stringify({ files, totalLogs: logs.length, uniqueIndicators: indicators.length, byType, indicators: indicators.slice(0, top), ...(matches ? { listSize: list!.size, matches } : {}) }, null, 2));
+      return;
+    }
+
+    console.log('\n🕵️ Indicator Extraction\n');
+    console.log(`   Files: ${files.length}  |  Logs: ${logs.length}  |  Unique indicators: ${indicators.length}`);
+    console.log(`   By type: ${Object.entries(byType).map(([type, count]) => `${type} ${count}`).join(', ') || 'none'}`);
+    if (indicators.length > 0) {
+      console.log(`\n   Most frequent (top ${Math.min(top, indicators.length)}):`);
+      for (const indicator of indicators.slice(0, top)) {
+        console.log(`   ${indicator.type.padEnd(7)} ${indicator.value.padEnd(40)} ${String(indicator.count).padStart(6)}${indicator.scope ? `  ${indicator.scope}` : ''}`);
+      }
+    }
+    if (matches && list) {
+      console.log(`\n🚩 Matches against ${options.iocs} (${list.size} entries): ${matches.length}`);
+      for (const match of matches) {
+        console.log(`   ${match.type.padEnd(7)} ${match.value.padEnd(40)} ${String(match.count).padStart(6)}`);
+      }
+    } else {
+      console.log('\n   Tip: pass --iocs <file> to match these against your own indicator list');
+    }
+  });
 
 program
   .command('performance-test')
