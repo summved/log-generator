@@ -124,7 +124,7 @@ Execute realistic multi-stage attack scenarios with correlated defensive respons
 
 ### Available Attack Chains
 
-#### **🐻 APT29 Cozy Bear** (45 minutes, 10 stages)
+#### **🐻 APT29 Cozy Bear** (20 minutes, 10 stages)
 Advanced nation-state attack simulation with sophisticated techniques:
 1. Initial reconnaissance and target identification
 2. Spear-phishing email campaign
@@ -132,7 +132,7 @@ Advanced nation-state attack simulation with sophisticated techniques:
 4. Credential harvesting and lateral movement
 5. Data collection and exfiltration
 
-#### **💀 Ryuk Ransomware** (30 minutes, 11 stages)
+#### **💀 Ryuk Ransomware** (15 minutes, 11 stages)
 Enterprise ransomware campaign simulation:
 1. Initial access via RDP brute force
 2. Reconnaissance and network mapping
@@ -140,7 +140,7 @@ Enterprise ransomware campaign simulation:
 4. Defense evasion and tool deployment
 5. File encryption and ransom demand
 
-#### **🕵️ Malicious Insider** (25 minutes, 11 stages)
+#### **🕵️ Malicious Insider** (12 minutes, 11 stages)
 Data theft scenario by insider threat:
 1. Legitimate access with suspicious behavior
 2. Data discovery and collection

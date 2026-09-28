@@ -26,7 +26,7 @@ chain:
     created: "2025-01-01"
     tags: ["apt29", "cozy-bear", "nation-state", "advanced", "multi-stage"]
     severity: "critical"
-    estimated_duration: 45 # minutes
+    estimated_duration: 20 # minutes at 1x speed
   
   mitre_mapping:
     tactics:
@@ -72,11 +72,11 @@ chain:
         description: "Adversaries may send spearphishing emails with malicious attachments"
       timing:
         delayAfterPrevious: 0
-        duration: 120000 # 2 minutes
+        duration: 35000 # 35 seconds
         variance: 0.2
       logGeneration:
         templates: ["email_received", "attachment_detected", "suspicious_email"]
-        frequency: 8
+        frequency: 27.42
         sources: ["mail-server"]
         customData:
           sender: "partner@legitimate-domain.com"
@@ -93,13 +93,13 @@ chain:
         subtechnique: "PowerShell"
         description: "Adversaries may abuse PowerShell commands and scripts"
       timing:
-        delayAfterPrevious: 30000 # 30 seconds after email
-        duration: 180000 # 3 minutes
+        delayAfterPrevious: 9000 # 9 seconds
+        duration: 53000 # 53 seconds
         variance: 0.3
       dependencies: ["initial_access_spearphish"]
       logGeneration:
         templates: ["powershell_execution", "script_execution", "process_creation"]
-        frequency: 12
+        frequency: 40.75
         sources: ["endpoint", "windows-server"]
         customData:
           command: "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden"
@@ -115,13 +115,13 @@ chain:
         subtechnique: "Registry Run Keys / Startup Folder"
         description: "Adversaries may achieve persistence by adding programs to startup folders"
       timing:
-        delayAfterPrevious: 60000 # 1 minute
-        duration: 90000 # 1.5 minutes
+        delayAfterPrevious: 18000 # 18 seconds
+        duration: 26000 # 26 seconds
         variance: 0.2
       dependencies: ["powershell_execution"]
       logGeneration:
         templates: ["registry_modification", "persistence_established"]
-        frequency: 6
+        frequency: 20.76
         sources: ["endpoint", "windows-server"]
         customData:
           registry_key: "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
@@ -138,13 +138,13 @@ chain:
         subtechnique: "Process Injection"
         description: "Adversaries may inject code into processes to evade process-based defenses"
       timing:
-        delayAfterPrevious: 120000 # 2 minutes
-        duration: 150000 # 2.5 minutes
+        delayAfterPrevious: 35000 # 35 seconds
+        duration: 44000 # 44 seconds
         variance: 0.3
       dependencies: ["registry_persistence"]
       logGeneration:
         templates: ["process_injection", "suspicious_process_activity"]
-        frequency: 10
+        frequency: 34.09
         sources: ["endpoint"]
         customData:
           target_process: "explorer.exe"
@@ -160,13 +160,13 @@ chain:
         subtechnique: "LSASS Memory"
         description: "Adversaries may attempt to access credential material stored in LSASS"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 120000 # 2 minutes
+        delayAfterPrevious: 88000 # 88 seconds
+        duration: 35000 # 35 seconds
         variance: 0.2
       dependencies: ["process_injection"]
       logGeneration:
         templates: ["lsass_access", "credential_dumping", "suspicious_memory_access"]
-        frequency: 15
+        frequency: 51.42
         sources: ["endpoint", "windows-server"]
         customData:
           tool: "Mimikatz"
@@ -182,13 +182,13 @@ chain:
         subtechnique: "System Information Discovery"
         description: "Adversaries may attempt to get detailed information about the system"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 240000 # 4 minutes
+        delayAfterPrevious: 53000 # 53 seconds
+        duration: 70000 # 70 seconds
         variance: 0.3
       dependencies: ["lsass_dumping"]
       logGeneration:
         templates: ["system_enumeration", "discovery_commands"]
-        frequency: 8
+        frequency: 27.42
         sources: ["endpoint", "windows-server"]
         customData:
           commands: ["systeminfo", "net user", "net group", "whoami /priv"]
@@ -203,13 +203,13 @@ chain:
         subtechnique: "Data from Local System"
         description: "Adversaries may search local system sources to find files of interest"
       timing:
-        delayAfterPrevious: 600000 # 10 minutes
-        duration: 480000 # 8 minutes
+        delayAfterPrevious: 175000 # 175 seconds
+        duration: 140000 # 140 seconds
         variance: 0.4
       dependencies: ["system_discovery"]
       logGeneration:
         templates: ["file_access", "data_collection", "sensitive_file_access"]
-        frequency: 20
+        frequency: 68.57
         sources: ["endpoint", "windows-server"]
         customData:
           file_types: ["*.docx", "*.xlsx", "*.pdf", "*.txt"]
@@ -225,13 +225,13 @@ chain:
         subtechnique: "Web Protocols"
         description: "Adversaries may communicate using application layer protocols"
       timing:
-        delayAfterPrevious: 60000 # 1 minute
-        duration: 600000 # 10 minutes (parallel with collection)
+        delayAfterPrevious: 18000 # 18 seconds
+        duration: 175000 # 175 seconds
         variance: 0.2
       dependencies: ["system_discovery"]
       logGeneration:
         templates: ["c2_communication", "suspicious_network_activity", "http_beaconing"]
-        frequency: 25
+        frequency: 85.71
         sources: ["firewall", "proxy-server", "endpoint"]
         customData:
           c2_server: "legitimate-cdn.com"
@@ -248,13 +248,13 @@ chain:
         subtechnique: "Exfiltration Over C2 Channel"
         description: "Adversaries may steal data by exfiltrating it over an existing C2 channel"
       timing:
-        delayAfterPrevious: 120000 # 2 minutes after collection starts
-        duration: 360000 # 6 minutes
+        delayAfterPrevious: 35000 # 35 seconds
+        duration: 105000 # 105 seconds
         variance: 0.3
       dependencies: ["data_collection", "c2_communication"]
       logGeneration:
         templates: ["data_exfiltration", "large_upload", "suspicious_outbound_traffic"]
-        frequency: 30
+        frequency: 102.85
         sources: ["firewall", "proxy-server", "endpoint"]
         customData:
           data_size: "2.3GB"
@@ -271,13 +271,13 @@ chain:
         subtechnique: "File Deletion"
         description: "Adversaries may delete files left behind by the actions of their intrusion"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 120000 # 2 minutes
+        delayAfterPrevious: 53000 # 53 seconds
+        duration: 35000 # 35 seconds
         variance: 0.2
       dependencies: ["data_exfiltration"]
       logGeneration:
         templates: ["file_deletion", "log_clearing", "cleanup_activity"]
-        frequency: 12
+        frequency: 41.14
         sources: ["endpoint", "windows-server"]
         customData:
           deleted_files: ["temp_payload.exe", "collected_data.zip", "credentials.txt"]

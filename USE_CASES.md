@@ -33,9 +33,9 @@ npm run attack-chains:execute ransomware-ryuk
 ```
 
 **Training Scenarios**:
-- 🐻 **APT29 Cozy Bear**: Nation-state attack patterns (45 min, 10 stages)
-- 💀 **Ryuk Ransomware**: Enterprise ransomware campaign (30 min, 11 stages)
-- 🕵️ **Malicious Insider**: Data theft scenario (25 min, 11 stages)
+- 🐻 **APT29 Cozy Bear**: Nation-state attack patterns (20 min, 10 stages)
+- 💀 **Ryuk Ransomware**: Enterprise ransomware campaign (15 min, 11 stages)
+- 🕵️ **Malicious Insider**: Data theft scenario (12 min, 11 stages)
 
 ---
 
