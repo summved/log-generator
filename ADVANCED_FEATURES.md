@@ -111,11 +111,13 @@ npm run generate -- --d3fend-category Detect --duration 30m
 # Generate logs for specific defensive technique
 npm run generate -- --d3fend-technique D3-NTA --count 100
 
-# List all D3FEND techniques
+# List all D3FEND techniques (optionally one category, or as JSON)
 npm run d3fend-list
+npm run d3fend-list -- --category Detect --json
 
-# Check D3FEND coverage
+# Check which D3FEND techniques appear in log files (files and/or directories; default logs/historical)
 npm run d3fend-coverage logs/historical/
+npm run d3fend-coverage logs/current/*.jsonl -- --json
 ```
 
 ## 🔗 Attack Chain Simulation
