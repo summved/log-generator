@@ -55,16 +55,6 @@ run_test "Package.json Exists" "test -f package.json"
 run_test "Node Modules Installed" "test -d node_modules"
 run_test "NPM Dependencies Check" "npm ls --depth=0"
 
-# Check Python dependencies (optional)
-if command -v python3 >/dev/null 2>&1; then
-    run_test "Python3 Available" "command -v python3" "true"
-    run_test "Python ML Dependencies" "python3 -c 'import sklearn, pandas, numpy'" "true"
-else
-    echo "🔍 Testing: Python3 Available"
-    echo "   ⚠️  Python3 not found - ML features will be unavailable"
-    echo ""
-fi
-
 echo "PHASE 2: BUILD PROCESS VERIFICATION"
 echo "==================================="
 

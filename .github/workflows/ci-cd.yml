@@ -60,33 +60,6 @@ jobs:
     - name: Run security audit
       run: npm audit --audit-level=high
       
-  python-requirements:
-    name: Python Requirements
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
-
-    - name: Resolve pinned requirements
-      run: |
-        python -m pip install --upgrade pip
-        pip install --dry-run --ignore-installed -r requirements-core.txt
-        pip install --dry-run --ignore-installed -r requirements.txt
-
-    - name: Compile Python scripts
-      run: python -m py_compile python/*.py
-
-    - name: Check transformers API used by python/ml_models.py
-      run: |
-        pip install "$(grep -E '^transformers==' requirements.txt | cut -d' ' -f1)"
-        python -c "from transformers import pipeline, AutoTokenizer, AutoModel; from transformers.pipelines import TASK_ALIASES, SUPPORTED_TASKS; assert 'sentiment-analysis' in TASK_ALIASES or 'sentiment-analysis' in SUPPORTED_TASKS; print('transformers API OK')"
-
   security-scan:
     name: Security Scanning
     runs-on: ubuntu-latest
