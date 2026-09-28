@@ -1,4 +1,4 @@
-import { bucketByWindow, detectVolumeAnomalies, forecastVolume, rareValues } from './volumeAnalysis';
+import { bucketByWindow, chooseSeasonLength, detectVolumeAnomalies, forecastAuto, forecastSeasonal, forecastVolume, rareValues, VolumeBucket } from './volumeAnalysis';
 
 const MINUTE = 60000;
 const T0 = Date.parse('2026-01-01T00:00:00.000Z');
@@ -96,5 +96,83 @@ describe('forecastVolume', () => {
 
   it('needs at least two windows', () => {
     expect(() => forecastVolume([{ start: T0, count: 3 }], 1, MINUTE)).toThrow('At least 2 time windows are needed');
+  });
+});
+
+describe('chooseSeasonLength', () => {
+  const HOUR = 3600000;
+
+  it('uses a daily cycle when there are at least two days of windows', () => {
+    expect(chooseSeasonLength(HOUR, 48)).toBe(24);
+    expect(chooseSeasonLength(15 * MINUTE, 200)).toBe(96);
+  });
+
+  it('uses a weekly cycle for day-sized windows with two weeks of history', () => {
+    expect(chooseSeasonLength(24 * HOUR, 14)).toBe(7);
+  });
+
+  it('returns null when there is not enough history for two cycles', () => {
+    expect(chooseSeasonLength(HOUR, 30)).toBeNull();
+    expect(chooseSeasonLength(7 * MINUTE, 1000)).toBeNull();
+  });
+});
+
+describe('forecastSeasonal', () => {
+  const HOUR = 3600000;
+  // Five days of hourly counts following a daily cycle: busy afternoons, quiet nights
+  const daily = (hour: number) => Math.round(100 + 80 * Math.sin(((hour - 6) / 24) * 2 * Math.PI));
+  const history = Array.from({ length: 24 * 5 }, (_, i) => ({ start: T0 + i * HOUR, count: daily(i % 24) + (i % 3) }));
+
+  it('follows the daily cycle in its forecast', () => {
+    const result = forecastSeasonal(history, 24, HOUR, 24);
+    const expected = Array.from({ length: 24 }, (_, h) => daily(h));
+    const error = result.forecast.reduce((sum, point, h) => sum + Math.abs(point.count - expected[h]), 0) / 24;
+
+    expect(result.seasonLength).toBe(24);
+    expect(error).toBeLessThan(10);
+    expect(result.forecast[0].start).toBe(T0 + 24 * 5 * HOUR);
+    expect(result.meanAbsoluteError).toBeGreaterThanOrEqual(0);
+  });
+
+  it('beats a straight trend line on seasonal data', () => {
+    const seasonal = forecastSeasonal(history, 24, HOUR, 24);
+    const linear = forecastVolume(history, 24, HOUR);
+    const expected = Array.from({ length: 24 }, (_, h) => daily(h));
+    const err = (points: VolumeBucket[]) => points.reduce((s, p, h) => s + Math.abs(p.count - expected[h]), 0);
+
+    expect(err(seasonal.forecast)).toBeLessThan(err(linear.forecast) / 3);
+  });
+
+  it('needs two full cycles of history', () => {
+    expect(() => forecastSeasonal(history.slice(0, 30), 5, HOUR, 24)).toThrow('At least 48 time windows are needed');
+  });
+});
+
+describe('forecastAuto', () => {
+  const HOUR = 3600000;
+  const daily = (hour: number) => Math.round(100 + 80 * Math.sin(((hour - 6) / 24) * 2 * Math.PI));
+
+  it('uses the seasonal model when it fits the history better', () => {
+    const history = Array.from({ length: 24 * 5 }, (_, i) => ({ start: T0 + i * HOUR, count: daily(i % 24) }));
+
+    const result = forecastAuto(history, 6, HOUR);
+
+    expect(result.method).toBe('holt-winters');
+    expect(result.meanAbsoluteError).toBeLessThan(result.alternativeError!);
+  });
+
+  it('falls back to the linear trend when that fits better, e.g. rare bursts', () => {
+    const history = Array.from({ length: 24 * 5 }, (_, i) => ({ start: T0 + i * HOUR, count: [7, 50, 90].includes(i) ? 2000 : 0 }));
+
+    const result = forecastAuto(history, 6, HOUR);
+
+    expect(result.method).toBe('linear');
+    expect(result.meanAbsoluteError).toBeLessThanOrEqual(result.alternativeError!);
+  });
+
+  it('uses the linear trend when there is not enough history for a cycle', () => {
+    const history = Array.from({ length: 10 }, (_, i) => ({ start: T0 + i * HOUR, count: i }));
+
+    expect(forecastAuto(history, 2, HOUR)).toEqual(expect.objectContaining({ method: 'linear', alternativeError: undefined }));
   });
 });

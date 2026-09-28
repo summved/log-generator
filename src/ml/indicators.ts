@@ -1,11 +1,11 @@
 /**
  * Indicators
- * Extracts network and file indicators (IPv4, domains, hashes) from logs and matches them against a list
+ * Extracts network and file indicators (IPv4, domains, emails, hashes) from logs and matches them against a list
  */
 
 import { ParsedLog } from '../utils/logFiles';
 
-export type IndicatorType = 'ipv4' | 'domain' | 'md5' | 'sha1' | 'sha256';
+export type IndicatorType = 'ipv4' | 'domain' | 'email' | 'md5' | 'sha1' | 'sha256';
 
 export interface Indicator {
   type: IndicatorType;
@@ -17,6 +17,7 @@ export interface Indicator {
 
 const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
 const IPV4 = new RegExp(`(?<![\\d.])${OCTET}(?:\\.${OCTET}){3}(?!\\.?\\d)`, 'g');
+const EMAIL = /(?<![\w.+-])[\w.+-]+@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}(?![\w-])/gi;
 const DOMAIN = /(?<![\w.@-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}(?![\w-])/gi;
 const HASHES: Array<{ type: IndicatorType; pattern: RegExp }> = [
   { type: 'sha256', pattern: /(?<![a-f0-9])[a-f0-9]{64}(?![a-f0-9])/gi },
@@ -67,7 +68,11 @@ export function extractIndicators(logs: Array<Pick<ParsedLog, 'message' | 'metad
     for (const ip of text.match(IPV4) || []) {
       add('ipv4', ip);
     }
-    for (const domain of text.match(DOMAIN) || []) {
+    for (const email of text.match(EMAIL) || []) {
+      add('email', email.toLowerCase());
+    }
+    // Domains inside email addresses are counted as part of the email, not separately
+    for (const domain of text.replace(EMAIL, ' ').match(DOMAIN) || []) {
       const lower = domain.toLowerCase();
       if (!FILE_EXTENSIONS.has(lower.slice(lower.lastIndexOf('.') + 1))) {
         add('domain', lower);

@@ -442,9 +442,9 @@ npm run ml-patterns:threat-intel logs/current/ -- --iocs my-indicators.txt
 ```
 
 - **`ml-patterns:train-nlp`**: Naive Bayes classifier on message text. It holds out every 5th log for testing and reports accuracy next to a "most common value" baseline. Values with fewer than 5 examples are left out and listed. The model is saved to `models/ml-patterns/nlp-<label>-classifier.json` (or `--output`).
-- **`ml-patterns:test-anomaly`**: counts logs per `--window` and flags windows more than `--threshold` standard deviations from the mean. It also lists levels and sources below `--rare-share` of all logs.
-- **`ml-patterns:forecast`**: fits a linear trend to logs per window and projects `--horizon` windows ahead. A low R² means the volume has no clear trend.
-- **`ml-patterns:threat-intel`**: extracts IPv4 addresses (marking non-public ranges), domains and MD5/SHA-1/SHA-256 hashes from messages and metadata. `--iocs` matches them against a list with one value per line. No online lookups are made.
+- **`ml-patterns:test-anomaly`**: counts logs per `--window` and flags windows more than `--threshold` standard deviations from the mean. It lists levels and sources below `--rare-share` of all logs. It also lists the `--outliers` (default 10) most unusual *individual* logs, scored by an isolation forest over per-log features (hour, weekend, message length and words, error words, level, source and message-pattern rarity, metadata fields, IPs), each with the features that stand out.
+- **`ml-patterns:forecast`**: projects `--horizon` windows ahead. With `--seasonality auto` (the default) it fits both a linear trend and, when the history covers two daily or weekly cycles, a seasonal Holt-Winters model, then uses whichever has the lower error on the history and reports both errors. `none` forces the trend and `daily`/`weekly` force a cycle. A low R² means the volume has no clear trend.
+- **`ml-patterns:threat-intel`**: extracts IPv4 addresses (marking non-public ranges), domains, email addresses and MD5/SHA-1/SHA-256 hashes from messages and metadata. `--iocs` matches them against a list with one value per line. No online lookups are made.
 
 ## ⚡ High-Performance Worker Threads
 

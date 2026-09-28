@@ -44,6 +44,19 @@ describe('extractIndicators', () => {
     });
   });
 
+  it('extracts email addresses without also counting their domain', () => {
+    const indicators = extractIndicators([
+      { message: 'Mail from Alice.Smith@Example.org to bob@mail.example.net rejected' },
+      { message: 'Retry alice.smith@example.org' }
+    ]);
+
+    expect(indicators.filter(i => i.type === 'email')).toEqual([
+      { type: 'email', value: 'alice.smith@example.org', count: 2 },
+      { type: 'email', value: 'bob@mail.example.net', count: 1 }
+    ]);
+    expect(indicators.filter(i => i.type === 'domain')).toEqual([]);
+  });
+
   it('sorts by count, most frequent first', () => {
     const counts = extractIndicators(logs).map(i => i.count);
 
