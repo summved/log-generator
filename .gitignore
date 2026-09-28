@@ -147,3 +147,6 @@ __pycache__/
 # Note: Developer reference files are kept in repository:
 # - CODE_ARCHITECTURE.md (for developers)
 # - LOG_EXPANSION_SUGGESTIONS.md (for future development)
+
+# attack-chains:execute reports (default output directory)
+logs/attack-chains/

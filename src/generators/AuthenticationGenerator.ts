@@ -1,5 +1,5 @@
 import { BaseGenerator } from './BaseGenerator';
-import { LogEntry, LogSource, GeneratorConfig } from '../types';
+import { LogSource, GeneratorConfig } from '../types';
 
 export class AuthenticationGenerator extends BaseGenerator {
   constructor(source: LogSource, config: GeneratorConfig) {

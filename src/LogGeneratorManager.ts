@@ -4,7 +4,6 @@ import { StorageManager } from './utils/storage';
 import { OutputManager } from './utils/outputManager';
 import { ReplayManager } from './replay';
 import { logger } from './utils/logger';
-import { mitreMapper } from './utils/mitreMapper';
 import { ConfigValidator } from './utils/configValidator';
 import * as cron from 'node-cron';
 import {
@@ -22,7 +21,6 @@ import {
   IoTGenerator,
   BaseGenerator
 } from './generators';
-import { HighPerformanceGenerator } from './generators/HighPerformanceGenerator';
 import { WorkerPoolManager } from './workers/LogGeneratorWorker';
 import { MetricsCollector } from './utils/metricsCollector';
 import { HttpServer } from './utils/httpServer';

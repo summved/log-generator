@@ -9,7 +9,6 @@ import * as yaml from 'js-yaml';
 import { logger } from '../utils/logger';
 import { AttackChain, AttackChainTemplate, AttackChainExecution, AttackChainExecutionConfig } from '../types/attackChain';
 import { AttackChainEngine } from './AttackChainEngine';
-import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Manages attack chain templates and execution

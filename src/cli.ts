@@ -28,7 +28,7 @@ import * as path from 'path';
 import * as yaml from 'yaml';
 
 // Helper functions for config management
-async function setConfigValue(configManager: ConfigManager, key: string, value: string): Promise<void> {
+async function setConfigValue(key: string, value: string): Promise<void> {
   // Validate and sanitize input
   const validated = InputValidator.validateConfigKeyValue(key, value);
   
@@ -383,7 +383,7 @@ program
           process.exit(1);
         }
         
-        await setConfigValue(configManager, key.trim(), value.trim());
+        await setConfigValue(key.trim(), value.trim());
         console.log(`✅ Set ${key} = ${value}`);
       }
 
@@ -1447,13 +1447,6 @@ program
       // Create a specialized configuration for SOC simulation
       const logGenerator = new LogGeneratorManager(options.config);
       
-      // Enable only SecurityOperationsGenerator with scenario-specific settings
-      const socConfig = {
-        scenario: scenario,
-        analysts: parseInt(options.analysts),
-        intensity: options.intensity
-      };
-
       // Start SOC simulation
       await logGenerator.start();
       
