@@ -385,6 +385,29 @@ npm run ml-patterns:config --learning-rate 0.01 --max-history-days 30
 npm run ml-patterns:reset
 ```
 
+### Log Analysis Commands
+
+These read JSON-lines log files and/or directories (default `logs/historical`), need no Python setup, and accept `--json`:
+
+```bash
+# Train a text classifier that predicts level, source or MITRE technique from the message
+npm run ml-patterns:train-nlp logs/historical/ -- --label level --classify "Failed password for admin"
+
+# Find unusual log volume per time window, plus rare levels and sources
+npm run ml-patterns:test-anomaly logs/current/ -- --window 1m --threshold 3
+
+# Forecast log volume per window from a linear trend (reports R² fit)
+npm run ml-patterns:forecast logs/historical/ -- --window 1h --horizon 24
+
+# Extract IPs, domains and file hashes, and match them against your own list
+npm run ml-patterns:threat-intel logs/current/ -- --iocs my-indicators.txt
+```
+
+- **`ml-patterns:train-nlp`**: Naive Bayes classifier on message text. It holds out every 5th log for testing and reports accuracy next to a "most common value" baseline. Values with fewer than 5 examples are left out and listed. The model is saved to `models/ml-patterns/nlp-<label>-classifier.json` (or `--output`).
+- **`ml-patterns:test-anomaly`**: counts logs per `--window` and flags windows more than `--threshold` standard deviations from the mean. It also lists levels and sources below `--rare-share` of all logs.
+- **`ml-patterns:forecast`**: fits a linear trend to logs per window and projects `--horizon` windows ahead. A low R² means the volume has no clear trend.
+- **`ml-patterns:threat-intel`**: extracts IPv4 addresses (marking non-public ranges), domains and MD5/SHA-1/SHA-256 hashes from messages and metadata. `--iocs` matches them against a list with one value per line. No online lookups are made.
+
 ## ⚡ High-Performance Worker Threads
 
 ### Worker Thread Architecture

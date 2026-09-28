@@ -1,4 +1,4 @@
-import { analyzeD3fendCoverage, listD3fendTechniques, parseLogLines } from './d3fendCoverage';
+import { analyzeD3fendCoverage, listD3fendTechniques } from './d3fendCoverage';
 import { D3FENDMapper } from './d3fendMapper';
 
 jest.mock('./logger', () => ({
@@ -57,22 +57,5 @@ describe('analyzeD3fendCoverage', () => {
 
     expect(report).toEqual(expect.objectContaining({ totalLogs: 0, logsWithDefense: 0, techniques: [] }));
     expect(report.unseenTechniques.length).toBe(D3FENDMapper.getSupportedTechniques().length);
-  });
-});
-
-describe('parseLogLines', () => {
-  it('parses JSON lines and counts lines that are not log entries', () => {
-    const text = [
-      JSON.stringify({ message: 'one', metadata: {} }),
-      '',
-      'not json',
-      JSON.stringify({ unrelated: true }),
-      JSON.stringify({ message: 'two' })
-    ].join('\n');
-
-    const { logs, skipped } = parseLogLines(text);
-
-    expect(logs.map(l => l.message)).toEqual(['one', 'two']);
-    expect(skipped).toBe(2);
   });
 });

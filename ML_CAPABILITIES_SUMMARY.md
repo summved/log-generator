@@ -159,17 +159,17 @@ spacy>=3.7.0
 
 ### ML Pattern Commands:
 ```bash
-# Train NLP models
-npm run ml-patterns:train-nlp -- --model distilbert-base-uncased
+# Train a text classifier that predicts level, source or MITRE technique from the message
+npm run ml-patterns:train-nlp logs/historical/ -- --label level --classify "Failed password for admin"
 
-# Test anomaly detection
-npm run ml-patterns:test-anomaly -- --threshold 0.8
+# Find unusual log volume per time window, plus rare levels and sources
+npm run ml-patterns:test-anomaly logs/current/ -- --window 1m --threshold 3
 
-# Generate forecasts
-npm run ml-patterns:forecast -- --horizon 24h
+# Forecast log volume per window from a linear trend (reports R² fit)
+npm run ml-patterns:forecast logs/historical/ -- --window 1h --horizon 24
 
-# Analyze threat intelligence
-npm run ml-patterns:threat-intel -- --input logs/security/
+# Extract IPs, domains and file hashes, and match them against your own list
+npm run ml-patterns:threat-intel logs/current/ -- --iocs my-indicators.txt
 ```
 
 ### Enhanced Generation:
