@@ -26,7 +26,7 @@ chain:
     created: "2025-01-01"
     tags: ["insider-threat", "data-theft", "privilege-abuse", "legitimate-access"]
     severity: "high"
-    estimated_duration: 25 # minutes
+    estimated_duration: 12 # minutes at 1x speed
   
   mitre_mapping:
     tactics:
@@ -59,11 +59,11 @@ chain:
         description: "Adversaries may obtain and abuse credentials of existing accounts"
       timing:
         delayAfterPrevious: 0
-        duration: 60000 # 1 minute
+        duration: 8000 # 8 seconds
         variance: 0.1
       logGeneration:
         templates: ["successful_login", "user_logon", "workstation_unlock"]
-        frequency: 5
+        frequency: 37.5
         sources: ["authentication", "endpoint"]
         customData:
           user: "john.smith@company.com"
@@ -80,13 +80,13 @@ chain:
         subtechnique: "File and Directory Discovery"
         description: "Adversaries may enumerate files and directories"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 480000 # 8 minutes
+        delayAfterPrevious: 39000 # 39 seconds
+        duration: 63000 # 63 seconds
         variance: 0.3
       dependencies: ["legitimate_access"]
       logGeneration:
         templates: ["file_access", "directory_enumeration", "unusual_access_pattern"]
-        frequency: 25
+        frequency: 190.47
         sources: ["file-server", "endpoint"]
         customData:
           accessed_departments: ["HR", "Legal", "Executive", "R&D"]
@@ -103,13 +103,13 @@ chain:
         subtechnique: "Data from Information Repositories"
         description: "Adversaries may leverage information repositories to mine valuable information"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 360000 # 6 minutes
+        delayAfterPrevious: 23000 # 23 seconds
+        duration: 47000 # 47 seconds
         variance: 0.4
       dependencies: ["excessive_file_access"]
       logGeneration:
         templates: ["database_query", "data_access", "sql_execution"]
-        frequency: 20
+        frequency: 153.19
         sources: ["database", "application"]
         customData:
           queries: ["SELECT * FROM customers", "SELECT * FROM financial_data", "SELECT * FROM employee_records"]
@@ -126,13 +126,13 @@ chain:
         subtechnique: "Data from Local System"
         description: "Adversaries may search local system sources to find files of interest"
       timing:
-        delayAfterPrevious: 240000 # 4 minutes
-        duration: 600000 # 10 minutes
+        delayAfterPrevious: 31000 # 31 seconds
+        duration: 78000 # 78 seconds
         variance: 0.2
       dependencies: ["database_reconnaissance"]
       logGeneration:
         templates: ["bulk_download", "large_file_transfer", "data_collection"]
-        frequency: 35
+        frequency: 269.23
         sources: ["file-server", "database", "endpoint"]
         customData:
           data_volume: "1.2GB"
@@ -149,13 +149,13 @@ chain:
         subtechnique: "Data from Network Shared Drive"
         description: "Adversaries may search network shares to find files of interest"
       timing:
-        delayAfterPrevious: 120000 # 2 minutes
-        duration: 300000 # 5 minutes
+        delayAfterPrevious: 16000 # 16 seconds
+        duration: 39000 # 39 seconds
         variance: 0.3
       dependencies: ["mass_data_collection"]
       logGeneration:
         templates: ["share_access", "network_file_access", "smb_access"]
-        frequency: 18
+        frequency: 138.46
         sources: ["file-server", "firewall"]
         customData:
           shares: ["\\\\srv01\\HR_Confidential", "\\\\srv02\\Executive", "\\\\srv03\\Legal"]
@@ -171,13 +171,13 @@ chain:
         subtechnique: "Local Data Staging"
         description: "Adversaries may stage collected data in a central location"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 240000 # 4 minutes
+        delayAfterPrevious: 23000 # 23 seconds
+        duration: 31000 # 31 seconds
         variance: 0.2
       dependencies: ["network_share_access"]
       logGeneration:
         templates: ["file_copy", "data_staging", "archive_creation"]
-        frequency: 15
+        frequency: 116.12
         sources: ["endpoint", "file-server"]
         customData:
           staging_location: "C:\\Users\\john.smith\\Documents\\Backup"
@@ -194,13 +194,13 @@ chain:
         subtechnique: "Exfiltration to Cloud Storage"
         description: "Adversaries may exfiltrate data to cloud storage service"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 480000 # 8 minutes
+        delayAfterPrevious: 39000 # 39 seconds
+        duration: 63000 # 63 seconds
         variance: 0.3
       dependencies: ["data_staging"]
       logGeneration:
         templates: ["cloud_upload", "large_upload", "external_data_transfer"]
-        frequency: 25
+        frequency: 190.47
         sources: ["firewall", "proxy", "endpoint"]
         customData:
           cloud_service: "PersonalDropbox"
@@ -217,13 +217,13 @@ chain:
         subtechnique: "Spearphishing Attachment"
         description: "Adversaries may send emails with sensitive attachments"
       timing:
-        delayAfterPrevious: 60000 # 1 minute (parallel with cloud upload)
-        duration: 300000 # 5 minutes
+        delayAfterPrevious: 8000 # 8 seconds
+        duration: 39000 # 39 seconds
         variance: 0.2
       dependencies: ["data_staging"]
       logGeneration:
         templates: ["email_sent", "large_attachment", "external_email"]
-        frequency: 12
+        frequency: 92.3
         sources: ["mail-server", "endpoint"]
         customData:
           recipient: "john.personal@gmail.com"
@@ -240,13 +240,13 @@ chain:
         subtechnique: "Exfiltration over USB"
         description: "Adversaries may attempt to exfiltrate data over USB"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 180000 # 3 minutes
+        delayAfterPrevious: 23000 # 23 seconds
+        duration: 23000 # 23 seconds
         variance: 0.2
       dependencies: ["data_staging"]
       logGeneration:
         templates: ["usb_device_connected", "file_copy_to_usb", "removable_media_access"]
-        frequency: 10
+        frequency: 78.26
         sources: ["endpoint"]
         customData:
           device_id: "USB_DEVICE_01"
@@ -263,13 +263,13 @@ chain:
         subtechnique: "File Deletion"
         description: "Adversaries may delete files left behind by the actions of their intrusion"
       timing:
-        delayAfterPrevious: 240000 # 4 minutes
-        duration: 180000 # 3 minutes
+        delayAfterPrevious: 31000 # 31 seconds
+        duration: 23000 # 23 seconds
         variance: 0.2
       dependencies: ["cloud_exfiltration", "email_exfiltration", "usb_exfiltration"]
       logGeneration:
         templates: ["file_deletion", "browser_history_clearing", "temp_file_cleanup"]
-        frequency: 8
+        frequency: 62.6
         sources: ["endpoint"]
         customData:
           deleted_files: ["company_backup.zip", "temp_data.xlsx", "download_list.txt"]
@@ -286,13 +286,13 @@ chain:
         subtechnique: "Valid Accounts"
         description: "Adversaries may obtain and abuse credentials of existing accounts"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 240000 # 4 minutes
+        delayAfterPrevious: 39000 # 39 seconds
+        duration: 31000 # 31 seconds
         variance: 0.3
       dependencies: ["evidence_cleanup"]
       logGeneration:
         templates: ["normal_file_access", "routine_application_usage", "typical_work_pattern"]
-        frequency: 12
+        frequency: 92.9
         sources: ["endpoint", "file-server", "application"]
         customData:
           normal_files: ["budget_q4.xlsx", "monthly_report.docx", "team_meeting.pptx"]

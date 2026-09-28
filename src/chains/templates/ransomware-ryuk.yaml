@@ -26,7 +26,7 @@ chain:
     created: "2025-01-01"
     tags: ["ryuk", "ransomware", "encryption", "lateral-movement", "trickbot"]
     severity: "critical"
-    estimated_duration: 30 # minutes
+    estimated_duration: 15 # minutes at 1x speed
   
   mitre_mapping:
     tactics:
@@ -66,11 +66,11 @@ chain:
         description: "Adversaries may send spearphishing emails with malicious attachments"
       timing:
         delayAfterPrevious: 0
-        duration: 180000 # 3 minutes
+        duration: 25000 # 25 seconds
         variance: 0.2
       logGeneration:
         templates: ["malware_execution", "suspicious_process_creation", "network_connection"]
-        frequency: 15
+        frequency: 108
         sources: ["endpoint", "firewall"]
         customData:
           malware_family: "TrickBot"
@@ -87,13 +87,13 @@ chain:
         subtechnique: "Disable or Modify Tools"
         description: "Adversaries may disable security tools to avoid detection"
       timing:
-        delayAfterPrevious: 120000 # 2 minutes
-        duration: 90000 # 1.5 minutes
+        delayAfterPrevious: 17000 # 17 seconds
+        duration: 13000 # 13 seconds
         variance: 0.3
       dependencies: ["trickbot_infection"]
       logGeneration:
         templates: ["security_tool_disabled", "service_stopped", "registry_modification"]
-        frequency: 12
+        frequency: 83.07
         sources: ["endpoint", "windows-server"]
         customData:
           disabled_services: ["WinDefend", "MsMpSvc", "SecurityHealthService"]
@@ -109,13 +109,13 @@ chain:
         subtechnique: "LSASS Memory"
         description: "Adversaries may attempt to access credential material stored in LSASS"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 120000 # 2 minutes
+        delayAfterPrevious: 42000 # 42 seconds
+        duration: 17000 # 17 seconds
         variance: 0.2
       dependencies: ["disable_security_tools"]
       logGeneration:
         templates: ["credential_dumping", "lsass_access", "mimikatz_activity"]
-        frequency: 20
+        frequency: 141.17
         sources: ["endpoint", "windows-server"]
         customData:
           tool: "Mimikatz"
@@ -131,13 +131,13 @@ chain:
         subtechnique: "Remote System Discovery"
         description: "Adversaries may attempt to get a listing of other systems"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 300000 # 5 minutes
+        delayAfterPrevious: 25000 # 25 seconds
+        duration: 42000 # 42 seconds
         variance: 0.4
       dependencies: ["credential_harvesting"]
       logGeneration:
         templates: ["network_scan", "system_discovery", "enumeration_commands"]
-        frequency: 25
+        frequency: 178.57
         sources: ["endpoint", "firewall", "windows-server"]
         customData:
           scan_targets: ["192.168.1.0/24", "10.0.0.0/16"]
@@ -153,13 +153,13 @@ chain:
         subtechnique: "Remote Desktop Protocol"
         description: "Adversaries may use Valid Accounts to log into remote machines using RDP"
       timing:
-        delayAfterPrevious: 240000 # 4 minutes
-        duration: 360000 # 6 minutes
+        delayAfterPrevious: 33000 # 33 seconds
+        duration: 50000 # 50 seconds
         variance: 0.3
       dependencies: ["network_discovery"]
       logGeneration:
         templates: ["rdp_login", "lateral_movement", "remote_logon"]
-        frequency: 18
+        frequency: 129.6
         sources: ["authentication", "windows-server", "firewall"]
         customData:
           target_systems: ["DC01", "FILE-SRV", "BACKUP-SRV"]
@@ -175,13 +175,13 @@ chain:
         subtechnique: "Registry Run Keys / Startup Folder"
         description: "Adversaries may achieve persistence by adding programs to startup folders"
       timing:
-        delayAfterPrevious: 180000 # 3 minutes
-        duration: 150000 # 2.5 minutes
+        delayAfterPrevious: 25000 # 25 seconds
+        duration: 21000 # 21 seconds
         variance: 0.2
       dependencies: ["lateral_movement_rdp"]
       logGeneration:
         templates: ["privilege_escalation", "admin_access", "persistence_established"]
-        frequency: 15
+        frequency: 108.57
         sources: ["authentication", "windows-server"]
         customData:
           escalation_method: "Token Impersonation"
@@ -197,13 +197,13 @@ chain:
         subtechnique: "Data from Local System"
         description: "Adversaries may search local system sources to find files of interest"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 480000 # 8 minutes
+        delayAfterPrevious: 42000 # 42 seconds
+        duration: 67000 # 67 seconds
         variance: 0.3
       dependencies: ["domain_admin_access"]
       logGeneration:
         templates: ["file_enumeration", "share_discovery", "database_access"]
-        frequency: 30
+        frequency: 214.92
         sources: ["file-server", "database", "backup-server"]
         customData:
           target_extensions: ["*.sql", "*.mdb", "*.bak", "*.vhd", "*.vmdk"]
@@ -219,13 +219,13 @@ chain:
         subtechnique: "Inhibit System Recovery"
         description: "Adversaries may delete or remove built-in operating system data and turn off services"
       timing:
-        delayAfterPrevious: 120000 # 2 minutes
-        duration: 240000 # 4 minutes
+        delayAfterPrevious: 17000 # 17 seconds
+        duration: 33000 # 33 seconds
         variance: 0.2
       dependencies: ["data_discovery"]
       logGeneration:
         templates: ["backup_deletion", "shadow_copy_deletion", "recovery_inhibition"]
-        frequency: 20
+        frequency: 145.45
         sources: ["backup-server", "windows-server"]
         customData:
           deleted_backups: ["Weekly_Full_Backup.bak", "Daily_Incremental.bak"]
@@ -241,13 +241,13 @@ chain:
         subtechnique: "Data Encrypted for Impact"
         description: "Adversaries may encrypt data on target systems to interrupt availability"
       timing:
-        delayAfterPrevious: 600000 # 10 minutes
-        duration: 900000 # 15 minutes
+        delayAfterPrevious: 83000 # 83 seconds
+        duration: 125000 # 125 seconds
         variance: 0.2
       dependencies: ["backup_destruction"]
       logGeneration:
         templates: ["ransomware_execution", "file_encryption", "mass_file_modification"]
-        frequency: 50
+        frequency: 360
         sources: ["endpoint", "file-server", "windows-server"]
         customData:
           ransomware_family: "Ryuk"
@@ -264,13 +264,13 @@ chain:
         subtechnique: "Data Encrypted for Impact"
         description: "Adversaries may encrypt data on target systems to interrupt availability"
       timing:
-        delayAfterPrevious: 60000 # 1 minute (parallel with local encryption)
-        duration: 1200000 # 20 minutes
+        delayAfterPrevious: 8000 # 8 seconds
+        duration: 167000 # 167 seconds
         variance: 0.3
       dependencies: ["ryuk_deployment"]
       logGeneration:
         templates: ["network_encryption", "share_encryption", "database_encryption"]
-        frequency: 60
+        frequency: 431.13
         sources: ["file-server", "database", "backup-server", "firewall"]
         customData:
           affected_systems: ["FILE-SRV", "DB-SRV", "BACKUP-SRV", "WS001-050"]
@@ -286,13 +286,13 @@ chain:
         subtechnique: "Internal Defacement"
         description: "Adversaries may modify visual content to communicate messages"
       timing:
-        delayAfterPrevious: 300000 # 5 minutes
-        duration: 60000 # 1 minute
+        delayAfterPrevious: 42000 # 42 seconds
+        duration: 8000 # 8 seconds
         variance: 0.1
       dependencies: ["network_encryption"]
       logGeneration:
         templates: ["ransom_note_creation", "desktop_modification", "system_message"]
-        frequency: 10
+        frequency: 75
         sources: ["endpoint", "windows-server"]
         customData:
           ransom_amount: "2.5 BTC"
