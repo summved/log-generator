@@ -4,6 +4,7 @@
  */
 
 import { AttackChainManager } from '../chains/AttackChainManager';
+import { AttackChainTemplate } from '../types/attackChain';
 import { calculateStepLogCount } from '../chains/StepLogFactory';
 import { chainDurationMs } from '../chains/chainTiming';
 import { logger } from '../utils/logger';
@@ -85,8 +86,8 @@ export class EnhancedAttackChainManager extends AttackChainManager {
       baseExecution = await this.executeChain(name, undefined, options.config || options.logGeneratorConfig);
     }
     
-    // Add AI enhancement simulation
-    const aiEnhancements = this.simulateAIEnhancements(baseExecution, options);
+    // The rule-based changes this mode and level stand for (the same list preview shows)
+    const aiEnhancements = this.generateEnhancementPreview(options.mode || 'enhanced', options.aiLevel || 'medium');
     
     const enhancedExecution = {
       ...baseExecution,
@@ -99,15 +100,13 @@ export class EnhancedAttackChainManager extends AttackChainManager {
       aiEnhancements,
       stats: {
         ...baseExecution.stats,
-        enhancementsApplied: aiEnhancements.length,
-        detectionEvasion: Math.random() * 0.4 + 0.6 // 60-100%
+        enhancementsApplied: aiEnhancements.length
       }
     };
 
     logger.info(`✅ AI-enhanced execution completed: ${name}`, {
       mode: useSimulation ? 'simulation' : 'full',
-      enhancements: aiEnhancements.length,
-      evasionScore: enhancedExecution.stats.detectionEvasion
+      enhancements: aiEnhancements.length
     });
 
     this.executionHistory.push({
@@ -129,7 +128,9 @@ export class EnhancedAttackChainManager extends AttackChainManager {
    * Execute training session with multiple variations
    */
   async executeTrainingSession(name: string, options: any = {}): Promise<any[]> {
-    const variations = options.variations || 3;
+    // The CLI passes variationCount/delayBetweenVariations; variations is accepted for older callers
+    const variations = options.variationCount ?? options.variations ?? 3;
+    const delay = options.delayBetweenVariations ?? 2000;
     logger.info(`🎯 Starting AI training session: ${name} (${variations} variations)`);
 
     const executions = [];
@@ -148,7 +149,7 @@ export class EnhancedAttackChainManager extends AttackChainManager {
         
         // Delay between variations
         if (i < variations - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (error) {
         logger.error(`Training variation ${i + 1} failed:`, error);
@@ -291,37 +292,6 @@ export class EnhancedAttackChainManager extends AttackChainManager {
     };
   }
 
-  private simulateAIEnhancements(execution: any, options: any): any[] {
-    const enhancements = [];
-    
-    // Timing randomization
-    enhancements.push({
-      type: 'timing_adjustment',
-      description: 'Applied adaptive delays between steps',
-      impact: 'Reduced detection probability by 15%'
-    });
-
-    // Technique substitution
-    if (options.aiLevel !== 'basic') {
-      enhancements.push({
-        type: 'technique_substitution',
-        description: 'Substituted T1078 with T1078.001 for better evasion',
-        impact: 'Improved stealth by 20%'
-      });
-    }
-
-    // Log variation
-    if (options.mode === 'dynamic') {
-      enhancements.push({
-        type: 'log_variation',
-        description: 'Applied signature variations to generated logs',
-        impact: 'Reduced SIEM detection by 25%'
-      });
-    }
-
-    return enhancements;
-  }
-
   private generateEnhancementPreview(mode: string, aiLevel: string): PlannedChange[] {
     const changes: PlannedChange[] = [
       { type: 'timing_variation', description: `Randomize step timing to avoid fixed intervals (${aiLevel} level)` }
@@ -371,29 +341,26 @@ export class EnhancedAttackChainManager extends AttackChainManager {
     return levels[index % levels.length];
   }
 
-  private async simulateEnhancedExecution(template: any, options: any): Promise<any> {
-    // Simulate a fast execution with realistic stats
+  /**
+   * Simulation mode: resolves immediately and writes no logs. `estimatedLogs` is what a full
+   * execution of the chain would write (use attack-chains:execute for real logs).
+   */
+  private async simulateEnhancedExecution(template: AttackChainTemplate, _options: unknown): Promise<any> {
     const startTime = new Date();
-    
-    // Add a small delay to make it feel realistic
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-    
-    const endTime = new Date();
-    const duration = endTime.getTime() - startTime.getTime();
-    
     return {
-      executionId: `ai-exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      chainId: template.name.toLowerCase().replace(/\s+/g, '-'),
+      executionId: `ai-sim-${startTime.getTime()}-${(this.executionHistory.length + 1).toString(36)}`,
+      chainId: template.chain.id,
       chainName: template.name,
       status: 'completed',
       startTime,
-      endTime,
+      endTime: new Date(),
       totalSteps: template.chain.steps.length,
       stats: {
-        logsGenerated: Math.floor(Math.random() * 500) + 100, // 100-600 logs
+        logsGenerated: 0,
+        estimatedLogs: template.chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0),
         stepsCompleted: template.chain.steps.length,
         stepsFailed: 0,
-        averageStepDuration: duration / template.chain.steps.length
+        averageStepDuration: 0
       }
     };
   }

@@ -88,3 +88,43 @@ describe('EnhancedAttackChainManager full execution', () => {
     }
   });
 });
+
+describe('EnhancedAttackChainManager simulation', () => {
+  const manager = new EnhancedAttackChainManager();
+  const chain = manager.getTemplate('ransomware-ryuk')!.chain;
+
+  it('reports no logs written, with the real estimate from the template', async () => {
+    const execution = await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'enhanced', aiLevel: 'high' });
+
+    expect(execution.executionMode).toBe('simulation');
+    expect(execution.stats.logsGenerated).toBe(0);
+    expect(execution.stats.estimatedLogs).toBe(chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0));
+    expect(execution.chainId).toBe('ryuk-ransomware-campaign');
+  });
+
+  it('lists the planned changes from the preview instead of invented impact scores', async () => {
+    const execution = await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'dynamic', aiLevel: 'advanced' });
+    const preview = await manager.previewEnhancement('ransomware-ryuk', 'dynamic', 'advanced');
+
+    expect(execution.aiEnhancements).toEqual(preview.plannedChanges);
+    expect(execution.stats.detectionEvasion).toBeUndefined();
+    expect(JSON.stringify(execution)).not.toMatch(/Reduced detection|Improved stealth|Reduced SIEM/);
+  });
+
+  it('returns without an artificial delay', async () => {
+    const start = Date.now();
+    await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'static', aiLevel: 'basic' });
+
+    expect(Date.now() - start).toBeLessThan(500);
+  });
+});
+
+describe('EnhancedAttackChainManager training session', () => {
+  it('runs the requested number of variations with the requested delay', async () => {
+    const start = Date.now();
+    const executions = await new EnhancedAttackChainManager().executeTrainingSession('ransomware-ryuk', { variationCount: 2, delayBetweenVariations: 0 });
+
+    expect(executions).toHaveLength(2);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+});

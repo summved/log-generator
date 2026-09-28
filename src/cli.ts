@@ -1093,7 +1093,7 @@ program
   .option('--enable-evasion', 'Enable evasion tactics')
   .option('--adaptive-delays', 'Enable adaptive timing delays')
   .option('--full-execution', 'Run full attack chain execution (may take 45+ minutes)')
-  .option('--simulation', 'Run in simulation mode (fast, 1-3 seconds)', true)
+  .option('--simulation', 'Run in simulation mode (instant; describes the enhancements, writes no logs)', true)
   .option('-c, --config <path>', 'Path to log generator configuration file')
   .action(async (name, options) => {
     try {
@@ -1115,7 +1115,7 @@ program
       };
 
       console.log(`⚙️ Enhancement Configuration:`);
-      console.log(`   Execution Mode: ${useFullExecution ? '⚡ FULL EXECUTION (may take 45+ minutes)' : '🚀 SIMULATION (1-3 seconds)'}`);
+      console.log(`   Execution Mode: ${useFullExecution ? '⚡ FULL EXECUTION (may take 45+ minutes)' : '🚀 SIMULATION (instant, writes no logs)'}`);
       console.log(`   AI Mode: ${enhancementOptions.mode}`);
       console.log(`   AI Level: ${enhancementOptions.aiLevel}`);
       console.log(`   Variations: ${enhancementOptions.variations}`);
@@ -1125,7 +1125,7 @@ program
       if (useFullExecution) {
         console.log(`\n⚠️  WARNING: Full execution mode selected!`);
         console.log(`   This will run the complete attack chain simulation which may take 45+ minutes.`);
-        console.log(`   Use --simulation flag for quick testing (1-3 seconds).`);
+        console.log(`   Use --simulation for an instant preview that writes no logs.`);
       }
       console.log();
 
@@ -1135,16 +1135,19 @@ program
       console.log(`   Execution Mode: ${execution.executionMode === 'simulation' ? '🚀 SIMULATION' : '⚡ FULL EXECUTION'}`);
       console.log(`   Execution ID: ${execution.executionId || 'N/A'}`);
       console.log(`   Status: ${execution.status || 'completed'}`);
-      console.log(`   Logs Generated: ${execution.stats.logsGenerated}`);
-      console.log(`   Steps Completed: ${execution.stats.stepsCompleted}`);
-      console.log(`   AI Enhancements Applied: ${execution.stats.enhancementsApplied || 0}`);
-      console.log(`   Detection Evasion Score: ${Math.round((execution.stats.detectionEvasion || 0) * 100)}%`);
+      if (execution.executionMode === 'simulation') {
+        console.log(`   Logs Written: 0 (simulation writes no logs; a full run of this chain writes ~${execution.stats.estimatedLogs})`);
+        console.log(`   For real logs: npm run attack-chains:execute ${name} -- --duration 5m`);
+      } else {
+        console.log(`   Logs Generated: ${execution.stats.logsGenerated}`);
+      }
+      console.log(`   Steps: ${execution.stats.stepsCompleted}`);
+      console.log(`   Planned changes for this mode/level: ${execution.stats.enhancementsApplied || 0}`);
 
       if (execution.aiEnhancements && execution.aiEnhancements.length > 0) {
-        console.log(`\n🔧 Applied Enhancements:`);
+        console.log(`\n🔧 Planned Enhancements:`);
         execution.aiEnhancements.forEach((enhancement: any, index: number) => {
-          console.log(`   ${index + 1}. ${enhancement.description}`);
-          console.log(`      Impact: ${enhancement.impact}`);
+          console.log(`   ${index + 1}. ${enhancement.description} [${enhancement.type}]`);
         });
       }
 
@@ -1187,13 +1190,17 @@ program
       console.log('✅ Training Session Completed\n');
       console.log(`📊 Training Results:`);
       console.log(`   Total Variations Executed: ${executions.length}`);
-      console.log(`   Total Logs Generated: ${executions.reduce((sum, exec) => sum + exec.stats.logsGenerated, 0)}`);
-      console.log(`   Total Duration: ${Math.round(executions.reduce((sum, exec) => sum + (exec.stats.averageStepDuration * exec.stats.stepsCompleted), 0) / 1000)}s`);
+      const simulated = executions.every(exec => exec.executionMode === 'simulation');
+      console.log(`   Total Logs ${simulated ? 'Written: 0 (simulation writes no logs)' : `Generated: ${executions.reduce((sum, exec) => sum + exec.stats.logsGenerated, 0)}`}`);
+      if (simulated && executions.length > 0) {
+        console.log(`   A full run of this chain writes ~${executions[0].stats.estimatedLogs} logs (npm run attack-chains:execute ${name})`);
+      }
       console.log();
 
       console.log(`📈 Variation Breakdown:`);
       executions.forEach((execution, index) => {
-        console.log(`   Variation ${index + 1}: ${execution.enhancementConfig.mode}/${execution.enhancementConfig.aiLevel} - ${execution.stats.logsGenerated} logs`);
+        const changes = (execution.aiEnhancements || []).map((change: { type: string }) => change.type).join(', ');
+        console.log(`   Variation ${index + 1}: ${execution.enhancementConfig.mode}/${execution.enhancementConfig.aiLevel} - ${simulated ? `planned: ${changes}` : `${execution.stats.logsGenerated} logs`}`);
       });
 
     } catch (error) {
