@@ -87,7 +87,7 @@ async function demonstrateD3FENDIntegration() {
   console.log('   npm run generate -- --d3fend-category Detect --duration 30m');
   console.log('   npm run generate -- --d3fend-technique D3-NTA --count 100');
   console.log('   npm run attack-defense-chains:execute apt29-enhanced --correlation');
-  console.log('   npm run d3fend-list --categories');
+  console.log('   npm run d3fend-list -- --category Detect');
   console.log('   npm run d3fend-coverage logs/current/*.jsonl');
   console.log('   npm run soc-simulation --scenarios incident-response --duration 1h');
 

@@ -8,6 +8,7 @@ import { StorageManager } from './utils/storage';
 import { mitreMapper } from './utils/mitreMapper';
 import { AttackChainManager } from './chains/AttackChainManager';
 import { chainDurationMs, speedForTargetDuration } from './chains/chainTiming';
+import { analyzeD3fendCoverage, CoverageLog, listD3fendTechniques, parseLogLines } from './utils/d3fendCoverage';
 import { AttackChainExecutionConfig } from './types/attackChain';
 // Disabled features - using stubs to provide informative error messages
 import { 
@@ -1502,6 +1503,115 @@ program
       
     } catch (error) {
       console.error('❌ Error getting D3FEND coverage:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('d3fend-list')
+  .description('List supported D3FEND defensive techniques')
+  .option('--category <category>', 'Only one category (Detect, Deny, Disrupt, Degrade, Deceive, Contain)')
+  .option('--json', 'Output in JSON format')
+  .action((options) => {
+    try {
+      const techniques = listD3fendTechniques(options.category);
+
+      if (options.json) {
+        console.log(JSON.stringify(techniques, null, 2));
+        return;
+      }
+
+      console.log('🛡️ Supported D3FEND Defensive Techniques\n');
+      const categories = [...new Set(techniques.map(t => t.category))];
+      for (const category of categories) {
+        const inCategory = techniques.filter(t => t.category === category);
+        console.log(`📂 ${category} (${inCategory.length})`);
+        for (const technique of inCategory) {
+          const flags = [technique.effectiveness, technique.automated ? 'automated' : undefined].filter(Boolean).join(', ');
+          console.log(`   ${technique.technique.padEnd(8)} ${technique.subcategory}${flags ? ` [${flags}]` : ''}`);
+          console.log(`            ${technique.description}`);
+        }
+        console.log();
+      }
+      console.log(`Total: ${techniques.length} techniques`);
+    } catch (error) {
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('d3fend-coverage')
+  .description('Show which D3FEND defensive techniques appear in log files')
+  .argument('[paths...]', 'Log files and/or directories of .jsonl/.json files (default: logs/historical)')
+  .option('-f, --file <filename>', 'A file inside logs/historical')
+  .option('--json', 'Output in JSON format')
+  .action(async (inputPaths: string[], options) => {
+    try {
+      const targets = inputPaths.length > 0
+        ? inputPaths
+        : [options.file ? path.join('./logs/historical', options.file) : './logs/historical'];
+
+      const files: string[] = [];
+      for (const target of targets) {
+        if (!(await fs.pathExists(target))) {
+          console.error(`❌ Not found: ${target}`);
+          process.exit(1);
+        }
+        if ((await fs.stat(target)).isDirectory()) {
+          const names = (await fs.readdir(target)).filter(name => name.endsWith('.jsonl') || name.endsWith('.json')).sort();
+          files.push(...names.map(name => path.join(target, name)));
+        } else {
+          files.push(target);
+        }
+      }
+
+      const logs: CoverageLog[] = [];
+      let skipped = 0;
+      for (const file of files) {
+        const parsed = parseLogLines(await fs.readFile(file, 'utf8'));
+        logs.push(...parsed.logs);
+        skipped += parsed.skipped;
+      }
+
+      const report = analyzeD3fendCoverage(logs);
+
+      if (options.json) {
+        console.log(JSON.stringify({ files, skippedLines: skipped, ...report }, null, 2));
+        return;
+      }
+
+      console.log('\n🛡️ D3FEND Coverage Analysis\n');
+      console.log(`📁 Files analyzed: ${files.length}${skipped > 0 ? ` (${skipped} non-log lines skipped)` : ''}`);
+      if (report.totalLogs === 0) {
+        console.log('⚠️  No logs found to analyze');
+        return;
+      }
+
+      const percent = ((report.logsWithDefense / report.totalLogs) * 100).toFixed(1);
+      console.log(`   Total logs analyzed: ${report.totalLogs}`);
+      console.log(`   Logs with a D3FEND technique: ${report.logsWithDefense} (${percent}%)`);
+      console.log(`   Techniques found: ${report.techniques.length} of ${report.techniques.length + report.unseenTechniques.length}\n`);
+
+      if (report.techniques.length > 0) {
+        console.log('🎯 Techniques Found:');
+        for (const technique of report.techniques) {
+          console.log(`   ${technique.technique.padEnd(8)} ${String(technique.count).padStart(6)} logs  ${technique.subcategory} (${technique.category})`);
+        }
+        console.log();
+
+        console.log('📂 By Category:');
+        for (const [category, count] of Object.entries(report.categories).sort(([, a], [, b]) => b - a)) {
+          console.log(`   ${category}: ${count} logs`);
+        }
+        console.log();
+      }
+
+      if (report.unseenTechniques.length > 0) {
+        console.log(`🕳️ Not seen in these logs: ${report.unseenTechniques.join(', ')}`);
+      }
+    } catch (error) {
+      console.error('❌ Error analyzing D3FEND coverage:', error);
       process.exit(1);
     }
   });
