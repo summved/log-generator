@@ -4,6 +4,8 @@
  * few random splits are unusual. Scores are in (0, 1]: near 1 is an outlier, below 0.5 is normal.
  */
 
+import { seededRandom } from './random';
+
 export interface IsolationForestOptions {
   /** Number of trees (default 100) */
   trees?: number;
@@ -24,18 +26,6 @@ function averagePathLength(n: number): number {
   if (n <= 1) return 0;
   if (n === 2) return 1;
   return 2 * (Math.log(n - 1) + EULER_GAMMA) - (2 * (n - 1)) / n;
-}
-
-/** Small seeded pseudo-random generator (mulberry32) */
-function seededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 export class IsolationForest {

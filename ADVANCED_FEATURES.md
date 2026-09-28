@@ -386,42 +386,53 @@ npm run attack-chains:ai-statistics --limit 100
 
 ## 🧠 ML-Based Pattern Learning
 
-### Pattern Learning Engine
+All ML features run in Node: no Python, GPU or model downloads are needed. They read JSON-lines log files and/or directories (default `logs/historical`), and every command supports `--json`.
 
-The ML engine learns from historical log data to generate realistic, behavior-based logs:
+### Learn a profile and generate logs from it
 
-#### **Supported Pattern Types**
-- **User Behavior Patterns** - Login times, application usage, error rates
-- **System Performance Patterns** - CPU, memory, network usage trends
-- **Security Event Patterns** - Attack patterns and threat indicators
-- **Temporal Patterns** - Time-based activity correlations
+`ml-patterns:learn` builds a **profile** from real logs:
+- per source: log count, level mix, share of logs in each UTC hour, and up to `maxTemplatesPerSource` message patterns
+- per pattern: its level mix, real example messages, and the values seen at each number position
 
-#### **Anomaly Generation**
-- **Configurable Anomaly Rate** - 1-50% anomaly injection
-- **Severity Levels** - Low, Medium, High, Critical anomalies
-- **Realistic Deviations** - Statistically accurate anomalies
-
-### Usage Examples
+`ml-patterns:generate` then produces new logs for one source that follow the profile. It re-uses a real example message with fresh values: IPs, UUIDs and hashes are randomised, and numbers are drawn from the learned values (e.g. only status codes that were actually seen) or from the observed range. The level comes from the pattern's real mix, and the hour from the source's learned daily profile. `--anomaly-rate` draws that share of logs from rare patterns and error levels, and marks them `metadata.is_anomaly: true`.
 
 ```bash
-# Learn patterns from historical data
-npm run ml-patterns:learn logs/historical/*.jsonl --min-samples 1000
+# Learn from historical logs (saved to models/ml-patterns/profile.json)
+npm run ml-patterns:learn logs/historical/ -- --min-samples 500 --max-history-days 30
 
-# Generate ML-enhanced logs with anomalies
-npm run ml-patterns:generate authentication --count 500 --anomaly-rate 0.15
+# Show what was learned; --detailed lists the top patterns per source
+npm run ml-patterns:status -- --detailed
 
-# Check ML engine status and statistics
-npm run ml-patterns:status
+# Generate logs for a learned source (name or type), optionally with anomalies, ids and a seed
+npm run ml-patterns:generate auth-service -- --count 500 --anomaly-rate 0.15
+npm run ml-patterns:generate authentication -- --count 50 --user-id u-42 --seed 7 --format syslog --output out/auth.log
 
-# Analyze patterns in existing files
-npm run ml-patterns:analyze logs/current/*.jsonl
+# Report patterns, levels, sources, busy hours, unusual minutes, unusual logs and indicators
+npm run ml-patterns:analyze logs/current/ -- --focus security --top 10 --output analysis.json
 
-# Configure ML parameters
-npm run ml-patterns:config --learning-rate 0.01 --max-history-days 30
+# Saved settings (models/ml-patterns/settings.json): show, change, load from a file, restore defaults
+npm run ml-patterns:config
+npm run ml-patterns:config -- --set anomalyRate=0.1 --set minSamples=500
+npm run ml-patterns:config -- --file my-settings.json
+npm run ml-patterns:config -- --reset
 
-# Reset learned patterns
-npm run ml-patterns:reset
+# Delete the learned profile and trained classifiers (asks for --confirm first)
+npm run ml-patterns:reset -- --confirm
 ```
+
+| Setting | Default | Used by |
+|---|---|---|
+| `minSamples` | 1000 | `learn`: minimum logs needed |
+| `maxHistoryDays` | 30 | `learn`: only logs within this many days of the newest one |
+| `maxTemplatesPerSource` | 50 | `learn`: message patterns kept per source |
+| `anomalyRate` | 0.05 | `generate`: default `--anomaly-rate` |
+| `profilePath` | `models/ml-patterns/profile.json` | `learn`, `status`, `generate`, `reset` |
+
+`analyze --focus` limits the report to:
+- `security`: authentication and firewall logs, plus any MITRE-tagged or WARN-and-above log
+- `user`: authentication logs and logs with a user field
+- `system`: server, cloud, IoT, backup and microservices logs
+- `application`: application, API gateway (`endpoint`), web server, database and email logs
 
 ### Log Analysis Commands
 
