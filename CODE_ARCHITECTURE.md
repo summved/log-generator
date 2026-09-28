@@ -149,7 +149,16 @@ log-generator/
   - Automatic pattern recognition
   - Technique validation and lookup
 
-#### **5. Attack Chain Engine** (`src/chains/AttackChainEngine.ts`)
+#### **5. D3FEND Defensive Mapping** (`src/utils/d3fendMapper.ts`, `src/utils/d3fendCoverage.ts`)
+- **Purpose**: Recognise defender-side events in logs and relate them to MITRE D3FEND techniques
+- **Responsibilities**:
+  - Hold the catalogue of 14 D3FEND techniques in 5 categories (Detect, Deny, Contain, Disrupt, Deceive), with effectiveness and automation flags
+  - Map a log to a technique: a log's own `d3fend` field wins, otherwise lower-cased message phrases and some `metadata.component` values (`ids`, `ips`, `edr`, `auth-monitor`) are matched, and the first match wins
+  - Suggest defences for six ATT&CK techniques (`suggestDefensesForAttack`: T1110, T1078, T1071, T1055, T1082, T1018)
+  - List techniques and build coverage reports over log files (`d3fendCoverage.ts`, used by `d3fend-list` and `d3fend-coverage`)
+- **Not wired in yet**: `src/generators/SecurityOperationsGenerator.ts` holds D3FEND-tagged defensive-response templates, but no command uses it, so generated logs currently contain no defender-side events
+
+#### **6. Attack Chain Engine** (`src/chains/AttackChainEngine.ts`)
 - **Purpose**: Execute multi-stage attack scenarios
 - **Responsibilities**:
   - Load and validate attack chain templates
@@ -162,7 +171,7 @@ log-generator/
   - Realistic timing with variance
   - Progress tracking and reporting
 
-#### **6. ML Pattern Learning** (`src/ml/PatternLearningEngine.ts`)
+#### **7. ML Pattern Learning** (`src/ml/PatternLearningEngine.ts`)
 - **Purpose**: Learn patterns from historical data for realistic log generation
 - **Responsibilities**:
   - Analyze historical logs for user and system patterns
@@ -175,7 +184,7 @@ log-generator/
   - Security event correlation
   - Configurable anomaly generation
 
-#### **7. Replay Engine** (`src/replay/ReplayManager.ts`)
+#### **8. Replay Engine** (`src/replay/ReplayManager.ts`)
 - **Purpose**: Replay historical log data with advanced features
 - **Responsibilities**:
   - Parse and validate historical log files
@@ -265,6 +274,12 @@ Historical File → ReplayManager → Validation → Timing Control → Output
 2. Update technique detection patterns
 3. Add templates with MITRE mappings
 4. Update documentation
+
+### **Adding New D3FEND Techniques**
+1. Add an entry to `DEFENSIVE_PATTERNS` in `src/utils/d3fendMapper.ts`
+2. Add its trigger phrases to `matchesDefensivePattern`
+3. Optionally add it to the `suggestDefensesForAttack` mapping
+4. Update the tests in `src/utils/d3fendCoverage.test.ts` and the D3FEND section of `ADVANCED_FEATURES.md`
 
 ### **Adding New Attack Chains**
 1. Create YAML template in `src/chains/templates/`
