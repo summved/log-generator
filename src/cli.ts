@@ -10,7 +10,8 @@ import { AttackChainManager } from './chains/AttackChainManager';
 import { chainDurationMs, speedForTargetDuration } from './chains/chainTiming';
 import { analyzeD3fendCoverage, listD3fendTechniques } from './utils/d3fendCoverage';
 import { LogFilesResult, readLogFiles } from './utils/logFiles';
-import { bucketByWindow, detectVolumeAnomalies, forecastVolume, rareValues, RareValue } from './ml/volumeAnalysis';
+import { AutoForecast, bucketByWindow, detectVolumeAnomalies, forecastAuto, forecastSeasonal, forecastVolume, rareValues, RareValue } from './ml/volumeAnalysis';
+import { detectLogOutliers } from './ml/logOutliers';
 import { extractIndicators, matchIndicators, parseIndicatorList } from './ml/indicators';
 import { ClassifierLabel, loadTextClassifier, trainTextClassifier } from './ml/logTextClassifier';
 import { AttackChainExecutionConfig } from './types/attackChain';
@@ -2254,20 +2255,27 @@ program
   .option('--window <time>', 'Time window size, e.g. 30s, 1m, 1h', '1m')
   .option('--threshold <number>', 'Flag windows more than this many standard deviations from the mean', '3')
   .option('--rare-share <number>', 'List levels/sources seen in less than this share of logs', '0.01')
+  .option('--outliers <number>', 'How many of the most unusual individual logs to list (0 to skip)', '10')
   .option('--json', 'Output in JSON format')
   .action(async (paths: string[], options) => {
     const windowMs = parseWindow(options.window);
     const threshold = parsePositiveNumber(options.threshold, '--threshold');
     const rareShare = parsePositiveNumber(options.rareShare, '--rare-share');
+    const outlierCount = Number(options.outliers);
+    if (!Number.isInteger(outlierCount) || outlierCount < 0) {
+      console.error(`❌ Invalid --outliers "${options.outliers}". Use a whole number, 0 or more`);
+      process.exit(1);
+    }
     const { files, logs } = await loadLogsForAnalysis(paths);
 
     const buckets = bucketByWindow(logs, windowMs);
     const volume = detectVolumeAnomalies(buckets, threshold);
     const rareLevels = rareValues(logs, 'level', rareShare);
     const rareSources = rareValues(logs, 'source', rareShare);
+    const logOutliers = outlierCount > 0 && logs.length >= 20 ? detectLogOutliers(logs, { top: outlierCount }).outliers : [];
 
     if (options.json) {
-      console.log(JSON.stringify({ files, totalLogs: logs.length, windowMs, windows: buckets.length, emptyWindows: buckets.filter(bucket => bucket.count === 0).length, ...volume, rareLevels, rareSources }, null, 2));
+      console.log(JSON.stringify({ files, totalLogs: logs.length, windowMs, windows: buckets.length, emptyWindows: buckets.filter(bucket => bucket.count === 0).length, ...volume, rareLevels, rareSources, logOutliers }, null, 2));
       return;
     }
 
@@ -2291,6 +2299,19 @@ program
     };
     printRare(`🔸 Rare levels (under ${(rareShare * 100).toFixed(2)}% of logs)`, rareLevels);
     printRare(`🔸 Rare sources (under ${(rareShare * 100).toFixed(2)}% of logs)`, rareSources);
+
+    if (outlierCount > 0) {
+      if (logs.length < 20) {
+        console.log('\n🧪 Unusual individual logs: skipped (needs at least 20 logs)');
+      } else {
+        console.log(`\n🧪 Most unusual individual logs (isolation forest; score near 1 = most unusual):`);
+        for (const outlier of logOutliers) {
+          const why = outlier.reasons.map(r => `${r.feature} ${Number(r.value.toFixed(2))} vs typical ${Number(r.typical.toFixed(2))}`).join('; ');
+          console.log(`   ${outlier.score.toFixed(2)}  [${outlier.level || '-'}] ${outlier.source || '-'}: ${outlier.message.slice(0, 90)}`);
+          if (why) console.log(`         ${why}`);
+        }
+      }
+    }
   });
 
 program
@@ -2299,15 +2320,33 @@ program
   .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
   .option('--window <time>', 'Time window size, e.g. 30s, 1m, 1h', '1m')
   .option('--horizon <number>', 'How many future windows to forecast', '10')
+  .option('--seasonality <mode>', 'auto, none, daily or weekly (auto uses a daily/weekly cycle when history allows)', 'auto')
   .option('--json', 'Output in JSON format')
   .action(async (paths: string[], options) => {
     const windowMs = parseWindow(options.window);
     const horizon = Math.round(parsePositiveNumber(options.horizon, '--horizon'));
+    if (!['auto', 'none', 'daily', 'weekly'].includes(options.seasonality)) {
+      console.error(`❌ Invalid --seasonality "${options.seasonality}". Use auto, none, daily or weekly`);
+      process.exit(1);
+    }
     const { files, logs } = await loadLogsForAnalysis(paths);
 
     try {
       const buckets = bucketByWindow(logs, windowMs);
-      const result = forecastVolume(buckets, horizon, windowMs);
+      let result: AutoForecast;
+      if (options.seasonality === 'auto') {
+        result = forecastAuto(buckets, horizon, windowMs);
+      } else if (options.seasonality === 'none') {
+        result = { ...forecastVolume(buckets, horizon, windowMs), method: 'linear' };
+      } else {
+        const period = options.seasonality === 'daily' ? 86400000 : 7 * 86400000;
+        const seasonLength = period / windowMs;
+        if (!Number.isInteger(seasonLength) || seasonLength < 2) {
+          throw new Error(`--window ${options.window} does not divide a ${options.seasonality} cycle evenly`);
+        }
+        result = { ...forecastSeasonal(buckets, horizon, windowMs, seasonLength), method: 'holt-winters' };
+      }
+      const forecast = result.forecast;
 
       if (options.json) {
         console.log(JSON.stringify({ files, totalLogs: logs.length, windowMs, history: buckets.length, ...result }, null, 2));
@@ -2316,12 +2355,25 @@ program
 
       console.log('\n📉 Volume Forecast\n');
       console.log(`   Files: ${files.length}  |  Logs: ${logs.length}  |  History: ${buckets.length} × ${options.window}`);
-      console.log(`   Trend: ${result.slopePerWindow >= 0 ? '+' : ''}${result.slopePerWindow.toFixed(2)} logs per window  |  Fit (R²): ${result.rSquared.toFixed(3)}`);
-      if (result.rSquared < 0.3) {
-        console.log('   ⚠️  Low R²: volume does not follow a clear trend, so treat the forecast as rough');
+      const errorNote = result.alternativeError !== undefined
+        ? ` (the ${result.method === 'linear' ? 'seasonal' : 'linear'} model's was ${result.alternativeError.toFixed(1)})`
+        : '';
+      if (result.method === 'holt-winters') {
+        console.log(`   Method: seasonal (Holt-Winters), cycle of ${result.seasonLength} windows`);
+        console.log(`   Mean error on history: ${result.meanAbsoluteError.toFixed(1)} logs per window${errorNote}`);
+      } else {
+        const why = options.seasonality === 'auto'
+          ? (result.alternativeError === undefined ? ' (not enough history for a daily/weekly cycle)' : ' (fits the history better than a daily/weekly cycle)')
+          : '';
+        console.log(`   Method: linear trend${why}`);
+        console.log(`   Trend: ${result.slopePerWindow >= 0 ? '+' : ''}${result.slopePerWindow.toFixed(2)} logs per window  |  Fit (R²): ${result.rSquared.toFixed(3)}`);
+        console.log(`   Mean error on history: ${result.meanAbsoluteError.toFixed(1)} logs per window${errorNote}`);
+        if (result.rSquared < 0.3) {
+          console.log('   ⚠️  Low R²: volume does not follow a clear trend, so treat the forecast as rough');
+        }
       }
       console.log('\n   Next windows:');
-      for (const point of result.forecast) {
+      for (const point of forecast) {
         console.log(`   ${new Date(point.start).toISOString()}  ~${point.count} logs`);
       }
     } catch (error) {
