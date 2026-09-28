@@ -39,13 +39,14 @@ export class PythonMLBridge {
       ...config
     };
 
-    // Set Python path to virtual environment
+    // Set Python path to virtual environment. The Python toolkit is optional, so a missing
+    // environment is only an error when a Python feature is actually used.
     this.pythonPath = path.join(this.config.virtualEnvPath, 'bin', 'python3');
-    
-    // Verify virtual environment exists
-    if (!fs.existsSync(this.pythonPath)) {
-      throw new Error(`Python virtual environment not found at: ${this.pythonPath}`);
-    }
+  }
+
+  /** Whether the optional Python virtual environment is installed */
+  isAvailable(): boolean {
+    return fs.existsSync(this.pythonPath);
   }
 
   /**
@@ -142,6 +143,11 @@ export class PythonMLBridge {
    */
   private async executePython(scriptName: string, data: any): Promise<any> {
     return new Promise((resolve, reject) => {
+      if (!this.isAvailable()) {
+        reject(new Error(`Python virtual environment not found at: ${this.pythonPath}`));
+        return;
+      }
+
       const scriptPath = path.join(this.config.scriptsPath, scriptName);
       
       // Security check - ensure script exists and is in allowed directory
