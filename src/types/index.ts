@@ -117,4 +117,3 @@ export interface HistoricalLogFile {
 // Export AI Attack Chain types
 // export * from './aiAttackChain'; // Temporarily disabled
 export * from './attackChain';
-// export * from './mlPatterns'; // Temporarily disabled

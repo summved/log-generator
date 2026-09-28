@@ -1,4 +1,4 @@
-import { groupByTemplate, toTemplate } from './logTemplates';
+import { groupByTemplate, numberValues, toTemplate } from './logTemplates';
 
 describe('toTemplate', () => {
   it.each([
@@ -45,5 +45,11 @@ describe('groupByTemplate', () => {
     expect(failed.firstSeen).toBe('2026-01-01T00:00:00.000Z');
     expect(failed.lastSeen).toBe('2026-01-01T00:05:00.000Z');
     expect(failed.examples).toEqual(['Failed login for alice from 10.0.0.5', 'Failed login for alice from 10.0.0.9']);
+  });
+});
+
+describe('numberValues', () => {
+  it('returns the plain numbers in order, ignoring those inside IPs, UUIDs and timestamps', () => {
+    expect(numberValues('GET /a from 10.0.0.5 - 404 in 12.5ms at 2026-01-01T10:00:00Z (3 retries)')).toEqual(['404', '12.5', '3']);
   });
 });

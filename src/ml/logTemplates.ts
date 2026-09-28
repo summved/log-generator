@@ -18,7 +18,7 @@ export interface TemplateGroup {
 }
 
 /** Applied in order: specific patterns first, plain numbers last */
-const MASKS: Array<{ token: string; pattern: RegExp }> = [
+export const MESSAGE_MASKS: Array<{ token: string; pattern: RegExp }> = [
   { token: '<TIME>', pattern: /\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/g },
   { token: '<URL>', pattern: /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi },
   { token: '<EMAIL>', pattern: /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g },
@@ -31,10 +31,22 @@ const MASKS: Array<{ token: string; pattern: RegExp }> = [
 /** The message with its variable parts replaced by placeholders such as <IP> and <NUM> */
 export function toTemplate(message: string): string {
   let template = message;
-  for (const { token, pattern } of MASKS) {
+  for (const { token, pattern } of MESSAGE_MASKS) {
     template = template.replace(pattern, token);
   }
   return template.replace(/\s+/g, ' ').trim();
+}
+
+/** The plain numbers in a message, in order (the values the <NUM> placeholders stand for) */
+export function numberValues(message: string): string[] {
+  let masked = message;
+  for (const { token, pattern } of MESSAGE_MASKS) {
+    if (token === '<NUM>') {
+      return masked.match(pattern) || [];
+    }
+    masked = masked.replace(pattern, token);
+  }
+  return [];
 }
 
 /** Group logs by message template, most frequent first */

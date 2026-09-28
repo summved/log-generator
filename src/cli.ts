@@ -15,15 +15,12 @@ import { detectLogOutliers } from './ml/logOutliers';
 import { extractIndicators, matchIndicators, parseIndicatorList } from './ml/indicators';
 import { ClassifierLabel, loadTextClassifier, trainTextClassifier } from './ml/logTextClassifier';
 import { AttackChainExecutionConfig } from './types/attackChain';
-// Disabled features - using stubs to provide informative error messages
-import { 
-  EnhancedAttackChainManager, 
-  PatternLearningEngine, 
-  MLLogGenerationConfig,
-  AttackChainMode,
-  AILevel,
-  EnhancedExecutionOptions
-} from './stubs/DisabledFeatures';
+import { EnhancedAttackChainManager } from './stubs/WorkingAIFeatures';
+import { buildProfile, generateFromProfile, loadProfile, saveProfile } from './ml/logProfile';
+import { analyzeLogs } from './ml/logAnalysis';
+import { DEFAULT_SETTINGS, DEFAULT_SETTINGS_PATH, loadSettings, mergeSettingsFile, MlSettings, saveSettings, setSetting } from './ml/mlSettings';
+import { LogFormatters } from './utils/formatters';
+import { LogEntry } from './types';
 import { ConfigManager } from './config';
 import { InputValidator } from './utils/inputValidator';
 import * as fs from 'fs-extra';
@@ -1614,538 +1611,281 @@ program
   .action(() => {
     console.log('🧠 ML Pattern Management');
     console.log('Available subcommands:');
-    console.log('  learn <files...>   - Learn patterns from historical log files');
-    console.log('  status             - Show ML pattern engine status');
-    console.log('  generate <source>  - Generate logs using learned patterns');
-    console.log('  analyze <files...> - Analyze patterns in log files');
-    console.log('  config             - Show/update ML configuration');
-    console.log('  reset              - Reset learned patterns');
-    console.log('\nExample: npm run ml-patterns:learn logs/historical/*.jsonl');
+    console.log('  learn [paths...]        - Learn a profile (sources, levels, hourly volume, message patterns)');
+    console.log('  status                  - Show the learned profile');
+    console.log('  generate <source>       - Generate logs for a source from the learned profile');
+    console.log('  analyze [paths...]      - Report patterns, levels, sources, anomalies and indicators');
+    console.log('  config                  - Show or change the saved settings');
+    console.log('  reset                   - Delete the learned profile and trained classifiers');
+    console.log('  train-nlp [paths...]    - Train a text classifier (level, source or technique)');
+    console.log('  test-anomaly [paths...] - Unusual volume windows, rare values and unusual logs');
+    console.log('  forecast [paths...]     - Forecast log volume (trend or daily/weekly cycle)');
+    console.log('  threat-intel [paths...] - Extract IPs, domains, emails and hashes; match a list');
+    console.log('\nExample: npm run ml-patterns:learn logs/historical/ && npm run ml-patterns:generate auth-service -- --count 20');
   });
 
 program
   .command('ml-patterns:learn')
-  .description('Learn patterns from historical log files')
-  .argument('<files...>', 'Log files to learn from')
-  .option('--config <path>', 'Path to ML configuration file')
-  .option('--min-samples <number>', 'Minimum samples required for learning', '1000')
-  .option('--max-history-days <number>', 'Maximum days of history to consider', '30')
-  .option('--learning-rate <number>', 'Learning rate for pattern adaptation', '0.01')
-  .option('--output-dir <path>', 'Directory to save learned models')
-  .action(async (files, options) => {
+  .description('Learn a profile (sources, levels, hourly volume, message patterns) from log files')
+  .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
+  .option('--min-samples <number>', 'Minimum logs needed (default from ml-patterns:config, 1000)')
+  .option('--max-history-days <number>', 'Only use logs within this many days of the newest log (default from ml-patterns:config, 30)')
+  .option('--output-dir <path>', 'Save the profile as <path>/profile.json instead of the configured profilePath')
+  .option('--json', 'Output in JSON format')
+  .action(async (paths: string[], options) => {
     try {
-      console.log('🧠 Starting ML Pattern Learning...\n');
-      
-      // Validate input files
-      const validFiles: string[] = [];
-      for (const file of files) {
-        if (fs.existsSync(file)) {
-          validFiles.push(path.resolve(file));
-        } else {
-          console.warn(`⚠️ File not found: ${file}`);
-        }
-      }
+      let settings = await loadSettings();
+      if (options.minSamples !== undefined) settings = setSetting(settings, 'minSamples', options.minSamples);
+      if (options.maxHistoryDays !== undefined) settings = setSetting(settings, 'maxHistoryDays', options.maxHistoryDays);
+      const { files, logs } = await loadLogsForAnalysis(paths);
 
-      if (validFiles.length === 0) {
-        console.error('❌ No valid log files found');
+      const profile = buildProfile(logs, { files, maxHistoryDays: settings.maxHistoryDays, maxTemplatesPerSource: settings.maxTemplatesPerSource });
+      if (profile.totalLogs < settings.minSamples) {
+        console.error(`❌ Need at least ${settings.minSamples} logs to learn (found ${profile.totalLogs} within ${settings.maxHistoryDays} days of the newest log).`);
+        console.error('   Lower the minimum with --min-samples, or permanently with: npm run ml-patterns:config -- --set minSamples=<n>');
         process.exit(1);
       }
+      const profilePath = options.outputDir ? path.join(options.outputDir, 'profile.json') : settings.profilePath;
+      await saveProfile(profile, profilePath);
 
-      console.log(`📁 Found ${validFiles.length} log files:`);
-      validFiles.forEach(file => {
-        const stats = fs.statSync(file);
-        console.log(`   • ${path.basename(file)} (${Math.round(stats.size / 1024)}KB)`);
-      });
-      console.log();
-
-      // Build ML configuration
-      const mlConfig: Partial<MLLogGenerationConfig> = {
-        learning: {
-          enabled: true,
-          learningRate: parseFloat(options.learningRate),
-          minSampleSize: parseInt(options.minSamples),
-          maxHistoryDays: parseInt(options.maxHistoryDays),
-          adaptationPeriod: 24
-        }
-      };
-
-      // Initialize pattern learning engine
-      const patternEngine = new PatternLearningEngine(mlConfig, options.outputDir);
-
-      // Set up progress tracking
-      patternEngine.on('learning.started', (phase) => {
-        console.log(`🔄 Starting phase: ${phase}`);
-      });
-
-      patternEngine.on('learning.progress', (progress, phase) => {
-        const percentage = Math.round(progress * 100);
-        console.log(`📊 ${phase}: ${percentage}% complete`);
-      });
-
-      patternEngine.on('pattern.discovered', (pattern, type) => {
-        console.log(`🔍 Discovered ${type} pattern: ${pattern.userId || pattern.systemId || 'unknown'}`);
-      });
-
-      patternEngine.on('learning.completed', (results) => {
-        console.log('\n✅ Pattern Learning Completed!');
-        console.log(`   Patterns Learned: ${results.qualityMetrics.patternCoverage * 100}%`);
-        console.log(`   Accuracy Score: ${results.qualityMetrics.anomalyDetectionRate * 100}%`);
-        console.log(`   False Positive Rate: ${results.qualityMetrics.falsePositiveRate * 100}%`);
-      });
-
-      // Start learning process
-      const startTime = Date.now();
-      const results = await patternEngine.learnFromHistoricalData(validFiles);
-      const duration = Math.round((Date.now() - startTime) / 1000);
-
-      console.log('\n📈 Learning Results:');
-      console.log(`   Duration: ${Math.floor(duration / 60)}m ${duration % 60}s`);
-      console.log(`   Quality Score: ${Math.round(results.qualityMetrics.patternCoverage * 100)}%`);
-      console.log(`   Recommendations: ${results.recommendations.modelUpdates.length} model updates`);
-
-      if (results.recommendations.configurationChanges.length > 0) {
-        console.log('\n💡 Recommendations:');
-        results.recommendations.configurationChanges.forEach((rec: any) => {
-          console.log(`   • ${rec}`);
-        });
+      if (options.json) {
+        console.log(JSON.stringify({ profilePath, ...profile }, null, 2));
+        return;
       }
 
+      console.log('\n🧠 Learned Profile\n');
+      console.log(`   Files: ${files.length}  |  Logs used: ${profile.totalLogs}${profile.totalLogs < logs.length ? ` (of ${logs.length}; older than ${settings.maxHistoryDays} days skipped)` : ''}`);
+      if (profile.timeRange) console.log(`   Time range: ${profile.timeRange.start} → ${profile.timeRange.end}`);
+      console.log('\n   Source                    Logs   Share  Patterns  Main level');
+      for (const [name, source] of Object.entries(profile.sources).sort(([, a], [, b]) => b.count - a.count)) {
+        const mainLevel = Object.entries(source.levels).sort(([, a], [, b]) => b - a)[0]?.[0] || '-';
+        console.log(`   ${name.padEnd(24)} ${String(source.count).padStart(6)}  ${(source.share * 100).toFixed(1).padStart(5)}%  ${String(source.templates.length).padStart(8)}  ${mainLevel}`);
+      }
+      console.log(`\n   Saved to: ${profilePath}`);
+      console.log('   Next: npm run ml-patterns:generate <source> -- --count 20');
     } catch (error) {
-      console.error('❌ Error during pattern learning:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
 
 program
   .command('ml-patterns:status')
-  .description('Show ML pattern engine status and statistics')
+  .description('Show the learned profile')
   .option('--json', 'Output in JSON format')
-  .option('--detailed', 'Show detailed pattern information')
+  .option('--detailed', 'List the top message patterns per source')
   .action(async (options) => {
     try {
-      const patternEngine = new PatternLearningEngine();
-      const state = patternEngine.getState();
-      const patternsSummary = patternEngine.getPatternsSummary();
+      const settings = await loadSettings();
+      if (!(await fs.pathExists(settings.profilePath))) {
+        if (options.json) {
+          console.log(JSON.stringify({ learned: false, profilePath: settings.profilePath }, null, 2));
+        } else {
+          console.log(`🧠 No learned profile yet (${settings.profilePath}).`);
+          console.log('   Create one with: npm run ml-patterns:learn logs/historical/');
+        }
+        return;
+      }
+      const profile = await loadProfile(settings.profilePath);
 
       if (options.json) {
-        console.log(JSON.stringify({ state, patternsSummary }, null, 2));
+        console.log(JSON.stringify({ learned: true, profilePath: settings.profilePath, ...profile }, null, 2));
         return;
       }
 
-      console.log('🧠 ML Pattern Engine Status\n');
-      
-      console.log('📊 Engine State:');
-      console.log(`   Status: ${state.status.toUpperCase()}`);
-      console.log(`   Engine ID: ${state.engineId}`);
-      console.log(`   Last Model Update: ${state.statistics.lastModelUpdate.toLocaleString()}`);
-      console.log();
-
-      console.log('🎯 Learning Progress:');
-      if (state.status === 'learning') {
-        const progress = Math.round((state.learningProgress.processedSamples / state.learningProgress.totalSamples) * 100);
-        console.log(`   Current Phase: ${state.learningProgress.currentPhase}`);
-        console.log(`   Progress: ${progress}% (${state.learningProgress.processedSamples}/${state.learningProgress.totalSamples})`);
-        console.log(`   ETA: ${state.learningProgress.estimatedCompletion.toLocaleString()}`);
-      } else {
-        console.log(`   Status: ${state.status === 'idle' ? 'Ready' : state.status}`);
+      const patternCount = Object.values(profile.sources).reduce((sum, source) => sum + source.templates.length, 0);
+      console.log('\n🧠 Learned Profile\n');
+      console.log(`   File: ${settings.profilePath}`);
+      console.log(`   Learned: ${profile.learnedAt}  |  Logs: ${profile.totalLogs}  |  Sources: ${Object.keys(profile.sources).length}  |  Patterns: ${patternCount}`);
+      if (profile.timeRange) console.log(`   Time range: ${profile.timeRange.start} → ${profile.timeRange.end}`);
+      for (const [name, source] of Object.entries(profile.sources).sort(([, a], [, b]) => b.count - a.count)) {
+        console.log(`\n   ${name} (${source.type}): ${source.count} logs, levels ${Object.entries(source.levels).map(([level, count]) => `${level} ${count}`).join(', ')}`);
+        if (options.detailed) {
+          for (const template of source.templates.slice(0, 5)) {
+            console.log(`      ${(template.share * 100).toFixed(1).padStart(5)}%  ${template.template.slice(0, 100)}`);
+          }
+        }
       }
-      console.log();
-
-      console.log('🔍 Active Models:');
-      console.log(`   User Behavior Models: ${state.activeModels.userBehaviorModels}`);
-      console.log(`   System Behavior Models: ${state.activeModels.systemBehaviorModels}`);
-      console.log(`   Security Event Models: ${state.activeModels.securityEventModels}`);
-      console.log(`   Application Usage Models: ${state.activeModels.applicationUsageModels}`);
-      console.log();
-
-      console.log('📈 Statistics:');
-      console.log(`   Logs Generated: ${state.statistics.logsGenerated.toLocaleString()}`);
-      console.log(`   Patterns Learned: ${state.statistics.patternsLearned.toLocaleString()}`);
-      console.log(`   Anomalies Generated: ${state.statistics.anomaliesGenerated.toLocaleString()}`);
-      console.log(`   Accuracy Score: ${Math.round(state.statistics.accuracyScore * 100)}%`);
-      console.log();
-
-      console.log('⚡ Resource Usage:');
-      console.log(`   Memory Usage: ${Math.round(state.resourceUsage.memoryUsage)}MB`);
-      console.log(`   CPU Usage: ${Math.round(state.resourceUsage.cpuUsage)}%`);
-      console.log(`   Processing Time: ${state.resourceUsage.processingTime}ms per log`);
-      console.log();
-
-      console.log('📋 Patterns Summary:');
-      console.log(`   User Behavior Patterns: ${patternsSummary.userBehaviorPatterns}`);
-      console.log(`   System Behavior Patterns: ${patternsSummary.systemBehaviorPatterns}`);
-      console.log(`   Security Event Patterns: ${patternsSummary.securityEventPatterns}`);
-      console.log(`   Application Usage Patterns: ${patternsSummary.applicationUsagePatterns}`);
-      console.log(`   Total Models: ${patternsSummary.totalModels}`);
-
-      if (options.detailed && patternsSummary.totalModels > 0) {
-        console.log('\n🔬 Detailed Pattern Analysis:');
-        // Additional detailed information would be shown here
-        console.log('   Use --json flag for complete pattern details');
-      }
-
     } catch (error) {
-      console.error('❌ Error getting ML pattern status:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
 
 program
   .command('ml-patterns:generate')
-  .description('Generate logs using learned ML patterns')
-  .argument('<source>', 'Log source type (authentication, firewall, database, etc.)')
+  .description('Generate logs for a source from the learned profile')
+  .argument('<source>', 'A learned source name or type (see ml-patterns:status)')
   .option('--count <number>', 'Number of logs to generate', '10')
-  .option('--anomaly-rate <number>', 'Percentage of anomalous logs (0-1)', '0.05')
-  .option('--user-id <string>', 'Specific user ID to generate logs for')
-  .option('--system-id <string>', 'Specific system ID to generate logs for')
-  .option('--output <file>', 'Output file (default: stdout)')
-  .option('--format <format>', 'Output format (json, syslog, cef)', 'json')
-  .action(async (source, options) => {
+  .option('--anomaly-rate <number>', 'Share of logs drawn from rare patterns/levels, 0-1 (default from ml-patterns:config, 0.05)')
+  .option('--user-id <string>', 'Set metadata.userId on every log')
+  .option('--system-id <string>', 'Set metadata.systemId on every log')
+  .option('--seed <number>', 'Seed for reproducible output')
+  .option('--output <file>', 'Write to a file instead of stdout')
+  .option('--format <format>', 'Output format: json, syslog, cef or wazuh', 'json')
+  .action(async (sourceName: string, options) => {
     try {
-      console.log(`🧠 Generating ${options.count} ML-based logs for source: ${source}\n`);
-
-      const patternEngine = new PatternLearningEngine();
-      const count = parseInt(options.count);
-      const anomalyRate = parseFloat(options.anomalyRate);
-
-      console.log('⚙️ Generation Settings:');
-      console.log(`   Source Type: ${source}`);
-      console.log(`   Log Count: ${count}`);
-      console.log(`   Anomaly Rate: ${Math.round(anomalyRate * 100)}%`);
-      console.log(`   Output Format: ${options.format}`);
-      if (options.userId) console.log(`   User ID: ${options.userId}`);
-      if (options.systemId) console.log(`   System ID: ${options.systemId}`);
-      console.log();
-
-      const logs = [];
-      const startTime = Date.now();
-
-      console.log('🔄 Generating logs...');
-      for (let i = 0; i < count; i++) {
-        const context = {
-          userId: options.userId,
-          systemId: options.systemId,
-          timestamp: new Date()
-        };
-
-        const logEntry = await patternEngine.generateRealisticLogEntry(source, context);
-        logs.push(logEntry);
-
-        if ((i + 1) % Math.max(1, Math.floor(count / 10)) === 0) {
-          const progress = Math.round(((i + 1) / count) * 100);
-          console.log(`   Progress: ${progress}%`);
-        }
+      const settings = await loadSettings();
+      if (!(await fs.pathExists(settings.profilePath))) {
+        console.error(`❌ No learned profile at ${settings.profilePath}. Create one with: npm run ml-patterns:learn logs/historical/`);
+        process.exit(1);
+      }
+      const count = Number(options.count);
+      if (!Number.isInteger(count) || count < 1) {
+        console.error(`❌ Invalid --count "${options.count}". Use a whole number of at least 1`);
+        process.exit(1);
+      }
+      const anomalyRate = options.anomalyRate !== undefined ? setSetting(settings, 'anomalyRate', options.anomalyRate).anomalyRate : settings.anomalyRate;
+      const formatters: Record<string, (entry: LogEntry) => string> = {
+        json: entry => LogFormatters.formatAsJSON(entry),
+        syslog: entry => LogFormatters.formatAsSyslog(entry),
+        cef: entry => LogFormatters.formatAsCEF(entry),
+        wazuh: entry => LogFormatters.formatForWazuh(entry)
+      };
+      if (!formatters[options.format]) {
+        console.error(`❌ Invalid --format "${options.format}". Use json, syslog, cef or wazuh`);
+        process.exit(1);
       }
 
-      const duration = Date.now() - startTime;
-      console.log(`\n✅ Generated ${logs.length} logs in ${duration}ms`);
-
-      // Format and output logs
-      let output = '';
-      switch (options.format.toLowerCase()) {
-        case 'json':
-          output = logs.map(log => JSON.stringify(log)).join('\n');
-          break;
-        case 'syslog':
-          output = logs.map(log => 
-            `<${getSyslogPriority(log.level)}>${new Date(log.timestamp).toISOString()} ${log.source}: ${log.message}`
-          ).join('\n');
-          break;
-        case 'cef':
-          output = logs.map(log => formatCEF(log)).join('\n');
-          break;
-        default:
-          output = logs.map(log => JSON.stringify(log)).join('\n');
-      }
+      const profile = await loadProfile(settings.profilePath);
+      const logs = generateFromProfile(profile, sourceName, {
+        count,
+        anomalyRate,
+        seed: options.seed !== undefined ? Number(options.seed) : undefined,
+        userId: options.userId,
+        systemId: options.systemId
+      });
+      const output = logs.map(formatters[options.format]).join('\n') + '\n';
 
       if (options.output) {
-        fs.writeFileSync(options.output, output);
-        console.log(`📁 Logs saved to: ${options.output}`);
+        await fs.ensureDir(path.dirname(options.output));
+        await fs.writeFile(options.output, output);
+        const anomalies = logs.filter(log => log.metadata.is_anomaly).length;
+        console.log(`✅ Wrote ${logs.length} ${options.format} logs for ${logs[0].source.name} to ${options.output} (${anomalies} anomalous)`);
       } else {
-        console.log('\n📋 Generated Logs:');
-        console.log(output);
+        process.stdout.write(output);
       }
-
-      // Show generation statistics
-      const anomalousLogs = logs.filter(log => log.metadata?.is_anomaly).length;
-      console.log('\n📊 Generation Statistics:');
-      console.log(`   Total Logs: ${logs.length}`);
-      console.log(`   Anomalous Logs: ${anomalousLogs} (${Math.round((anomalousLogs / logs.length) * 100)}%)`);
-      console.log(`   Average Generation Time: ${Math.round(duration / logs.length)}ms per log`);
-
     } catch (error) {
-      console.error('❌ Error generating ML-based logs:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
 
 program
   .command('ml-patterns:analyze')
-  .description('Analyze patterns in existing log files')
-  .argument('<files...>', 'Log files to analyze')
-  .option('--output <file>', 'Save analysis results to file')
-  .option('--focus <type>', 'Focus analysis on specific pattern type (user, system, security, application)')
+  .description('Report message patterns, levels, sources, busy hours, anomalies and indicators in log files')
+  .argument('[paths...]', 'Log files and/or directories (default: logs/historical)')
+  .option('--focus <type>', 'Only analyze user, system, security or application logs')
+  .option('--top <number>', 'How many message patterns to list', '10')
+  .option('--output <file>', 'Also save the report as JSON to this file')
   .option('--json', 'Output in JSON format')
-  .action(async (files: string[], options: any) => {
+  .action(async (paths: string[], options) => {
     try {
-      console.log('🔍 Analyzing ML Patterns in Log Files...\n');
+      const top = Math.round(parsePositiveNumber(options.top, '--top'));
+      const { files, logs } = await loadLogsForAnalysis(paths);
+      const report = analyzeLogs(logs, { focus: options.focus, top });
 
-      // Validate files
-      const validFiles = files.filter((file: string) => {
-        if (fs.existsSync(file)) {
-          return true;
-        } else {
-          console.warn(`⚠️ File not found: ${file}`);
-          return false;
-        }
-      });
-
-      if (validFiles.length === 0) {
-        console.error('❌ No valid log files found');
-        process.exit(1);
+      if (options.output) {
+        await fs.ensureDir(path.dirname(options.output));
+        await fs.writeFile(options.output, JSON.stringify({ files, ...report }, null, 2));
       }
-
-      console.log(`📁 Analyzing ${validFiles.length} files...`);
-      
-      const patternEngine = new PatternLearningEngine();
-      const analysisResults = await patternEngine.learnFromHistoricalData(validFiles);
-
       if (options.json) {
-        const output = JSON.stringify(analysisResults, null, 2);
-        if (options.output) {
-          fs.writeFileSync(options.output, output);
-          console.log(`📁 Analysis saved to: ${options.output}`);
-        } else {
-          console.log(output);
-        }
+        console.log(JSON.stringify({ files, ...report }, null, 2));
         return;
       }
 
-      // Display human-readable analysis
-      console.log('\n📊 Pattern Analysis Results:');
-      console.log(`   Analysis ID: ${analysisResults.analysisId}`);
-      console.log(`   Timestamp: ${analysisResults.timestamp.toLocaleString()}`);
-      console.log();
-
-      console.log('🔍 Detected Patterns:');
-      console.log(`   User Behavior Changes: ${analysisResults.detectedPatterns.userBehaviorChanges.length}`);
-      console.log(`   System Performance Shifts: ${analysisResults.detectedPatterns.systemPerformanceShifts.length}`);
-      console.log(`   Security Event Trends: ${analysisResults.detectedPatterns.securityEventTrends.length}`);
-      console.log();
-
-      console.log('📈 Quality Metrics:');
-      console.log(`   Pattern Coverage: ${Math.round(analysisResults.qualityMetrics.patternCoverage * 100)}%`);
-      console.log(`   Anomaly Detection Rate: ${Math.round(analysisResults.qualityMetrics.anomalyDetectionRate * 100)}%`);
-      console.log(`   False Positive Rate: ${Math.round(analysisResults.qualityMetrics.falsePositiveRate * 100)}%`);
-      console.log(`   Model Drift: ${Math.round(analysisResults.qualityMetrics.modelDrift * 100)}%`);
-      console.log();
-
-      if (analysisResults.recommendations.modelUpdates.length > 0) {
-        console.log('💡 Recommendations:');
-        console.log('   Model Updates:');
-        analysisResults.recommendations.modelUpdates.forEach((update: any) => {
-          console.log(`     • ${update}`);
-        });
-        
-        if (analysisResults.recommendations.configurationChanges.length > 0) {
-          console.log('   Configuration Changes:');
-          analysisResults.recommendations.configurationChanges.forEach((change: any) => {
-            console.log(`     • ${change}`);
-          });
+      console.log('\n🔍 Log Analysis\n');
+      console.log(`   Files: ${files.length}  |  Logs analyzed: ${report.analyzedLogs}${report.focus ? ` of ${report.totalLogs} (focus: ${report.focus})` : ''}`);
+      console.log(`   Levels: ${Object.entries(report.levels).map(([level, count]) => `${level} ${count}`).join(', ') || 'none'}`);
+      console.log(`   Sources: ${Object.entries(report.sources).sort(([, a], [, b]) => b - a).map(([name, count]) => `${name} ${count}`).join(', ') || 'none'}`);
+      if (report.busiestHours.length > 0) {
+        console.log(`   Busiest hours (UTC): ${report.busiestHours.map(h => `${String(h.hour).padStart(2, '0')}:00 (${(h.share * 100).toFixed(1)}%)`).join(', ')}`);
+      }
+      console.log(`\n📋 Top message patterns:`);
+      for (const template of report.templates) {
+        console.log(`   ${String(template.count).padStart(6)}  ${(template.share * 100).toFixed(1).padStart(5)}%  ${template.template.slice(0, 100)}`);
+      }
+      console.log(`\n📈 Minute windows with unusual volume: ${report.volumeAnomalies.length}`);
+      for (const anomaly of report.volumeAnomalies.slice(0, 5)) {
+        console.log(`   ${new Date(anomaly.start).toISOString()}  ${anomaly.count} logs (${anomaly.direction})`);
+      }
+      if (report.outliers.length > 0) {
+        console.log('\n🧪 Most unusual logs:');
+        for (const outlier of report.outliers) {
+          console.log(`   ${outlier.score.toFixed(2)}  ${outlier.message.slice(0, 100)}`);
         }
       }
-
-      if (options.output) {
-        const output = JSON.stringify(analysisResults, null, 2);
-        fs.writeFileSync(options.output, output);
-        console.log(`\n📁 Full analysis saved to: ${options.output}`);
-      }
-
+      console.log(`\n🕵️ Indicators: ${Object.entries(report.indicators).map(([type, count]) => `${type} ${count}`).join(', ') || 'none'}`);
+      if (options.output) console.log(`\n   Report saved to ${options.output}`);
     } catch (error) {
-      console.error('❌ Error analyzing patterns:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
 
 program
   .command('ml-patterns:config')
-  .description('Show or update ML pattern configuration')
-  .option('--show', 'Show current configuration')
-  .option('--set <key=value>', 'Set configuration value (can be used multiple times)', [])
-  .option('--reset', 'Reset to default configuration')
-  .option('--file <path>', 'Load configuration from file')
+  .description('Show or change the saved ml-patterns settings')
+  .option('--show', 'Show the current settings (the default)')
+  .option('--set <key=value>', 'Change a setting; repeat for several', (value: string, previous: string[]) => [...previous, value], [] as string[])
+  .option('--reset', 'Restore the default settings')
+  .option('--file <path>', 'Apply settings from a JSON file')
   .action(async (options) => {
     try {
-      const patternEngine = new PatternLearningEngine();
-
-      if (options.reset) {
-        console.log('🔄 Resetting ML configuration to defaults...');
-        patternEngine.updateConfig({
-          learning: {
-            enabled: true,
-            learningRate: 0.01,
-            adaptationPeriod: 24,
-            minSampleSize: 1000,
-            maxHistoryDays: 30
-          },
-          patternApplication: {
-            userBehaviorWeight: 0.4,
-            systemBehaviorWeight: 0.3,
-            securityEventWeight: 0.2,
-            randomnessLevel: 0.1
-          },
-          anomalyGeneration: {
-            enabled: true,
-            anomalyRate: 0.05,
-            severityDistribution: { low: 0.6, medium: 0.3, high: 0.08, critical: 0.02 },
-            realismLevel: 0.8
-          },
-          adaptation: {
-            enabled: true,
-            feedbackLoop: true,
-            crossValidation: true,
-            driftDetection: true
-          }
-        });
-        console.log('✅ Configuration reset to defaults');
-        return;
+      let settings = options.reset ? { ...DEFAULT_SETTINGS } : await loadSettings();
+      if (options.file) settings = await mergeSettingsFile(settings, options.file);
+      for (const assignment of options.set as string[]) {
+        const separator = assignment.indexOf('=');
+        if (separator < 1) throw new Error(`Invalid --set "${assignment}". Use key=value`);
+        settings = setSetting(settings, assignment.slice(0, separator).trim(), assignment.slice(separator + 1).trim());
       }
+      const changed = Boolean(options.reset || options.file || (options.set as string[]).length > 0);
+      if (changed) await saveSettings(settings);
 
-      if (options.file) {
-        console.log(`📁 Loading configuration from: ${options.file}`);
-        const configData = fs.readFileSync(options.file, 'utf8');
-        const config = JSON.parse(configData);
-        patternEngine.updateConfig(config);
-        console.log('✅ Configuration loaded from file');
-        return;
+      console.log(`⚙️  ml-patterns settings (${DEFAULT_SETTINGS_PATH})${changed ? ' - saved' : ''}\n`);
+      for (const [key, value] of Object.entries(settings)) {
+        const isDefault = value === DEFAULT_SETTINGS[key as keyof MlSettings];
+        console.log(`   ${key.padEnd(22)} ${String(value)}${isDefault ? '' : '   (default: ' + String(DEFAULT_SETTINGS[key as keyof MlSettings]) + ')'}`);
       }
-
-      if (options.set && options.set.length > 0) {
-        console.log('⚙️ Updating configuration...');
-        const updates: any = {};
-        
-        for (const setting of options.set) {
-          const [key, value] = setting.split('=');
-          if (!key || value === undefined) {
-            console.error(`❌ Invalid setting format: ${setting}. Use key=value`);
-            continue;
-          }
-
-          // Parse value based on type
-          let parsedValue: any = value;
-          if (value === 'true') parsedValue = true;
-          else if (value === 'false') parsedValue = false;
-          else if (!isNaN(Number(value))) parsedValue = Number(value);
-
-          // Set nested property
-          const keyParts = key.split('.');
-          let current = updates;
-          for (let i = 0; i < keyParts.length - 1; i++) {
-            if (!current[keyParts[i]]) current[keyParts[i]] = {};
-            current = current[keyParts[i]];
-          }
-          current[keyParts[keyParts.length - 1]] = parsedValue;
-
-          console.log(`   Set ${key} = ${parsedValue}`);
-        }
-
-        patternEngine.updateConfig(updates);
-        console.log('✅ Configuration updated');
-        return;
-      }
-
-      // Show current configuration
-      console.log('⚙️ Current ML Pattern Configuration:\n');
-      
-      // Since we can't easily get the current config, show default structure
-      console.log('📚 Learning Settings:');
-      console.log('   learning.enabled = true');
-      console.log('   learning.learningRate = 0.01');
-      console.log('   learning.adaptationPeriod = 24 (hours)');
-      console.log('   learning.minSampleSize = 1000');
-      console.log('   learning.maxHistoryDays = 30');
-      console.log();
-
-      console.log('🎯 Pattern Application:');
-      console.log('   patternApplication.userBehaviorWeight = 0.4');
-      console.log('   patternApplication.systemBehaviorWeight = 0.3');
-      console.log('   patternApplication.securityEventWeight = 0.2');
-      console.log('   patternApplication.randomnessLevel = 0.1');
-      console.log();
-
-      console.log('🚨 Anomaly Generation:');
-      console.log('   anomalyGeneration.enabled = true');
-      console.log('   anomalyGeneration.anomalyRate = 0.05 (5%)');
-      console.log('   anomalyGeneration.realismLevel = 0.8');
-      console.log();
-
-      console.log('🔄 Adaptation Settings:');
-      console.log('   adaptation.enabled = true');
-      console.log('   adaptation.feedbackLoop = true');
-      console.log('   adaptation.crossValidation = true');
-      console.log('   adaptation.driftDetection = true');
-      console.log();
-
-      console.log('💡 Usage Examples:');
-      console.log('   npm run ml-patterns:config --set learning.learningRate=0.02');
-      console.log('   npm run ml-patterns:config --set anomalyGeneration.anomalyRate=0.1');
-      console.log('   npm run ml-patterns:config --reset');
-
+      if (!changed) console.log('\n   Change one with: npm run ml-patterns:config -- --set anomalyRate=0.1');
     } catch (error) {
-      console.error('❌ Error managing ML configuration:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
 
 program
   .command('ml-patterns:reset')
-  .description('Reset all learned patterns and models')
-  .option('--confirm', 'Skip confirmation prompt')
+  .description('Delete the learned profile and trained text classifiers')
+  .option('--confirm', 'Delete without asking again')
   .action(async (options) => {
     try {
-      if (!options.confirm) {
-        console.log('⚠️ This will permanently delete all learned patterns and models.');
-        console.log('   Use --confirm flag to proceed without this prompt.');
-        console.log('\nTo confirm, run: npm run ml-patterns:reset --confirm');
+      const settings = await loadSettings();
+      const modelsDir = path.dirname(settings.profilePath);
+      const classifiers = (await fs.pathExists(modelsDir))
+        ? (await fs.readdir(modelsDir)).filter(name => /^nlp-.*-classifier\.json$/.test(name)).map(name => path.join(modelsDir, name))
+        : [];
+      const targets = [...((await fs.pathExists(settings.profilePath)) ? [settings.profilePath] : []), ...classifiers];
+
+      if (targets.length === 0) {
+        console.log('🧠 Nothing to reset: no learned profile or trained classifiers found.');
         return;
       }
-
-      console.log('🔄 Resetting ML patterns and models...');
-      
-      // Reset models directory
-      const modelsDir = path.join(process.cwd(), 'models', 'ml-patterns');
-      if (fs.existsSync(modelsDir)) {
-        fs.removeSync(modelsDir);
-        console.log('   ✅ Cleared models directory');
+      if (!options.confirm) {
+        console.log('⚠️  This would delete:');
+        targets.forEach(target => console.log(`   ${target}`));
+        console.log('\n   To confirm: npm run ml-patterns:reset -- --confirm');
+        return;
       }
-
-      // Reinitialize pattern engine
-      const patternEngine = new PatternLearningEngine();
-      console.log('   ✅ Reinitialized pattern engine');
-
-      console.log('\n✅ ML patterns and models have been reset');
-      console.log('   Run ml-patterns:learn to start learning new patterns');
-
+      for (const target of targets) await fs.remove(target);
+      console.log(`✅ Deleted ${targets.length} file(s):`);
+      targets.forEach(target => console.log(`   ${target}`));
+      console.log('   Settings are kept; restore them with: npm run ml-patterns:config -- --reset');
     } catch (error) {
-      console.error('❌ Error resetting ML patterns:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
-
-// Helper functions for CLI
-function getSyslogPriority(level: string): number {
-  const priorities: Record<string, number> = {
-    'error': 3,
-    'warn': 4,
-    'info': 6,
-    'debug': 7
-  };
-  return priorities[level] || 6;
-}
-
-function formatCEF(log: any): string {
-  return `CEF:0|LogGenerator|ML-Enhanced|1.0|${log.source}|${log.message}|${getSyslogPriority(log.level)}|`;
-}
 
 function parseDuration(duration: string): number | null {
   if (!duration) return null;
