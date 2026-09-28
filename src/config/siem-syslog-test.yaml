@@ -1,0 +1,66 @@
+# SIEM Syslog Integration Test Configuration
+generators:
+  endpoint:
+    enabled: true
+    frequency: 3600  # 60 logs/second - reasonable for syslog
+    templates:
+      - level: INFO
+        messageTemplate: "User {userId} accessed {resource} from {sourceIp}"
+        probability: 0.6
+        metadata:
+          component: auth-service
+      - level: WARN
+        messageTemplate: "Failed login attempt for user {userId} from {sourceIp}"
+        probability: 0.3
+        metadata:
+          component: auth-service
+      - level: ERROR
+        messageTemplate: "Security violation: Multiple failed attempts from {sourceIp}"
+        probability: 0.1
+        metadata:
+          component: auth-service
+
+  # Disable other generators for focused testing
+  application:
+    enabled: false
+  server:
+    enabled: false
+  firewall:
+    enabled: false
+  cloud:
+    enabled: false
+  authentication:
+    enabled: false
+  database:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  microservices:
+    enabled: false
+  iot:
+    enabled: false
+
+replay:
+  enabled: false
+
+# Syslog output to test SIEM integration
+output:
+  format: syslog
+  destination: syslog
+  batching:
+    maxBatchSize: 25       # Smaller batches for syslog
+    flushIntervalMs: 500   # 500ms flush interval
+    enabled: true
+  syslog:
+    host: "127.0.0.1"      # Local syslog for testing
+    port: 514
+    protocol: "udp"
+
+storage:
+  historicalPath: ./logs/historical
+  currentPath: ./logs/current
+  retention: 1

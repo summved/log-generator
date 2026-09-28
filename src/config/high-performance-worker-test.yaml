@@ -1,0 +1,77 @@
+# High-Performance Worker Threads Test Configuration
+generators:
+  endpoint:
+    enabled: true
+    frequency: 300000  # 5,000 logs/second - high performance test
+    templates:
+      - level: INFO
+        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms"
+        probability: 0.8
+        metadata:
+          component: api-gateway
+      - level: WARN
+        messageTemplate: "High latency detected: {responseTime}ms"
+        probability: 0.15
+        metadata:
+          component: api-gateway
+      - level: ERROR
+        messageTemplate: "Service error: {status}"
+        probability: 0.05
+        metadata:
+          component: api-gateway
+
+  application:
+    enabled: true
+    frequency: 180000  # 3,000 logs/second
+    templates:
+      - level: INFO
+        messageTemplate: "Business operation {operation} completed for user {userId}"
+        probability: 0.9
+        metadata:
+          component: business-logic
+      - level: ERROR
+        messageTemplate: "Business logic error in {operation}"
+        probability: 0.1
+        metadata:
+          component: business-logic
+
+  # Disable other generators for focused testing
+  server:
+    enabled: false
+  firewall:
+    enabled: false
+  cloud:
+    enabled: false
+  authentication:
+    enabled: false
+  database:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  microservices:
+    enabled: false
+  iot:
+    enabled: false
+
+replay:
+  enabled: false
+
+# HTTP output for high-performance testing
+output:
+  format: json
+  destination: file        # Local file: measures generation throughput without network limits
+  batching:
+    maxBatchSize: 1000     # Large batches for high performance
+    flushIntervalMs: 100   # Fast flushing
+    enabled: true
+  file:
+    path: ./logs/current/performance-worker-test.json
+
+storage:
+  historicalPath: ./logs/historical
+  currentPath: ./logs/current
+  retention: 1

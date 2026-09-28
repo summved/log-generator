@@ -1,0 +1,68 @@
+# SIEM HTTP Integration Test Configuration
+generators:
+  endpoint:
+    enabled: true
+    frequency: 6000  # 100 logs/second - reasonable test rate
+    templates:
+      - level: INFO
+        messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms"
+        probability: 0.7
+        metadata:
+          component: api-gateway
+      - level: WARN
+        messageTemplate: "Slow response detected: {method} {path} took {responseTime}ms"
+        probability: 0.2
+        metadata:
+          component: api-gateway
+      - level: ERROR
+        messageTemplate: "HTTP error {status}: {method} {path}"
+        probability: 0.1
+        metadata:
+          component: api-gateway
+
+  # Disable other generators for focused testing
+  application:
+    enabled: false
+  server:
+    enabled: false
+  firewall:
+    enabled: false
+  cloud:
+    enabled: false
+  authentication:
+    enabled: false
+  database:
+    enabled: false
+  webserver:
+    enabled: false
+  email:
+    enabled: false
+  backup:
+    enabled: false
+  microservices:
+    enabled: false
+  iot:
+    enabled: false
+
+replay:
+  enabled: false
+
+# HTTP output to test SIEM integration
+output:
+  format: json
+  destination: http
+  batching:
+    maxBatchSize: 50       # Moderate batch size for testing
+    flushIntervalMs: 200   # 200ms flush interval
+    enabled: true
+  http:
+    url: "http://localhost:8000/post"  # Local httpbin from docker-compose.production.yml; point at your SIEM for real tests
+    headers:
+      "Content-Type": "application/json"
+      "X-Source": "log-generator"
+      "X-Test": "siem-integration"
+
+storage:
+  historicalPath: ./logs/historical
+  currentPath: ./logs/current
+  retention: 1

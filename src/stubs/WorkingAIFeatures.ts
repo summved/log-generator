@@ -81,7 +81,8 @@ export class EnhancedAttackChainManager extends AttackChainManager {
       logger.info(`⚡ Running in FULL EXECUTION mode (may take up to 45+ minutes)`);
       logger.info(`🔄 Starting real attack chain execution...`);
       // Run the actual full attack chain execution
-      baseExecution = await this.executeChain(name, options.config, options.logGeneratorConfig);
+      // options.config / options.logGeneratorConfig: path to a log generator config file (the CLI -c option)
+      baseExecution = await this.executeChain(name, undefined, options.config || options.logGeneratorConfig);
     }
     
     // Add AI enhancement simulation

@@ -103,6 +103,10 @@ Thumbs.db
 config.yaml
 custom-*.yaml
 *test*.yaml
+# performance-test mode configs used by src/cli.ts
+!src/config/siem-http-test.yaml
+!src/config/siem-syslog-test.yaml
+!src/config/high-performance-worker-test.yaml
 *-test-*.yaml
 
 # Docker

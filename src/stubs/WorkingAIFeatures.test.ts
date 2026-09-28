@@ -1,4 +1,6 @@
+import { AttackChainManager } from '../chains/AttackChainManager';
 import { calculateStepLogCount } from '../chains/StepLogFactory';
+import { AttackChainExecution } from '../types/attackChain';
 import { EnhancedAttackChainManager } from './WorkingAIFeatures';
 
 jest.mock('../utils/logger', () => ({
@@ -71,4 +73,18 @@ describe('EnhancedAttackChainManager.getExecutionHistory', () => {
       totalExecutions: 1, modeDistribution: { enhanced: 1 }, levelDistribution: { high: 1 }
     });
   }, 15000);
+});
+
+describe('EnhancedAttackChainManager full execution', () => {
+  it('passes the config file as the log generator config, not as execution settings', async () => {
+    const run = jest.spyOn(AttackChainManager.prototype, 'executeChain')
+      .mockResolvedValue({ chainId: 'ryuk-ransomware-campaign', executionId: 'e1', status: 'completed', stats: {} } as unknown as AttackChainExecution);
+    try {
+      await new EnhancedAttackChainManager().executeEnhancedChain('ransomware-ryuk', { simulation: false, config: './my-config.yaml' });
+
+      expect(run).toHaveBeenCalledWith('ransomware-ryuk', undefined, './my-config.yaml');
+    } finally {
+      run.mockRestore();
+    }
+  });
 });
