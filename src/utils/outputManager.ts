@@ -270,24 +270,6 @@ export class OutputManager {
     }
   }
 
-  // Phase 1: Legacy method - now redirects to batching
-  private async outputToFile(formattedLog: string): Promise<void> {
-    // This method is kept for compatibility but now uses batching
-    this.addToFileBuffer(formattedLog);
-  }
-
-  // Phase 1: Legacy method - now redirects to batching
-  private async outputToSyslog(formattedLog: string): Promise<void> {
-    // This method is kept for compatibility but now uses batching
-    this.addToSyslogBuffer(formattedLog);
-  }
-
-  // Phase 1: Legacy method - now redirects to batching
-  private async outputToHttp(formattedLog: string, originalEntry: LogEntry): Promise<void> {
-    // This method is kept for compatibility but now uses batching
-    this.addToHttpBuffer(formattedLog, originalEntry);
-  }
-
   public async rotateLogFile(): Promise<void> {
     if (this.config.destination === 'file' && this.fileStream) {
       this.fileStream.end();

@@ -269,8 +269,6 @@ export class ReplayManager {
       
       // Process entire batch instantly
       const batchPromises = batch.map(async (currentLog, batchIndex) => {
-        const globalIndex = this.currentReplayIndex + batchIndex;
-        
         // Update timestamp to current replay time
         const elapsedOriginalTime = moment(currentLog.timestamp).diff(this.originalStartTime!);
         const elapsedReplayTime = elapsedOriginalTime / this.config.speed;

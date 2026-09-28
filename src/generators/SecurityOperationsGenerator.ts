@@ -1,8 +1,7 @@
 import { BaseGenerator } from './BaseGenerator';
-import { LogEntry, LogSource, D3FENDInfo } from '../types';
+import { LogEntry, LogSource } from '../types';
 import { d3fendMapper } from '../utils/d3fendMapper';
 import { timestampSequencer } from '../utils/timestampSequencer';
-import { logger } from '../utils/logger';
 
 /**
  * Security Operations Center (SOC) Generator

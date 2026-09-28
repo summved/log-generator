@@ -220,18 +220,5 @@ jobs:
       
     - name: Run performance benchmarks
       run: |
-        echo "Running performance benchmarks..."
-        
-        # Test different performance modes
-        timeout 30s npm run performance-test -- --mode disk --duration 10s || echo "Disk test completed"
-        timeout 30s npm run performance-test -- --mode worker --workers 4 --duration 10s || echo "Worker test completed"
-        
-        # Run comprehensive comparison
-        timeout 60s node src/scripts/performance-comparison.js || echo "Comparison completed"
-        
-    - name: Upload performance results
-      uses: actions/upload-artifact@v4
-      with:
-        name: performance-results
-        path: performance-comparison-results.json
-        retention-days: 30
+        timeout 60s npm run performance-test -- --mode disk --duration 10s
+        timeout 60s npm run performance-test -- --mode worker --workers 4 --duration 10s

@@ -114,6 +114,4 @@ export interface HistoricalLogFile {
   size: number;
 }
 
-// Export AI Attack Chain types
-// export * from './aiAttackChain'; // Temporarily disabled
 export * from './attackChain';
