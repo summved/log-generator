@@ -109,13 +109,13 @@ custom-*.yaml
 !src/config/high-performance-worker-test.yaml
 *-test-*.yaml
 
-# Docker
-.dockerignore
-
 # Keep directory structure
 !logs/.gitkeep
 !logs/current/.gitkeep
 !logs/historical/.gitkeep
+# Small synthetic samples for ml-patterns, replay and the ML demo
+!logs/historical/test_sample.jsonl
+!logs/historical/ml_test_sample.jsonl
 
 # ML Models (too large for git)
 models/ml-patterns/*.json

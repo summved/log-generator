@@ -1,0 +1,49 @@
+# Keep the Docker build context small. Both Dockerfiles build from source inside
+# the image, so src/, tsconfig.json and package*.json must stay in the context.
+
+# Dependencies and build output (rebuilt in the image)
+node_modules
+dist
+coverage
+.nyc_output
+
+# Version control and editor files
+.git
+.github
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Generated logs, run reports and learned models (the image creates empty directories)
+logs
+models
+*.log
+
+# Environment files and keys
+.env
+.env.*
+!env.example
+secrets/
+*.key
+*.pem
+*.crt
+
+# Python virtual environments
+ml-env
+venv
+.venv
+
+# Tests and docs are not needed at runtime
+**/*.test.ts
+docs
+*.md
+!README.md
+
+# Local tooling
+.aw
+.aw_docs
+.claude
+.cursor
