@@ -74,51 +74,89 @@ npm run mitre-coverage logs/historical/
 
 ## 🛡️ D3FEND Defensive Framework
 
-### Supported Categories & Techniques
+[MITRE D3FEND](https://d3fend.mitre.org/) is a catalogue of **defensive** techniques, the counterpart to ATT&CK's attack techniques. The tool uses it to recognise defender-side events in logs and to suggest defences for attack techniques. The logic lives in `src/utils/d3fendMapper.ts` (technique catalogue and matching) and `src/utils/d3fendCoverage.ts` (listing and coverage reports).
 
-The log generator integrates with the MITRE D3FEND framework to generate realistic defensive response logs:
+### Supported Techniques
 
-#### **Detect (D3-D)**
-- **D3-NTA** - Network Traffic Analysis
-- **D3-FA** - File Analysis  
-- **D3-AM** - Authentication Monitoring
-- **D3-LA** - Log Analysis
+14 techniques in 5 categories. The D3FEND model also defines *Degrade*, which has no techniques here yet.
 
-#### **Deny (D3-DN)**
-- **D3-ACL** - Access Control Lists
-- **D3-NB** - Network Blocking
-- **D3-WAF** - Web Application Firewall
+| Category | Technique | Name | Effectiveness | Automated |
+|---|---|---|---|---|
+| Detect | D3-NTA | Network Traffic Analysis | High | yes |
+| Detect | D3-FA | File Analysis | High | yes |
+| Detect | D3-LAM | Login Analysis | Medium | yes |
+| Detect | D3-PSA | Process Spawn Analysis | High | yes |
+| Deny | D3-ACL | Access Control List | High | yes |
+| Deny | D3-NB | Network Block | High | yes |
+| Deny | D3-WAF | Web Application Firewall | Medium | yes |
+| Contain | D3-NI | Network Isolation | High | no |
+| Contain | D3-AL | Account Lockout | High | yes |
+| Contain | D3-PT | Process Termination | High | yes |
+| Disrupt | D3-CR | Credential Rotation | Medium | no |
+| Disrupt | D3-DNS | DNS Sinkhole | Medium | yes |
+| Deceive | D3-DF | Decoy File | Medium | yes |
+| Deceive | D3-HP | Honeypot | Medium | yes |
 
-#### **Contain (D3-C)**
-- **D3-NI** - Network Isolation
-- **D3-AL** - Account Lockout
-- **D3-PT** - Process Termination
+**Effectiveness** is *High* for a primary defence and *Medium* for a supporting one; no technique is rated *Low*. **Automated** means the control acts without a person. D3-NI (Network Isolation) and D3-CR (Credential Rotation) need human action.
 
-#### **Deceive (D3-DC)**
-- **D3-DF** - Decoy Files
-- **D3-HN** - Honeypots
+### How a log is mapped to a technique
 
-#### **Disrupt (D3-DR)**
-- **D3-CR** - Credential Rotation
-- **D3-DNS** - DNS Sinkhole
+A log that carries its own `d3fend` field keeps it. Otherwise the mapper checks the lower-cased message for known phrases, plus a few `metadata.component` values, and the first match wins. For example:
 
-### Usage Examples
+| Technique | Matches messages containing, e.g. |
+|---|---|
+| D3-NTA | `network scan detected`, `suspicious traffic`, `anomalous connection`, or component `ids`/`ips` |
+| D3-FA | `malware detected`, `virus found`, `file quarantined`, `suspicious file` |
+| D3-LAM | `failed login detected`, `brute force detected`, `suspicious login pattern`, or component `auth-monitor` |
+| D3-PSA | `suspicious process`, `malicious execution`, `process blocked`, or component `edr` |
+| D3-AL | `account locked`, `user disabled`, `account suspended`, `credentials revoked` |
+
+The full phrase list for all 14 techniques is in `D3FENDMapper.matchesDefensivePattern`.
+
+### Suggested defences for attack techniques
+
+`D3FENDMapper.suggestDefensesForAttack()` maps six ATT&CK techniques to defences:
+
+| ATT&CK technique | Suggested D3FEND techniques |
+|---|---|
+| T1110 Brute Force | D3-LAM, D3-AL, D3-ACL |
+| T1078 Valid Accounts | D3-LAM, D3-ACL |
+| T1071 Application Layer Protocol | D3-NTA, D3-NB |
+| T1055 Process Injection | D3-PSA, D3-PT |
+| T1082 System Information Discovery | D3-DF, D3-HP |
+| T1018 Remote System Discovery | D3-NTA, D3-NI |
+
+### Commands
 
 ```bash
-# Generate defensive logs for detection category
-npm run generate -- --d3fend-category Detect --duration 30m
-
-# Generate logs for specific defensive technique
-npm run generate -- --d3fend-technique D3-NTA --count 100
-
 # List all D3FEND techniques (optionally one category, or as JSON)
 npm run d3fend-list
 npm run d3fend-list -- --category Detect --json
 
-# Check which D3FEND techniques appear in log files (files and/or directories; default logs/historical)
+# Which D3FEND techniques appear in log files (files and/or directories; default logs/historical)
 npm run d3fend-coverage logs/historical/
 npm run d3fend-coverage logs/current/*.jsonl -- --json
+
+# The technique catalogue by category (no log files needed)
+npm run soc-simulation:d3fend-coverage
+
+# Worked example of technique catalogue, message mapping and attack-to-defence suggestions (build first)
+npm run build && npm run d3fend-demo
 ```
+
+`d3fend-coverage` reports the logs that map to a technique, per-technique and per-category counts, and the techniques never seen.
+
+> **Current limitation:** the tool's regular generated logs contain no defender-side events. `src/generators/SecurityOperationsGenerator.ts` holds defensive-response templates tagged with D3FEND techniques, but it is not wired into generation yet, and `soc-simulation:run` currently runs normal generation. So `d3fend-coverage` on generated logs reports 0 of 14 today. On real or hand-written defender logs it reports the matches.
+
+### Use cases
+
+- **Purple-team exercises:** pair ATT&CK-tagged attack chain logs with the defences that should respond (`suggestDefensesForAttack`).
+- **SIEM rule testing:** run `d3fend-coverage` over a SIEM export to see which defensive controls actually produce log evidence.
+- **Coverage gap reviews:** the "not seen" list in `d3fend-coverage` shows defensive techniques with no evidence at all.
+
+### Possible extensions
+
+More techniques from the full D3FEND catalogue (including *Degrade*), more attack-to-defence mappings, and wiring `SecurityOperationsGenerator` into generation so defender-side logs appear alongside attack chains.
 
 ## 🔗 Attack Chain Simulation
 
