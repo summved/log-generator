@@ -2,51 +2,42 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import { Config } from '../types';
+import { expandEnvironment, mergeOverDefaults } from './loadConfig';
+
+const DEFAULT_CONFIG_PATH = path.join(__dirname, 'default.yaml');
 
 export class ConfigManager {
   private config: Config;
   private configPath: string;
 
   constructor(configPath?: string) {
-    this.configPath = configPath || path.join(__dirname, 'default.yaml');
+    this.configPath = configPath || process.env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
     this.config = this.loadConfig();
   }
 
+  /** The config file, merged over the defaults, with ${VAR} references substituted */
   private loadConfig(): Config {
     try {
-      const configContent = fs.readFileSync(this.configPath, 'utf8');
-      const parsedConfig = yaml.parse(configContent);
-      return this.validateConfig(parsedConfig);
+      const defaults = yaml.parse(fs.readFileSync(DEFAULT_CONFIG_PATH, 'utf8'));
+      if (path.resolve(this.configPath) === path.resolve(DEFAULT_CONFIG_PATH)) {
+        return this.validateConfig(expandEnvironment(defaults));
+      }
+      const user = yaml.parse(fs.readFileSync(this.configPath, 'utf8')) ?? {};
+      if (typeof user !== 'object' || Array.isArray(user)) {
+        throw new Error('the file must contain YAML keys such as generators:, output: and storage:');
+      }
+      return this.validateConfig(expandEnvironment(mergeOverDefaults(defaults, user)));
     } catch (error) {
-      console.error(`Failed to load config from ${this.configPath}:`, error);
-      throw new Error(`Configuration loading failed: ${error}`);
+      throw new Error(`Configuration loading failed for ${this.configPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   private validateConfig(config: any): Config {
-    // Basic validation - in a production environment, you'd want more comprehensive validation
-    if (!config.generators) {
-      throw new Error('Missing generators configuration');
+    for (const section of ['generators', 'output', 'storage']) {
+      if (!config[section]) {
+        throw new Error(`Missing ${section} configuration`);
+      }
     }
-    
-    if (!config.output) {
-      throw new Error('Missing output configuration');
-    }
-
-    if (!config.storage) {
-      throw new Error('Missing storage configuration');
-    }
-
-    // Set defaults for missing replay config
-    if (!config.replay) {
-      config.replay = {
-        enabled: false,
-        speed: 1.0,
-        loop: false,
-        filters: { sources: [], levels: [] }
-      };
-    }
-
     return config as Config;
   }
 
@@ -81,4 +72,3 @@ export class ConfigManager {
   }
 }
 
-export const configManager = new ConfigManager();
