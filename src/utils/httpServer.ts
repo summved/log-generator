@@ -15,19 +15,15 @@ export class HttpServer {
 
   private createServer(): http.Server {
     return http.createServer((req, res) => {
-      // Enable CORS
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-      if (req.method === 'OPTIONS') {
-        res.writeHead(200);
-        res.end();
+      // Read-only metrics endpoints: only GET/HEAD, and no CORS (so a web page cannot read them)
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405, { 'Content-Type': 'application/json', Allow: 'GET, HEAD' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
         return;
       }
 
-      const url = req.url || '';
-      
+      const url = (req.url || '').split('?')[0];
+
       try {
         if (url === '/health') {
           this.handleHealth(req, res);
@@ -133,14 +129,16 @@ export class HttpServer {
     res.end(JSON.stringify(notFound, null, 2));
   }
 
-  private handleError(req: http.IncomingMessage, res: http.ServerResponse, error: any): void {
-    const errorResponse = {
-      error: 'Internal Server Error',
-      message: error.message || 'An unexpected error occurred'
-    };
-
+  private handleError(req: http.IncomingMessage, res: http.ServerResponse, error: unknown): void {
+    // The detail is logged server-side; never return it to the client
+    logger.error('HTTP server error handling request:', error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(errorResponse, null, 2));
+    res.end(JSON.stringify({ error: 'Internal Server Error' }, null, 2));
+  }
+
+  /** The address the server is listening on (useful when started on port 0) */
+  public address(): import('net').AddressInfo | string | null {
+    return this.server.address();
   }
 
   public start(): Promise<void> {
