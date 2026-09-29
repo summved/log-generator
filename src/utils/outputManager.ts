@@ -2,7 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 const axios = require('axios');
 import { LogEntry, Config } from '../types';
-import { LogFormatters } from './formatters';
+import { LogFormatters, syslogFacility } from './formatters';
 import { logger } from './logger';
 import { StorageManager } from './storage';
 import { SyslogSender } from './syslogSender';
@@ -23,6 +23,8 @@ export class OutputManager {
   private isShuttingDown: boolean = false;
 
   constructor(config: Config['output'], storageManager: StorageManager) {
+    // Fail at start, not on every log, for an unknown syslog facility
+    syslogFacility(config.syslog?.facility);
     this.config = config;
     this.storageManager = storageManager;
     
@@ -233,7 +235,7 @@ export class OutputManager {
   }
 
   private formatLog(entry: LogEntry): string {
-    return LogFormatters.format(this.config.format, entry);
+    return LogFormatters.format(this.config.format, entry, { syslog: this.config.syslog });
   }
 
 

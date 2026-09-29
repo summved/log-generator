@@ -93,6 +93,14 @@ export interface Config {
       host: string;
       port: number;
       protocol: 'udp' | 'tcp';
+      /** Facility name (local0, auth, ...) or number 0-23 (default local0) */
+      facility?: string | number;
+      /** APP-NAME; default is the source name */
+      tag?: string;
+      /** RFC3164 (default) or RFC5424 */
+      timestampFormat?: string;
+      /** RFC 5424: add MITRE ATT&CK data as structured data */
+      structuredData?: boolean;
     };
     http?: {
       url: string;

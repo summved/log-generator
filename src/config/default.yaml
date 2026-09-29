@@ -1036,9 +1036,9 @@ output:
     port: 514
     protocol: udp
     facility: local0
-    tag: "log-generator"
-    timestampFormat: "RFC3164"
-    structuredData: true
+    # tag: my-app            # APP-NAME; default is each source's name (e.g. pfsense-fw[pf])
+    timestampFormat: RFC3164 # or RFC5424
+    structuredData: true     # RFC5424: MITRE ATT&CK data as structured data
   http:
     url: http://localhost:55000/api/events
     method: POST

@@ -22,7 +22,9 @@ export class Logger {
           new winston.transports.File({ 
             filename: path.join('logs', 'combined.log') 
           }),
+          // stderr, so stdout carries only generated logs (destination: stdout) and command output
           new winston.transports.Console({
+            stderrLevels: ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'],
             format: winston.format.combine(
               winston.format.colorize(),
               winston.format.simple()

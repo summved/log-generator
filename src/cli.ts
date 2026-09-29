@@ -155,7 +155,7 @@ program
       if (options.daemon) {
         logger.info('Starting log generator in daemon mode');
         // In a production environment, you'd want to use a proper daemon library
-        process.stdout.write('Log generator started in background\n');
+        process.stderr.write('Log generator started in background\n');
       }
 
       // Handle graceful shutdown
@@ -175,7 +175,8 @@ program
       
       if (!options.daemon) {
         if (durationMs) {
-          console.log(`Log generator is running for ${options.duration}. Press Ctrl+C to stop early.`);
+          // Status goes to stderr so stdout carries only logs when destination is stdout
+          console.error(`Log generator is running for ${options.duration}. Press Ctrl+C to stop early.`);
           // Set timeout to stop after specified duration
           setTimeout(async () => {
             logger.info(`Duration ${options.duration} completed, stopping log generation`);
@@ -185,7 +186,7 @@ program
           // Keep the process running until timeout
           await new Promise(() => {});
         } else {
-          console.log('Log generator is running. Press Ctrl+C to stop.');
+          console.error('Log generator is running. Press Ctrl+C to stop.');
           // Keep the process running
           await new Promise(() => {});
         }

@@ -25,12 +25,12 @@ const waitFor = async (check: () => boolean, ms = 3000): Promise<void> => {
   while (!check() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
 };
 
-function syslogOutput(port: number, protocol: 'udp' | 'tcp'): Config['output'] {
+function syslogOutput(port: number, protocol: 'udp' | 'tcp', extra: Record<string, unknown> = {}): Config['output'] {
   return {
     format: 'syslog',
     destination: 'syslog',
     batching: { enabled: true, maxBatchSize: 50, flushIntervalMs: 50 },
-    syslog: { host: '127.0.0.1', port, protocol }
+    syslog: { host: '127.0.0.1', port, protocol, ...extra }
   } as Config['output'];
 }
 
@@ -76,5 +76,24 @@ describe('OutputManager syslog output', () => {
     expect(lines).toHaveLength(120);
     expect(lines[0]).toContain('log 0');
     expect(lines[119]).toContain('log 119');
+  });
+
+  it('uses the configured facility and RFC 5424 format', async () => {
+    let data = '';
+    const server = net.createServer(socket => socket.on('data', chunk => { data += chunk.toString(); }));
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+
+    const output = new OutputManager(syslogOutput((server.address() as AddressInfo).port, 'tcp', { facility: 'auth', timestampFormat: 'RFC5424' }), storage);
+    await output.outputLog(log(1));
+    await output.close();
+    await waitFor(() => data.includes('\n'));
+    await new Promise<void>(resolve => server.close(() => resolve()));
+
+    // auth (4) * 8 + info (6) = 38; no host, component or MITRE data on this log
+    expect(data).toBe(`<38>1 ${log(1).timestamp} localhost test - - - log 1\n`);
+  });
+
+  it('refuses an unknown facility when it starts', () => {
+    expect(() => new OutputManager(syslogOutput(514, 'udp', { facility: 'nonsense' }), storage)).toThrow(/Unknown syslog facility "nonsense"/);
   });
 });
