@@ -1,11 +1,11 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as dgram from 'dgram';
 const axios = require('axios');
 import { LogEntry, Config } from '../types';
 import { LogFormatters } from './formatters';
 import { logger } from './logger';
 import { StorageManager } from './storage';
+import { SyslogSender } from './syslogSender';
 
 export class OutputManager {
   private config: Config['output'];
@@ -16,6 +16,7 @@ export class OutputManager {
   private logBuffer: string[] = [];
   private httpBuffer: { log: string; entry: LogEntry }[] = [];
   private syslogBuffer: string[] = [];
+  private syslog?: SyslogSender;
   private flushInterval?: NodeJS.Timeout;
   private readonly maxBatchSize: number;
   private readonly flushIntervalMs: number;
@@ -152,12 +153,9 @@ export class OutputManager {
     }
 
     const logsToSend = this.syslogBuffer.splice(0); // Clear buffer atomically
-    
-    // Send logs in parallel for better performance
-    const sendPromises = logsToSend.map(log => this.sendSyslogMessage(log));
-    
+
     try {
-      await Promise.all(sendPromises);
+      await this.syslogSender().send(logsToSend);
       logger.debug(`Successfully sent batch of ${logsToSend.length} syslog messages`);
     } catch (error) {
       logger.error(`Failed to send syslog batch of ${logsToSend.length} messages:`, error);
@@ -197,33 +195,12 @@ export class OutputManager {
     }
   }
 
-  // Helper method for individual syslog messages (used by batch)
-  private async sendSyslogMessage(formattedLog: string): Promise<void> {
-    if (!this.config.syslog) {
-      throw new Error('Syslog configuration not provided');
+  /** One reused UDP socket or TCP connection for the configured syslog target */
+  private syslogSender(): SyslogSender {
+    if (!this.syslog) {
+      this.syslog = new SyslogSender(this.config.syslog!);
     }
-
-    return new Promise((resolve, reject) => {
-      const socketType = this.config.syslog!.protocol === 'tcp' ? 'udp4' : 'udp4';
-      const client = dgram.createSocket(socketType);
-      const message = Buffer.from(formattedLog);
-
-      client.send(
-        message,
-        0,
-        message.length,
-        this.config.syslog!.port,
-        this.config.syslog!.host,
-        (error) => {
-          client.close();
-          if (error) {
-            reject(error);
-          } else {
-            resolve();
-          }
-        }
-      );
-    });
+    return this.syslog;
   }
 
   // Phase 1: Periodic buffer flushing
@@ -296,6 +273,11 @@ export class OutputManager {
     } catch (error) {
       logger.error('Failed to write history logs during shutdown:', error);
     }
+
+    if (this.syslog) {
+      await this.syslog.close();
+      this.syslog = undefined;
+    }
     
     // Close file stream
     if (this.fileStream) {
@@ -310,6 +292,11 @@ export class OutputManager {
 
   public updateConfig(config: Config['output']): void {
     this.config = config;
+    if (this.syslog) {
+      const previous = this.syslog;
+      this.syslog = undefined;
+      previous.close().catch(error => logger.error('Failed to close syslog connection:', error));
+    }
     if (this.fileStream) {
       this.fileStream.end();
     }

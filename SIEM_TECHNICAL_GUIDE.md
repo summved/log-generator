@@ -246,7 +246,8 @@ pkill -f "npm run generate"
 ## 📡 **3. Syslog Integration (Detailed)**
 
 ### **How It Works**
-- Uses Node.js `dgram` module for UDP/TCP syslog
+- `protocol: udp` (default): one reused UDP socket (Node.js `dgram`), one datagram per log
+- `protocol: tcp`: one reused TCP connection (Node.js `net`), one log per line (RFC 6587 newline framing), reconnecting if the connection drops
 - Formats logs according to RFC 3164 or RFC 5424
 - Sends directly to SIEM syslog receiver
 
