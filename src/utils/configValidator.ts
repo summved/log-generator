@@ -227,9 +227,10 @@ export class ConfigValidator {
       .reduce((sum, g) => sum + (g.frequency || 0), 0);
 
     const estimatedLogsPerSecond = totalFrequency / 60;
-    const estimatedMBPerSecond = estimatedLogsPerSecond * 0.5; // Assume ~500 bytes per log
+    // ~700 bytes per JSON log, written twice with the history copy
+    const estimatedMBPerSecond = (estimatedLogsPerSecond * 700 * 2) / (1024 * 1024);
 
-    if (estimatedMBPerSecond > 100) {
+    if (estimatedMBPerSecond > 50) {
       result.warnings.push(
         `Estimated disk I/O: ${estimatedMBPerSecond.toFixed(1)} MB/s - ensure adequate disk performance`
       );
