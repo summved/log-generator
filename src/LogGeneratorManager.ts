@@ -1,4 +1,5 @@
 import { Config, LogEntry } from './types';
+import { matchesMitreFilter, MitreFilterOptions } from './utils/mitreFilter';
 import { ConfigManager } from './config';
 import { StorageManager } from './utils/storage';
 import { OutputManager } from './utils/outputManager';
@@ -15,11 +16,7 @@ const MAX_PENDING_OUTPUTS = 50000;
 import { MetricsCollector } from './utils/metricsCollector';
 import { HttpServer } from './utils/httpServer';
 
-export interface MitreFilterOptions {
-  technique?: string;
-  tactic?: string;
-  enabledOnly?: boolean;
-}
+export type { MitreFilterOptions };
 
 export class LogGeneratorManager {
   private configManager: ConfigManager;
@@ -166,35 +163,11 @@ export class LogGeneratorManager {
     return [...this.generators.keys()].filter(name => generators[name as keyof Config['generators']]?.enabled);
   }
 
-  /**
-   * Determines if a log entry should be included based on MITRE filtering options
-   */
+  /** Whether a log passes the MITRE filter (a technique or tactic filter never lets unmapped logs through) */
   private shouldIncludeLogEntry(logEntry: LogEntry): boolean {
-    if (!this.mitreFilter) {
-      return true; // No filtering applied
-    }
-
-    // If MITRE-enabled only filter is set, only include logs with MITRE data
-    if (this.mitreFilter.enabledOnly && !logEntry.mitre) {
-      return false;
-    }
-
-    // If specific technique filter is set
-    if (this.mitreFilter.technique && logEntry.mitre) {
-      if (logEntry.mitre.technique !== this.mitreFilter.technique) {
-        return false;
-      }
-    }
-
-    // If specific tactic filter is set
-    if (this.mitreFilter.tactic && logEntry.mitre) {
-      if (logEntry.mitre.tactic !== this.mitreFilter.tactic) {
-        return false;
-      }
-    }
-
-    return true;
+    return matchesMitreFilter(logEntry, this.mitreFilter);
   }
+
 
   public async stop(): Promise<void> {
     if (!this.isRunning) {
