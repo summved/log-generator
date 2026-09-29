@@ -2,22 +2,22 @@
 
 ## 📋 Pre-Deployment Validation
 
-### ✅ **Step 1: Run Comprehensive Test Suite**
+### ✅ **Step 1: Run the Unit Tests and Type Check**
 ```bash
-# Run the complete test suite
-./comprehensive-test-suite.sh
+npx tsc --noEmit
+npm test
 
-# Expected result: All tests should pass
-# If any tests fail, fix the issues before proceeding
+# Expected result: no type errors and all tests pass
 ```
 
-### ✅ **Step 2: Run Pre-Commit Validation**
+### ✅ **Step 2: Run the Smoke Test**
 ```bash
-# Validate code quality and security
-./pre-commit-validation.sh
+# Runs every CLI command, npm script, the built CLI and the examples.
+# HTTP and syslog output go to local receivers on 127.0.0.1.
+npm run test:smoke
 
-# Expected result: All validations should pass
-# Review any warnings before proceeding
+# Expected result: "✅ All N checks passed" (it exits 1 and lists the failures otherwise)
+# Also run `npm audit --audit-level=high` before pushing
 ```
 
 ### ✅ **Step 3: Manual Verification Checklist**
@@ -169,8 +169,8 @@ npm run generate -- --duration 10s
 
 Before pushing to git, ensure:
 
-- [ ] **Comprehensive test suite passes** (`./comprehensive-test-suite.sh`)
-- [ ] **Pre-commit validation passes** (`./pre-commit-validation.sh`)
+- [ ] **Type check and unit tests pass** (`npx tsc --noEmit && npm test`)
+- [ ] **Smoke test passes** (`npm run test:smoke`)
 - [ ] **All manual verification items checked**
 - [ ] **Meaningful commit message created**
 - [ ] **No sensitive information in code**
