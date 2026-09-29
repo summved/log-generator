@@ -65,19 +65,9 @@ LABEL maintainer="log-generator-team" \
       org.opencontainers.image.source="https://github.com/your-org/log-generator" \
       org.opencontainers.image.documentation="https://github.com/your-org/log-generator/blob/main/README.md"
 
-# Health check that actually tests functionality
+# Probe the running service's /health endpoint (not a fresh process, which would pass even if it is dead)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD node -e " \
-    const { LogGeneratorManager } = require('./dist/LogGeneratorManager'); \
-    try { \
-      const manager = new LogGeneratorManager(); \
-      const stats = manager.getPerformanceStats(); \
-      console.log('Health check passed:', stats); \
-      process.exit(0); \
-    } catch (error) { \
-      console.error('Health check failed:', error); \
-      process.exit(1); \
-    }"
+  CMD node -e "require('http').get({host:'127.0.0.1',port:process.env.HTTP_PORT||3000,path:'/health',timeout:5000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
