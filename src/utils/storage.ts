@@ -8,6 +8,8 @@ export class StorageManager {
   private currentPath: string;
   private historicalPath: string;
   private retentionDays: number;
+  private pending?: { lines: string[]; done: Promise<string>; resolve: (file: string) => void; reject: (error: unknown) => void };
+  private writeChain: Promise<void> = Promise.resolve();
 
   constructor(currentPath: string, historicalPath: string, retentionDays: number = 30) {
     this.currentPath = currentPath;
@@ -22,26 +24,66 @@ export class StorageManager {
   }
 
   public async storeLogs(logs: LogEntry[], filename?: string): Promise<string> {
-    const logFilename = filename || `logs_${moment().format('YYYY-MM-DD_HH-mm-ss')}.jsonl`;
-    const filePath = path.join(this.currentPath, logFilename);
+    const filePath = path.join(this.currentPath, filename || this.defaultFilename());
+    await this.appendLines(filePath, logs.map(log => JSON.stringify(log)));
+    return filePath;
+  }
 
+  /**
+   * Store one log in the current history file. Logs handed over in the same tick are joined and
+   * written with a single append, in order; each promise resolves once its log is on disk.
+   */
+  public storeLog(log: LogEntry, filename?: string): Promise<string> {
+    if (filename) {
+      return this.storeLogs([log], filename);
+    }
+    if (!this.pending) {
+      let resolve!: (file: string) => void;
+      let reject!: (error: unknown) => void;
+      const done = new Promise<string>((res, rej) => { resolve = res; reject = rej; });
+      this.pending = { lines: [], done, resolve, reject };
+      setImmediate(() => this.writePending());
+    }
+    this.pending.lines.push(JSON.stringify(log));
+    return this.pending.done;
+  }
+
+  /** Wait until every log handed to storeLog so far is on disk */
+  public async flush(): Promise<void> {
+    this.writePending();
+    await this.writeChain;
+  }
+
+  private writePending(): void {
+    const batch = this.pending;
+    if (!batch) return;
+    this.pending = undefined;
+    const filePath = path.join(this.currentPath, this.defaultFilename());
+    // Chained so batches reach the file in the order they were handed over
+    this.writeChain = this.writeChain
+      .then(() => this.appendLines(filePath, batch.lines))
+      .then(() => batch.resolve(filePath), error => batch.reject(error));
+    // Callers that never await storeLog must not cause an unhandled rejection; the error is logged in appendLines
+    batch.done.catch(() => undefined);
+  }
+
+  private async appendLines(filePath: string, lines: string[]): Promise<void> {
     try {
-      const logLines = logs.map(log => JSON.stringify(log)).join('\n');
-      await fs.appendFile(filePath, logLines + '\n');
-      logger.debug(`Stored ${logs.length} logs to ${filePath}`);
-      return filePath;
+      await fs.appendFile(filePath, lines.join('\n') + '\n');
+      logger.debug(`Stored ${lines.length} logs to ${filePath}`);
     } catch (error) {
-      logger.error(`Failed to store logs to ${filePath}:`, error);
+      logger.error(`Failed to store ${lines.length} logs to ${filePath}:`, error);
       throw error;
     }
   }
 
-  public async storeLog(log: LogEntry, filename?: string): Promise<string> {
-    return this.storeLogs([log], filename);
+  private defaultFilename(): string {
+    return `logs_${moment().format('YYYY-MM-DD_HH-mm-ss')}.jsonl`;
   }
 
   public async rotateCurrentLogs(): Promise<void> {
     try {
+      await this.flush();
       const files = await fs.readdir(this.currentPath);
       const logFiles = files.filter(file => file.endsWith('.jsonl') || file.endsWith('.json'));
 
