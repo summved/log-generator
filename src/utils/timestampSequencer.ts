@@ -3,7 +3,7 @@
  * to prevent race conditions and duplicate timestamps in log entries.
  * 
  * Features:
- * - Unique within one thread (each worker thread has its own sequencer)
+ * - Unique across worker threads when each calls useSlots(index, count)
  * - Six fractional digits: up to 1,000 unique timestamps per millisecond
  * - Stays on the clock at high rates (no drift below 1M logs/s)
  * - Monotonic timestamp guarantee
@@ -14,6 +14,8 @@ export class TimestampSequencer {
   private counter: number = 0;
   private lastTimestamp: number = 0;
   private subMillisecond: number = 0;
+  private slotOffset: number = 0;
+  private slotStride: number = 1;
 
   private constructor() {}
 
@@ -34,11 +36,11 @@ export class TimestampSequencer {
 
     if (now > this.lastTimestamp) {
       this.lastTimestamp = now;
-      this.subMillisecond = 0;
-    } else if (++this.subMillisecond >= 1000) {
+      this.subMillisecond = this.slotOffset;
+    } else if ((this.subMillisecond += this.slotStride) >= 1000) {
       // Same millisecond (or the clock stepped back): stay unique and increasing
       this.lastTimestamp++;
-      this.subMillisecond = 0;
+      this.subMillisecond = this.slotOffset;
     }
 
     this.counter++;
@@ -49,12 +51,25 @@ export class TimestampSequencer {
   }
 
   /**
+   * Use every `stride`-th sub-millisecond slot starting at `offset`. Worker thread i of n calls
+   * useSlots(i, n), so timestamps from different threads never collide.
+   */
+  public useSlots(offset: number, stride: number): void {
+    if (!Number.isInteger(offset) || !Number.isInteger(stride) || stride < 1 || stride > 1000 || offset < 0 || offset >= stride) {
+      throw new Error(`Invalid timestamp slots: offset ${offset}, stride ${stride}`);
+    }
+    this.slotOffset = offset;
+    this.slotStride = stride;
+    this.subMillisecond = offset;
+  }
+
+  /**
    * Reset the sequencer (mainly for testing purposes)
    */
   public reset(): void {
     this.counter = 0;
     this.lastTimestamp = 0;
-    this.subMillisecond = 0;
+    this.subMillisecond = this.slotOffset;
   }
 
   /**

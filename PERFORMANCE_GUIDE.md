@@ -40,8 +40,33 @@ Apple M4 Pro, 14 CPUs, Node 26, 3s per measurement:
 What this shows:
 - **The generators aren't the limit.** One thread makes about 100k logs/s, and worker threads scale almost linearly, to about 655k logs/s on 14 CPUs.
 - **The output path is the limit.** File and HTTP output top out at the speed of the per-log history copy (`StorageManager.storeLog`, one `appendFile` per log). UDP syslog is slower because every message opens a new socket.
-- **`generate` doesn't use worker threads yet.** The 655k/s figure is what the generators can reach, not what `generate` produces today.
-- **Timestamps drift at high rates.** When two logs are created in the same millisecond, the timestamp moves ahead by 1 ms. Above about 1,000 logs/s, timestamps therefore run ahead of the clock, and the benchmark prints a warning.
+- **Timestamps stay on the clock.** Logs in the same millisecond use sub-millisecond slots (six fractional digits). Each worker thread gets its own slots, so timestamps never collide across threads. The benchmark warns if timestamps ever run ahead (only above 1M logs/s in one thread).
+
+### Generating at full force: `generate --workers`
+
+```bash
+npm run generate -- --workers 4                    # 4 worker threads share the configured rates
+npm run performance-test -- --mode worker --workers 4 --duration 30s   # reports logs generated and logs/s
+```
+
+With `--workers N`, each worker thread runs every enabled generator at 1/N of its configured rate, so the total rate is what the config says. The main thread applies MITRE filters and metrics, then writes the output and the history copy.
+
+Rates are set per generator in the config (`frequency`, logs per minute). To go flat out, set frequencies higher than the tool can produce. Generation then runs as fast as the output can write, and **flow control** keeps memory bounded:
+- Without workers, the generators pause while more than 50,000 logs are still being written.
+- With workers, each worker pauses while more than 20,000 of its logs are waiting for the main thread.
+
+Every generator at 100k logs/s (far more than can be written), 10 s, file output, `node dist/cli.js`, M4 Pro. Every log was written to both the output file and the history copy:
+
+| Worker threads | Logs/second | Peak memory |
+|---|---|---|
+| none (main thread) | ~70,000 | ~720 MB |
+| 2 | ~165,000 | ~1.1 GB |
+| 4 | **~304,000** | ~2.7 GB |
+| 8 | ~239,000 | ~3.1 GB |
+
+- More workers stop helping once the main thread, which does all the writing, is saturated. Try `npm run benchmark` and a few `--workers` values on your hardware.
+- Memory stays flat over time. The same test over 30 s peaked at the same level.
+
 
 `performance-test` runs the configured generators at their configured rates for a set time. It shows which generators ran; for maximum throughput, use `benchmark`.
 

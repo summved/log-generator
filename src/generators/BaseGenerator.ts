@@ -9,6 +9,8 @@ export abstract class BaseGenerator {
   protected config: GeneratorConfig;
   protected isRunning: boolean = false;
   private intervalId?: NodeJS.Timeout;
+  private paused: boolean = false;
+  private onLogGenerated?: (log: LogEntry) => void;
 
   constructor(source: LogSource, config: GeneratorConfig) {
     this.source = source;
@@ -27,23 +29,11 @@ export abstract class BaseGenerator {
     }
 
     this.isRunning = true;
-    
-    // Batch Generation Optimization: Dynamic batching based on frequency
-    const batchConfig = this.calculateBatchConfig(this.config.frequency);
-    
-    logger.info(`Starting ${this.source.name} generator with frequency ${this.config.frequency} logs/min (batch: ${batchConfig.logsPerBatch} logs every ${batchConfig.intervalMs}ms)`);
+    this.onLogGenerated = onLogGenerated;
 
-    this.intervalId = setInterval(() => {
-      try {
-        // Generate batch of logs for high-frequency generators
-        for (let i = 0; i < batchConfig.logsPerBatch; i++) {
-          const logEntry = this.generateLogEntry();
-          onLogGenerated(logEntry);
-        }
-      } catch (error) {
-        logger.error(`Error generating log batch for ${this.source.name}:`, error);
-      }
-    }, batchConfig.intervalMs);
+    const batchConfig = this.calculateBatchConfig(this.config.frequency);
+    logger.info(`Starting ${this.source.name} generator with frequency ${this.config.frequency} logs/min (batch: ${batchConfig.logsPerBatch} logs every ${batchConfig.intervalMs}ms)`);
+    this.schedule();
   }
 
   public stop(): void {
@@ -52,12 +42,48 @@ export abstract class BaseGenerator {
     }
 
     this.isRunning = false;
+    this.paused = false;
+    this.clearTimer();
+    logger.info(`Stopped ${this.source.name} generator`);
+  }
+
+  /** Stop producing logs for now (e.g. while output catches up); the generator stays running */
+  public pause(): void {
+    if (!this.isRunning || this.paused) return;
+    this.paused = true;
+    this.clearTimer();
+  }
+
+  public resume(): void {
+    if (!this.isRunning || !this.paused) return;
+    this.paused = false;
+    this.schedule();
+  }
+
+  public isPaused(): boolean {
+    return this.paused;
+  }
+
+  private schedule(): void {
+    // Batch Generation Optimization: Dynamic batching based on frequency
+    const batchConfig = this.calculateBatchConfig(this.config.frequency);
+    this.intervalId = setInterval(() => {
+      try {
+        // Generate batch of logs for high-frequency generators
+        for (let i = 0; i < batchConfig.logsPerBatch && !this.paused; i++) {
+          this.onLogGenerated?.(this.generateLogEntry());
+        }
+      } catch (error) {
+        logger.error(`Error generating log batch for ${this.source.name}:`, error);
+      }
+    }, batchConfig.intervalMs);
+  }
+
+  private clearTimer(): void {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = undefined;
     }
-
-    logger.info(`Stopped ${this.source.name} generator`);
   }
 
   /** Generate `count` logs immediately, as fast as possible (no timer; used by the benchmark) */

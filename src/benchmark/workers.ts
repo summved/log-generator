@@ -2,19 +2,13 @@
  * Runs the benchmark worker (workerEntry) on several threads at once and combines the results.
  */
 
-import * as path from 'path';
-import { Worker } from 'worker_threads';
+import { startWorker } from '../workers/workerScript';
 import { Measurement, toMeasurement } from './measure';
 import { WorkerJob, WorkerTotals } from './workerEntry';
 
-// Running from TypeScript source (ts-node, jest), the worker needs a TypeScript loader too
-const EXTENSION = path.extname(__filename);
-const ENTRY = path.join(__dirname, `workerEntry${EXTENSION}`);
-const EXEC_ARGV = EXTENSION === '.ts' ? ['--require', 'ts-node/register/transpile-only'] : [];
-
 function runOne(job: WorkerJob): Promise<WorkerTotals> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(ENTRY, { workerData: job, execArgv: EXEC_ARGV });
+    const worker = startWorker(__dirname, 'workerEntry', { workerData: job });
     worker.once('message', (message: { ok: boolean; totals?: WorkerTotals; error?: string }) => {
       if (message.ok && message.totals) resolve(message.totals);
       else reject(new Error(message.error || 'Benchmark worker failed'));
