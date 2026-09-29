@@ -289,6 +289,13 @@ export class OutputManager {
     } catch (error) {
       logger.error('Failed to flush buffers during shutdown:', error);
     }
+
+    try {
+      // Wait for the history copy of every log handed over so far
+      await this.storageManager.flush();
+    } catch (error) {
+      logger.error('Failed to write history logs during shutdown:', error);
+    }
     
     // Close file stream
     if (this.fileStream) {
