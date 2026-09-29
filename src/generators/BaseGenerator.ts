@@ -31,8 +31,7 @@ export abstract class BaseGenerator {
     this.isRunning = true;
     this.onLogGenerated = onLogGenerated;
 
-    const batchConfig = this.calculateBatchConfig(this.config.frequency);
-    logger.info(`Starting ${this.source.name} generator with frequency ${this.config.frequency} logs/min (batch: ${batchConfig.logsPerBatch} logs every ${batchConfig.intervalMs}ms)`);
+    logger.info(`Starting ${this.source.name} generator with frequency ${this.config.frequency} logs/min`);
     this.schedule();
   }
 
@@ -64,19 +63,35 @@ export abstract class BaseGenerator {
     return this.paused;
   }
 
+  /**
+   * Every tick emits the logs that are due since scheduling started, so the rate matches
+   * `frequency` (logs per minute) exactly over time. After a pause, or if generation falls more
+   * than a second behind, counting restarts instead of bursting to catch up.
+   */
   private schedule(): void {
-    // Batch Generation Optimization: Dynamic batching based on frequency
-    const batchConfig = this.calculateBatchConfig(this.config.frequency);
+    const perMs = this.config.frequency / 60000;
+    const intervalMs = this.tickIntervalMs(this.config.frequency);
+    const maxBacklog = Math.max(1, Math.ceil(perMs * 1000));
+    let startedAt = Date.now();
+    let emitted = 0;
+
     this.intervalId = setInterval(() => {
       try {
-        // Generate batch of logs for high-frequency generators
-        for (let i = 0; i < batchConfig.logsPerBatch && !this.paused; i++) {
+        let due = Math.floor((Date.now() - startedAt) * perMs) - emitted;
+        if (due > maxBacklog) {
+          // Too far behind (e.g. output is the bottleneck): skip the backlog rather than burst
+          startedAt = Date.now() - intervalMs;
+          emitted = 0;
+          due = Math.floor(intervalMs * perMs);
+        }
+        for (let i = 0; i < due && !this.paused; i++) {
+          emitted++;
           this.onLogGenerated?.(this.generateLogEntry());
         }
       } catch (error) {
         logger.error(`Error generating log batch for ${this.source.name}:`, error);
       }
-    }, batchConfig.intervalMs);
+    }, intervalMs);
   }
 
   private clearTimer(): void {
@@ -97,10 +112,11 @@ export abstract class BaseGenerator {
 
   protected generateLogEntry(): LogEntry {
     const template = this.selectTemplate();
-    const message = TemplateEngine.processTemplate(template.messageTemplate, template.metadata);
+    const rendered = TemplateEngine.render(template.messageTemplate, { ...this.config.metadata, ...template.metadata });
+    const message = rendered.message;
     const metadata = TemplateEngine.generateMetadata({
-      ...this.config.metadata,
-      ...template.metadata,
+      host: this.source.host || this.source.name,
+      ...rendered.metadata,
       generator: this.source.name
     });
 
@@ -118,51 +134,12 @@ export abstract class BaseGenerator {
     return logEntry;
   }
 
-  /**
-   * Calculate optimal batch configuration based on target frequency
-   * Low frequencies: No batching (maintains exact timing)
-   * High frequencies: Batch generation (improves performance)
-   */
-  private calculateBatchConfig(targetFrequency: number): { logsPerBatch: number; intervalMs: number } {
-    // Frequency threshold for batching (logs/minute)
-    const BATCH_THRESHOLD = 20;
-    
-    if (targetFrequency <= BATCH_THRESHOLD) {
-      // Low frequency: Use original approach (1 log per timer tick)
-      return {
-        logsPerBatch: 1,
-        intervalMs: (60 / targetFrequency) * 1000
-      };
-    }
-    
-    // High frequency: Use batch generation for maximum performance
-    // Strategy: Optimize timer frequency and batch size for target throughput
-    
-    let timerFrequencyHz: number;
-    let intervalMs: number;
-    
-    if (targetFrequency <= 1000) {
-      // Medium-high frequency: 10 Hz timer (100ms intervals)
-      timerFrequencyHz = 10;
-      intervalMs = 100;
-    } else if (targetFrequency <= 10000) {
-      // Very high frequency: 20 Hz timer (50ms intervals)
-      timerFrequencyHz = 20;
-      intervalMs = 50;
-    } else {
-      // Extreme frequency: 100 Hz timer (10ms intervals)
-      timerFrequencyHz = 100;
-      intervalMs = 10;
-    }
-    
-    // Calculate logs per batch to achieve exact target frequency
-    const targetLogsPerSecond = targetFrequency / 60;
-    const logsPerBatch = Math.max(1, Math.round(targetLogsPerSecond / timerFrequencyHz));
-    
-    return {
-      logsPerBatch,
-      intervalMs
-    };
+  /** Timer interval: one tick per log at low rates, up to 100 ticks a second at high rates */
+  private tickIntervalMs(logsPerMinute: number): number {
+    if (logsPerMinute <= 20) return 60000 / logsPerMinute;
+    if (logsPerMinute <= 1000) return 100;
+    if (logsPerMinute <= 10000) return 50;
+    return 10;
   }
 
   /**

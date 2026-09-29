@@ -28,12 +28,12 @@ export function createGenerators(config: Config['generators']): Map<GeneratorNam
     ['server', new ServerGenerator(config.server)],
     ['firewall', new FirewallGenerator(config.firewall)],
     ['cloud', new CloudGenerator(config.cloud)],
-    ['authentication', new AuthenticationGenerator({ type: 'authentication', name: 'auth-service', host: 'auth-01' }, config.authentication)],
-    ['database', new DatabaseGenerator({ type: 'database', name: 'postgres-primary', host: 'db-01' }, config.database)],
-    ['webserver', new WebServerGenerator({ type: 'webserver', name: 'nginx-proxy', host: 'web-01' }, config.webserver)],
-    ['email', new EmailGenerator({ type: 'email', name: 'mail-server', host: 'mail-01' }, config.email)],
-    ['backup', new BackupGenerator({ type: 'backup', name: 'backup-service', host: 'backup-01' }, config.backup)],
-    ['microservices', new MicroservicesGenerator({ type: 'microservices', name: 'service-mesh', host: 'k8s-01' }, config.microservices)],
-    ['iot', new IoTGenerator({ type: 'iot', name: 'iot-hub', host: 'iot-01' }, config.iot)]
+    ['authentication', new AuthenticationGenerator(config.authentication)],
+    ['database', new DatabaseGenerator(config.database)],
+    ['webserver', new WebServerGenerator(config.webserver)],
+    ['email', new EmailGenerator(config.email)],
+    ['backup', new BackupGenerator(config.backup)],
+    ['microservices', new MicroservicesGenerator(config.microservices)],
+    ['iot', new IoTGenerator(config.iot)]
   ]);
 }

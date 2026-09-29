@@ -2,16 +2,14 @@ import { BaseGenerator } from './BaseGenerator';
 import { LogSource, GeneratorConfig } from '../types';
 
 export class WebServerGenerator extends BaseGenerator {
-  constructor(source: LogSource, config: GeneratorConfig) {
-    super(source, config);
-  }
-
-  protected getLogSource(): LogSource {
-    return {
+  constructor(config: GeneratorConfig) {
+    const source: LogSource = {
       type: 'webserver',
       name: 'nginx-proxy',
       host: 'web-01',
       component: 'reverse-proxy'
     };
+
+    super(source, config);
   }
 }
