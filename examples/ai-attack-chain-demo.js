@@ -17,13 +17,12 @@ async function demonstrateAIAttackChains() {
   const manager = new EnhancedAttackChainManager();
   const chain = 'ransomware-ryuk';
 
-  // 1. Enhancement options for one chain
+  // 1. Variation options for one chain
   const options = manager.getEnhancementOptions(chain);
-  console.log(`📋 ${options.template.name} (${options.template.category}, ${options.template.difficulty})\n`);
-  console.log('🎛️ Modes:');
-  options.availableModes.forEach(mode => console.log(`   ${mode.mode.padEnd(9)} ${mode.description}`));
-  console.log('\n🎯 AI levels:');
-  options.availableLevels.forEach(level => console.log(`   ${level.level.padEnd(9)} ${level.description}`));
+  console.log(`📋 ${options.chain.name} (${options.chain.category}, ${options.chain.difficulty})\n`);
+  console.log(`🎛️ Modes: ${options.modes.join(', ')}`);
+  console.log('\n🎯 Levels:');
+  options.levels.forEach(level => console.log(`   ${level.level.padEnd(9)} ${level.description}`));
 
   // 2. Preview: real chain details and estimates from the template
   const preview = await manager.previewEnhancement(chain, 'enhanced', 'medium');
@@ -37,7 +36,7 @@ async function demonstrateAIAttackChains() {
   console.log('\n⚡ Simulated runs:');
   for (const [mode, aiLevel] of [['static', 'basic'], ['enhanced', 'medium'], ['dynamic', 'high']]) {
     const execution = await manager.executeEnhancedChain(chain, { mode, aiLevel });
-    const changes = execution.aiEnhancements.map(enhancement => enhancement.type).join(', ');
+    const changes = execution.plannedChanges.map(change => change.description).join('; ');
     console.log(`   ${mode.padEnd(9)} ${aiLevel.padEnd(7)} ${execution.status} (${execution.executionMode}) - ${changes}`);
   }
 

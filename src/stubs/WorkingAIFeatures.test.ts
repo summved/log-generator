@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { AttackChainManager } from '../chains/AttackChainManager';
 import { calculateStepLogCount } from '../chains/StepLogFactory';
 import { AttackChainExecution } from '../types/attackChain';
@@ -7,124 +10,123 @@ jest.mock('../utils/logger', () => ({
   logger: { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() }
 }));
 
-describe('EnhancedAttackChainManager.previewEnhancement', () => {
+const RYUK = 'ransomware-ryuk';
+let historyFile: string;
+const newManager = () => new EnhancedAttackChainManager(undefined, { historyFile });
+
+beforeEach(() => { historyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-hist-')), 'exec.jsonl'); });
+
+describe('previewEnhancement', () => {
   const manager = new EnhancedAttackChainManager();
-  const chain = manager.getTemplate('ransomware-ryuk')!.chain;
+  const chain = manager.getTemplate(RYUK)!.chain;
 
-  it('describes the real chain with estimates derived from its template', async () => {
-    const preview = await manager.previewEnhancement('ransomware-ryuk', 'enhanced', 'medium');
+  it('describes the real chain with estimates from its template', async () => {
+    const preview = await manager.previewEnhancement(RYUK, 'enhanced', 'medium');
 
-    expect(preview.chain).toEqual(expect.objectContaining({
-      id: 'ryuk-ransomware-campaign',
-      name: 'Ryuk Ransomware Campaign',
-      stepCount: chain.steps.length
-    }));
+    expect(preview.chain).toEqual(expect.objectContaining({ id: 'ryuk-ransomware-campaign', name: 'Ryuk Ransomware Campaign', stepCount: chain.steps.length }));
     expect(preview.techniques).toEqual(chain.steps.map(step => step.mitre.technique));
     expect(preview.estimatedLogs).toBe(chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0));
-    expect(preview.estimatedDurationMs).toBe(
-      chain.steps.reduce((total, step) => total + step.timing.delayAfterPrevious + step.timing.duration, 0)
-    );
   });
 
-  it('is deterministic for the same inputs', async () => {
-    const first = await manager.previewEnhancement('ransomware-ryuk', 'dynamic', 'high');
-    const second = await manager.previewEnhancement('ransomware-ryuk', 'dynamic', 'high');
-
-    expect(second).toEqual(first);
+  it('is deterministic', async () => {
+    expect(await manager.previewEnhancement(RYUK, 'dynamic', 'high')).toEqual(await manager.previewEnhancement(RYUK, 'dynamic', 'high'));
   });
 
-  it('plans more changes for higher modes and levels', async () => {
-    const basic = await manager.previewEnhancement('ransomware-ryuk', 'static', 'basic');
-    const advanced = await manager.previewEnhancement('ransomware-ryuk', 'dynamic', 'advanced');
+  it('describes only timing/log-rate variation, with no invented capabilities', async () => {
+    const advanced = await manager.previewEnhancement(RYUK, 'dynamic', 'advanced');
+    const staticPreview = await manager.previewEnhancement(RYUK, 'static', 'basic');
 
-    expect(basic.plannedChanges.length).toBeGreaterThan(0);
-    expect(advanced.plannedChanges.length).toBeGreaterThan(basic.plannedChanges.length);
-    for (const change of advanced.plannedChanges) {
-      expect(change).toEqual({ type: expect.any(String), description: expect.any(String) });
-    }
+    expect(advanced.plannedChanges).toEqual([{ type: 'timing_variation', description: expect.stringContaining('+/-50%') }]);
+    expect(staticPreview.plannedChanges).toEqual([{ type: 'none', description: expect.stringContaining('no variation') }]);
+    expect(JSON.stringify(advanced)).not.toMatch(/evasion|anti-forensics|substitut|detection/i);
   });
 
   it('rejects unknown chains, modes and levels', async () => {
     await expect(manager.previewEnhancement('no-such-chain', 'enhanced', 'medium')).rejects.toThrow('Attack chain template not found');
-    await expect(manager.previewEnhancement('ransomware-ryuk', 'turbo', 'medium')).rejects.toThrow('Unknown enhancement mode "turbo"');
-    await expect(manager.previewEnhancement('ransomware-ryuk', 'enhanced', 'godlike')).rejects.toThrow('Unknown AI level "godlike"');
+    await expect(manager.previewEnhancement(RYUK, 'turbo', 'medium')).rejects.toThrow('Unknown mode "turbo"');
+    await expect(manager.previewEnhancement(RYUK, 'enhanced', 'godlike')).rejects.toThrow('Unknown level "godlike"');
   });
 });
 
-describe('EnhancedAttackChainManager.getExecutionHistory', () => {
-  it('reports no executions when none have run', () => {
-    const history = new EnhancedAttackChainManager().getExecutionHistory(50);
+describe('executeEnhancedChain (simulation, the default)', () => {
+  it('writes no logs and reports the real estimate', async () => {
+    const manager = newManager();
+    const chain = manager.getTemplate(RYUK)!.chain;
 
-    expect(history.executions).toEqual([]);
-    expect(history.statistics).toEqual({ totalExecutions: 0, modeDistribution: {}, levelDistribution: {} });
+    const execution = await manager.executeEnhancedChain(RYUK, { mode: 'dynamic', aiLevel: 'advanced' });
+
+    expect(execution.executionMode).toBe('simulation');
+    expect(execution.logsGenerated).toBe(0);
+    expect(execution.variationSpread).toBe(0.5);
+    expect(execution.estimatedLogs).toBe(chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0));
   });
 
-  it('records the executions this manager actually ran', async () => {
-    const manager = new EnhancedAttackChainManager();
-
-    await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'enhanced', aiLevel: 'high' });
-    const history = manager.getExecutionHistory(50);
-
-    expect(history.executions).toHaveLength(1);
-    expect(history.executions[0]).toEqual(expect.objectContaining({
-      chainId: 'ryuk-ransomware-campaign', mode: 'enhanced', aiLevel: 'high', executionMode: 'simulation'
-    }));
-    expect(history.statistics).toEqual({
-      totalExecutions: 1, modeDistribution: { enhanced: 1 }, levelDistribution: { high: 1 }
-    });
-  }, 15000);
+  it('returns quickly, without the configured delay', async () => {
+    const start = Date.now();
+    await newManager().executeEnhancedChain(RYUK, {});
+    expect(Date.now() - start).toBeLessThan(500);
+  });
 });
 
-describe('EnhancedAttackChainManager full execution', () => {
-  it('passes the config file as the log generator config, not as execution settings', async () => {
-    const run = jest.spyOn(AttackChainManager.prototype, 'executeChain')
-      .mockResolvedValue({ chainId: 'ryuk-ransomware-campaign', executionId: 'e1', status: 'completed', stats: {} } as unknown as AttackChainExecution);
+describe('executeEnhancedChain (full execution)', () => {
+  it('runs a chain whose steps are varied for the level, keeping the MITRE mapping', async () => {
+    const run = jest.spyOn(AttackChainManager.prototype, 'executeChainDefinition')
+      .mockResolvedValue({ chainId: 'ryuk-ransomware-campaign', executionId: 'e1', status: 'completed', completedSteps: [], failedSteps: [], totalSteps: 0, stats: { logsGenerated: 42, stepsCompleted: 11, stepsFailed: 0, averageStepDuration: 0 } } as unknown as AttackChainExecution);
     try {
-      await new EnhancedAttackChainManager().executeEnhancedChain('ransomware-ryuk', { simulation: false, config: './my-config.yaml' });
+      const manager = newManager();
+      const chain = manager.getTemplate(RYUK)!.chain;
+      const execution = await manager.executeEnhancedChain(RYUK, { simulation: false, aiLevel: 'high', config: './c.yaml' });
 
-      expect(run).toHaveBeenCalledWith('ransomware-ryuk', undefined, './my-config.yaml');
+      const passedChain = run.mock.calls[0][0];
+      expect(run.mock.calls[0][2]).toBe('./c.yaml');
+      expect(passedChain.steps.map(s => s.mitre)).toEqual(chain.steps.map(s => s.mitre));
+      expect(passedChain.steps.some((s, i) => s.timing.duration !== chain.steps[i].timing.duration)).toBe(true);
+      expect(execution.executionMode).toBe('full');
+      expect(execution.logsGenerated).toBe(42);
     } finally {
       run.mockRestore();
     }
   });
 });
 
-describe('EnhancedAttackChainManager simulation', () => {
-  const manager = new EnhancedAttackChainManager();
-  const chain = manager.getTemplate('ransomware-ryuk')!.chain;
-
-  it('reports no logs written, with the real estimate from the template', async () => {
-    const execution = await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'enhanced', aiLevel: 'high' });
-
-    expect(execution.executionMode).toBe('simulation');
-    expect(execution.stats.logsGenerated).toBe(0);
-    expect(execution.stats.estimatedLogs).toBe(chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0));
-    expect(execution.chainId).toBe('ryuk-ransomware-campaign');
+describe('execution history (persisted)', () => {
+  it('is empty when nothing has run', () => {
+    expect(newManager().getExecutionHistory().statistics).toEqual({ totalExecutions: 0, modeDistribution: {}, levelDistribution: {} });
   });
 
-  it('lists the planned changes from the preview instead of invented impact scores', async () => {
-    const execution = await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'dynamic', aiLevel: 'advanced' });
-    const preview = await manager.previewEnhancement('ransomware-ryuk', 'dynamic', 'advanced');
+  it('records runs and survives a new manager instance (a new process)', async () => {
+    await newManager().executeEnhancedChain(RYUK, { mode: 'enhanced', aiLevel: 'high' });
+    await newManager().executeEnhancedChain(RYUK, { mode: 'dynamic', aiLevel: 'high' });
 
-    expect(execution.aiEnhancements).toEqual(preview.plannedChanges);
-    expect(execution.stats.detectionEvasion).toBeUndefined();
-    expect(JSON.stringify(execution)).not.toMatch(/Reduced detection|Improved stealth|Reduced SIEM/);
-  });
-
-  it('returns without an artificial delay', async () => {
-    const start = Date.now();
-    await manager.executeEnhancedChain('ransomware-ryuk', { mode: 'static', aiLevel: 'basic' });
-
-    expect(Date.now() - start).toBeLessThan(500);
+    const history = newManager().getExecutionHistory(50);
+    expect(history.statistics).toEqual({ totalExecutions: 2, modeDistribution: { enhanced: 1, dynamic: 1 }, levelDistribution: { high: 2 } });
+    expect(history.executions[0].mode).toBe('dynamic'); // most recent first
   });
 });
 
-describe('EnhancedAttackChainManager training session', () => {
-  it('runs the requested number of variations with the requested delay', async () => {
+describe('executeTrainingSession', () => {
+  it('runs the requested count with progressive levels and the requested delay', async () => {
     const start = Date.now();
-    const executions = await new EnhancedAttackChainManager().executeTrainingSession('ransomware-ryuk', { variationCount: 2, delayBetweenVariations: 0 });
+    const executions = await newManager().executeTrainingSession(RYUK, { variationCount: 4, delayBetweenVariations: 0 });
 
-    expect(executions).toHaveLength(2);
-    expect(Date.now() - start).toBeLessThan(1000);
+    expect(executions.map(e => e.aiLevel)).toEqual(['basic', 'medium', 'high', 'advanced']);
+    expect(executions.every(e => e.executionMode === 'simulation')).toBe(true);
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
+
+  it('cycles the level when progressive is off', async () => {
+    const executions = await newManager().executeTrainingSession(RYUK, { variationCount: 5, delayBetweenVariations: 0, progressive: false });
+
+    expect(executions.map(e => e.aiLevel)).toEqual(['basic', 'medium', 'high', 'advanced', 'basic']);
+  });
+});
+
+describe('getEnhancementOptions', () => {
+  it('lists modes, levels and spreads without invented features', () => {
+    const options = new EnhancedAttackChainManager().getEnhancementOptions(RYUK);
+
+    expect(options.modes).toEqual(['static', 'enhanced', 'dynamic']);
+    expect(options.levels.map(l => l.variationSpread)).toEqual([0.1, 0.2, 0.35, 0.5]);
+    expect(JSON.stringify(options)).not.toMatch(/evasion|anti-forensics|real-time adaptation/i);
   });
 });

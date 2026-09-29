@@ -1,16 +1,20 @@
 /**
- * Working AI Features Implementation
- * Provides basic AI-enhanced attack chain functionality
+ * attack-chains:execute-ai / training / preview / ai-options / ai-statistics.
+ *
+ * There is no AI model. --mode and --ai-level set how much each step's duration, delay and log
+ * rate vary (see variationProfile.ts), so repeated runs of a chain are not identical. Simulation
+ * (the default) writes no logs; --full-execution runs the varied chain and writes real logs.
+ * Executions are recorded to a JSONL file so ai-statistics works across processes.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { AttackChainManager } from '../chains/AttackChainManager';
-import { AttackChainTemplate } from '../types/attackChain';
 import { calculateStepLogCount } from '../chains/StepLogFactory';
 import { chainDurationMs } from '../chains/chainTiming';
+import { AttackChainTemplate } from '../types/attackChain';
 import { logger } from '../utils/logger';
-
-const ENHANCEMENT_MODES = ['static', 'enhanced', 'dynamic'];
-const AI_LEVELS = ['basic', 'medium', 'high', 'advanced'];
+import { applyVariation, VARIATION_LEVELS, VARIATION_MODES, variationSpread } from './variationProfile';
 
 export interface PlannedChange {
   type: string;
@@ -27,6 +31,39 @@ export interface EnhancementPreview {
   estimatedLogs: number;
 }
 
+export interface EnhancedOptions {
+  mode?: string;
+  aiLevel?: string;
+  /** Default true: describe only, write no logs */
+  simulation?: boolean;
+  /** Log generator config file (-c) */
+  config?: string;
+}
+
+export interface TrainingOptions extends EnhancedOptions {
+  variationCount?: number;
+  delayBetweenVariations?: number;
+  /** Levels from basic to advanced across the variations (default true); otherwise they cycle */
+  progressive?: boolean;
+}
+
+export interface EnhancedExecution {
+  executionId: string;
+  chainId: string;
+  chainName: string;
+  mode: string;
+  aiLevel: string;
+  variationSpread: number;
+  executionMode: 'simulation' | 'full';
+  status: string;
+  plannedChanges: PlannedChange[];
+  logsGenerated: number;
+  estimatedLogs: number;
+  stepsCompleted: number;
+  startTime: string;
+  endTime: string;
+}
+
 export interface AIExecutionRecord {
   executionId: string;
   chainId: string;
@@ -35,8 +72,9 @@ export interface AIExecutionRecord {
   aiLevel: string;
   executionMode: 'simulation' | 'full';
   status: string;
-  startTime: Date;
-  endTime: Date;
+  logsGenerated: number;
+  startTime: string;
+  endTime: string;
 }
 
 export interface AIExecutionHistory {
@@ -48,320 +86,184 @@ export interface AIExecutionHistory {
   };
 }
 
-export class EnhancedAttackChainManager extends AttackChainManager {
-  /** Executions run by this manager instance; not persisted between processes */
-  private executionHistory: AIExecutionRecord[] = [];
+const DEFAULT_HISTORY_FILE = path.join('logs', 'attack-chains', 'ai-executions.jsonl');
 
-  constructor(templatesDirectory?: string) {
+export class EnhancedAttackChainManager extends AttackChainManager {
+  private readonly historyFile: string;
+
+  constructor(templatesDirectory?: string, options: { historyFile?: string } = {}) {
     super(templatesDirectory);
-    logger.info('Enhanced Attack Chain Manager initialized with basic AI capabilities');
+    this.historyFile = options.historyFile || DEFAULT_HISTORY_FILE;
   }
 
-  /**
-   * Execute attack chain with AI enhancements
-   */
-  async executeEnhancedChain(name: string, options: any = {}): Promise<any> {
-    logger.info(`🤖 Starting AI-enhanced execution of: ${name}`);
+  /** Run (or, by default, simulate) a chain with timing and log-rate variation for the mode and level */
+  async executeEnhancedChain(name: string, options: EnhancedOptions = {}): Promise<EnhancedExecution> {
+    const template = this.findTemplate(name);
+    const mode = options.mode || 'enhanced';
+    const aiLevel = options.aiLevel || 'medium';
+    const spread = variationSpread(mode, aiLevel);
+    const simulation = options.simulation !== false;
     const startTime = new Date();
+    const estimatedLogs = template.chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0);
 
-    // Check if user wants simulation mode or full execution
-    const useSimulation = options.simulation !== false; // Default to simulation unless explicitly disabled
+    let executionId: string;
+    let status = 'completed';
+    let logsGenerated = 0;
+    let stepsCompleted = template.chain.steps.length;
 
-    // Get template info (try both ID and name)
-    const template = this.getTemplate(name) || this.getTemplateByName(name);
-    if (!template) {
-      throw new Error(`Attack chain template not found: ${name}`);
-    }
-
-    let baseExecution;
-
-    if (useSimulation) {
-      logger.info(`🚀 Running in SIMULATION mode (fast execution)`);
-      baseExecution = await this.simulateEnhancedExecution(template, options);
+    if (simulation) {
+      logger.info(`🤖 Simulating ${template.name} (${mode}/${aiLevel}); writes no logs`);
+      executionId = `ai-sim-${startTime.getTime()}`;
     } else {
-      logger.info(`⚡ Running in FULL EXECUTION mode (may take up to 45+ minutes)`);
-      logger.info(`🔄 Starting real attack chain execution...`);
-      // Run the actual full attack chain execution
-      // options.config / options.logGeneratorConfig: path to a log generator config file (the CLI -c option)
-      baseExecution = await this.executeChain(name, undefined, options.config || options.logGeneratorConfig);
+      logger.info(`🤖 Running ${template.name} (${mode}/${aiLevel}); +/-${Math.round(spread * 100)}% timing and log-rate variation`);
+      // Vary this run's timing and log rate; the steps, their order and their MITRE mapping are unchanged
+      const chain = { ...template.chain, steps: applyVariation(template.chain.steps, spread) };
+      const execution = await this.executeChainDefinition(chain, undefined, options.config);
+      executionId = execution.executionId;
+      status = execution.status;
+      logsGenerated = execution.stats.logsGenerated;
+      stepsCompleted = execution.stats.stepsCompleted;
     }
-    
-    // The rule-based changes this mode and level stand for (the same list preview shows)
-    const aiEnhancements = this.generateEnhancementPreview(options.mode || 'enhanced', options.aiLevel || 'medium');
-    
-    const enhancedExecution = {
-      ...baseExecution,
-      enhanced: true,
-      executionMode: useSimulation ? 'simulation' : 'full',
-      enhancementConfig: {
-        mode: options.mode || 'enhanced',
-        aiLevel: options.aiLevel || 'medium'
-      },
-      aiEnhancements,
-      stats: {
-        ...baseExecution.stats,
-        enhancementsApplied: aiEnhancements.length
-      }
-    };
 
-    logger.info(`✅ AI-enhanced execution completed: ${name}`, {
-      mode: useSimulation ? 'simulation' : 'full',
-      enhancements: aiEnhancements.length
-    });
-
-    this.executionHistory.push({
-      executionId: String(baseExecution.executionId || baseExecution.id || `ai-exec-${startTime.getTime()}`),
+    const record: AIExecutionRecord = {
+      executionId,
       chainId: template.chain.id,
       chainName: template.name,
-      mode: enhancedExecution.enhancementConfig.mode,
-      aiLevel: enhancedExecution.enhancementConfig.aiLevel,
-      executionMode: useSimulation ? 'simulation' : 'full',
-      status: String(baseExecution.status || 'completed'),
-      startTime,
-      endTime: new Date()
-    });
+      mode,
+      aiLevel,
+      executionMode: simulation ? 'simulation' : 'full',
+      status,
+      logsGenerated,
+      startTime: startTime.toISOString(),
+      endTime: new Date().toISOString()
+    };
+    this.record(record);
 
-    return enhancedExecution;
+    return {
+      ...record,
+      variationSpread: spread,
+      plannedChanges: this.plannedChanges(mode, aiLevel),
+      estimatedLogs,
+      stepsCompleted
+    };
   }
 
-  /**
-   * Execute training session with multiple variations
-   */
-  async executeTrainingSession(name: string, options: any = {}): Promise<any[]> {
-    // The CLI passes variationCount/delayBetweenVariations; variations is accepted for older callers
-    const variations = options.variationCount ?? options.variations ?? 3;
-    const delay = options.delayBetweenVariations ?? 2000;
-    logger.info(`🎯 Starting AI training session: ${name} (${variations} variations)`);
+  /** Run several variations of a chain. Progressive steps the level from basic to advanced. */
+  async executeTrainingSession(name: string, options: TrainingOptions = {}): Promise<EnhancedExecution[]> {
+    const variations = Math.max(1, options.variationCount ?? 5);
+    const delay = options.delayBetweenVariations ?? 30000;
+    const progressive = options.progressive !== false;
 
-    const executions = [];
-    
+    const executions: EnhancedExecution[] = [];
     for (let i = 0; i < variations; i++) {
-      const variationOptions = {
+      executions.push(await this.executeEnhancedChain(name, {
         ...options,
-        mode: this.getVariationMode(i),
-        aiLevel: this.getVariationAILevel(i),
-        variation: i + 1
-      };
-
-      try {
-        const execution = await this.executeEnhancedChain(name, variationOptions);
-        executions.push(execution);
-        
-        // Delay between variations
-        if (i < variations - 1) {
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      } catch (error) {
-        logger.error(`Training variation ${i + 1} failed:`, error);
+        mode: 'enhanced',
+        aiLevel: progressive ? this.progressiveLevel(i, variations) : this.cyclingLevel(i)
+      }));
+      if (i < variations - 1 && delay > 0) {
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
-
-    logger.info(`🏁 Training session completed: ${executions.length}/${variations} successful`);
     return executions;
   }
 
-  /**
-   * Preview enhancement without execution
-   */
+  /** Describe what a mode and level would do to a chain, without running it (deterministic) */
   async previewEnhancement(name: string, mode: string, aiLevel: string): Promise<EnhancementPreview> {
-    const template = this.getTemplate(name) || this.getTemplateByName(name);
-    if (!template) {
-      throw new Error(`Attack chain template not found: ${name}`);
-    }
-    if (!ENHANCEMENT_MODES.includes(mode)) {
-      throw new Error(`Unknown enhancement mode "${mode}". Use one of: ${ENHANCEMENT_MODES.join(', ')}`);
-    }
-    if (!AI_LEVELS.includes(aiLevel)) {
-      throw new Error(`Unknown AI level "${aiLevel}". Use one of: ${AI_LEVELS.join(', ')}`);
-    }
-
+    const template = this.findTemplate(name);
+    variationSpread(mode, aiLevel); // validates mode and level
     const steps = template.chain.steps;
+
     return {
-      chain: {
-        id: template.chain.id,
-        name: template.name,
-        category: template.category,
-        difficulty: template.difficulty,
-        stepCount: steps.length
-      },
+      chain: { id: template.chain.id, name: template.name, category: template.category, difficulty: template.difficulty, stepCount: steps.length },
       mode,
       aiLevel,
       techniques: steps.map(step => step.mitre.technique),
-      plannedChanges: this.generateEnhancementPreview(mode, aiLevel),
+      plannedChanges: this.plannedChanges(mode, aiLevel),
       estimatedDurationMs: chainDurationMs(steps),
       estimatedLogs: steps.reduce((total, step) => total + calculateStepLogCount(step), 0)
     };
   }
 
-  /**
-   * Get enhancement options for a specific chain
-   */
-  getEnhancementOptions(name: string): any {
-    const template = this.getTemplate(name) || this.getTemplateByName(name);
-    if (!template) {
-      throw new Error(`Attack chain template not found: ${name}`);
-    }
-
+  /** The modes, levels and their variation spreads for a chain (no invented capabilities) */
+  getEnhancementOptions(name: string): {
+    chain: { id: string; name: string; category: string; difficulty: string };
+    modes: string[];
+    aiLevels: string[];
+    levels: { level: string; variationSpread: number; description: string }[];
+    note: string;
+  } {
+    const template = this.findTemplate(name);
     return {
-      template: {
-        id: template.name.toLowerCase().replace(/\s+/g, '-'),
-        name: template.name,
-        category: template.category,
-        difficulty: template.difficulty,
-        description: template.description
-      },
-      modes: ['static', 'enhanced', 'dynamic'],
-      aiLevels: ['basic', 'medium', 'high', 'advanced'],
-      features: [
-        'timingRandomization',
-        'techniqueSubstitution',
-        'evasionTactics',
-        'adaptiveDelays',
-        'logVariation',
-        'scenarioGeneration'
-      ],
-      availableModes: [
-        {
-          mode: 'static',
-          description: 'Fixed timing and techniques, no AI enhancements',
-          requirements: ['None']
-        },
-        {
-          mode: 'enhanced',
-          description: 'AI-enhanced timing and technique variations',
-          requirements: ['Basic AI capabilities']
-        },
-        {
-          mode: 'dynamic',
-          description: 'Fully adaptive AI-driven attack chain execution',
-          requirements: ['Advanced AI capabilities', 'Real-time adaptation']
-        }
-      ],
-      availableLevels: [
-        {
-          level: 'basic',
-          description: 'Simple timing randomization and basic evasion',
-          features: ['Timing randomization']
-        },
-        {
-          level: 'medium',
-          description: 'Technique substitution and moderate evasion tactics',
-          features: ['Timing randomization', 'Technique substitution']
-        },
-        {
-          level: 'high',
-          description: 'Advanced evasion tactics and log variation',
-          features: ['Timing randomization', 'Technique substitution', 'Evasion tactics', 'Log variation']
-        },
-        {
-          level: 'advanced',
-          description: 'Full AI-driven adaptive execution with all features',
-          features: ['All AI features', 'Real-time adaptation', 'Anti-forensics', 'Scenario generation']
-        }
-      ],
-      availableEnhancements: this.getAvailableEnhancements(template),
-      recommendations: {
-        beginnerMode: 'static',
-        beginnerLevel: 'basic',
-        expertMode: 'dynamic', 
-        expertLevel: 'advanced'
-      }
+      chain: { id: template.chain.id, name: template.name, category: template.category, difficulty: template.difficulty },
+      modes: VARIATION_MODES,
+      aiLevels: VARIATION_LEVELS,
+      levels: VARIATION_LEVELS.map(level => ({
+        level,
+        variationSpread: variationSpread('enhanced', level),
+        description: `+/-${Math.round(variationSpread('enhanced', level) * 100)}% variation on step duration, delay and log rate`
+      })),
+      note: 'Variations change only timing and log volume. Steps, their order and their MITRE ATT&CK mapping are never changed.'
     };
   }
 
-  /**
-   * Get execution history
-   */
-  /**
-   * Executions actually run by this manager (most recent first), with summary statistics
-   */
+  /** Recorded executions (most recent first) with summary statistics, read from the history file */
   getExecutionHistory(limit: number = 10): AIExecutionHistory {
+    const records = this.readRecords();
     const countBy = (key: 'mode' | 'aiLevel'): Record<string, number> =>
-      this.executionHistory.reduce<Record<string, number>>((counts, record) => ({
-        ...counts,
-        [record[key]]: (counts[record[key]] || 0) + 1
-      }), {});
+      records.reduce<Record<string, number>>((counts, record) => ({ ...counts, [record[key]]: (counts[record[key]] || 0) + 1 }), {});
 
     return {
-      executions: [...this.executionHistory].reverse().slice(0, limit),
+      executions: [...records].reverse().slice(0, limit),
       statistics: {
-        totalExecutions: this.executionHistory.length,
+        totalExecutions: records.length,
         modeDistribution: countBy('mode'),
         levelDistribution: countBy('aiLevel')
       }
     };
   }
 
-  private generateEnhancementPreview(mode: string, aiLevel: string): PlannedChange[] {
-    const changes: PlannedChange[] = [
-      { type: 'timing_variation', description: `Randomize step timing to avoid fixed intervals (${aiLevel} level)` }
-    ];
-
-    if (mode !== 'static') {
-      changes.push({ type: 'technique_variation', description: 'Substitute alternative MITRE sub-techniques where available' });
+  private findTemplate(name: string): AttackChainTemplate {
+    const template = this.getTemplate(name) || this.getTemplateByName(name);
+    if (!template) {
+      throw new Error(`Attack chain template not found: ${name}`);
     }
+    return template;
+  }
 
-    if (aiLevel === 'high' || aiLevel === 'advanced') {
-      changes.push({ type: 'evasion_tactic', description: 'Add anti-forensics and log-evasion behaviour' });
+  /** The change a mode and level actually make: timing and log-rate variation only */
+  private plannedChanges(mode: string, aiLevel: string): PlannedChange[] {
+    const spread = variationSpread(mode, aiLevel);
+    if (spread === 0) {
+      return [{ type: 'none', description: 'static mode: run the chain exactly as defined, no variation' }];
     }
-
-    return changes;
+    return [{ type: 'timing_variation', description: `Vary each step's duration, delay and log rate by up to +/-${Math.round(spread * 100)}% (${mode}/${aiLevel})` }];
   }
 
-  private getAvailableEnhancements(template: any): any[] {
-    return [
-      {
-        name: 'Timing Randomization',
-        description: 'Randomize delays between attack steps',
-        difficulty: 'low',
-        effectiveness: 'medium'
-      },
-      {
-        name: 'Technique Substitution',
-        description: 'Use alternative MITRE techniques',
-        difficulty: 'medium',
-        effectiveness: 'high'
-      },
-      {
-        name: 'Evasion Tactics',
-        description: 'Apply anti-detection measures',
-        difficulty: 'high',
-        effectiveness: 'very high'
-      }
-    ];
+  /** basic -> advanced spread across the variations */
+  private progressiveLevel(index: number, total: number): string {
+    const position = total <= 1 ? 0 : index / (total - 1);
+    return VARIATION_LEVELS[Math.min(VARIATION_LEVELS.length - 1, Math.floor(position * VARIATION_LEVELS.length))];
   }
 
-  private getVariationMode(index: number): string {
-    const modes = ['static', 'enhanced', 'dynamic'];
-    return modes[index % modes.length];
+  private cyclingLevel(index: number): string {
+    return VARIATION_LEVELS[index % VARIATION_LEVELS.length];
   }
 
-  private getVariationAILevel(index: number): string {
-    const levels = ['basic', 'medium', 'high', 'advanced'];
-    return levels[index % levels.length];
+  private record(record: AIExecutionRecord): void {
+    try {
+      fs.mkdirSync(path.dirname(this.historyFile), { recursive: true });
+      fs.appendFileSync(this.historyFile, JSON.stringify(record) + '\n');
+    } catch (error) {
+      logger.warn(`Could not record AI execution history: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
-  /**
-   * Simulation mode: resolves immediately and writes no logs. `estimatedLogs` is what a full
-   * execution of the chain would write (use attack-chains:execute for real logs).
-   */
-  private async simulateEnhancedExecution(template: AttackChainTemplate, _options: unknown): Promise<any> {
-    const startTime = new Date();
-    return {
-      executionId: `ai-sim-${startTime.getTime()}-${(this.executionHistory.length + 1).toString(36)}`,
-      chainId: template.chain.id,
-      chainName: template.name,
-      status: 'completed',
-      startTime,
-      endTime: new Date(),
-      totalSteps: template.chain.steps.length,
-      stats: {
-        logsGenerated: 0,
-        estimatedLogs: template.chain.steps.reduce((total, step) => total + calculateStepLogCount(step), 0),
-        stepsCompleted: template.chain.steps.length,
-        stepsFailed: 0,
-        averageStepDuration: 0
-      }
-    };
+  private readRecords(): AIExecutionRecord[] {
+    try {
+      return fs.readFileSync(this.historyFile, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as AIExecutionRecord);
+    } catch {
+      return [];
+    }
   }
 }
