@@ -1,6 +1,6 @@
 # 🚀 Enterprise SIEM Log Generator
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
@@ -201,7 +201,9 @@ See **[SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md)** for detailed specificat
 
 ## 📄 License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **PolyForm Noncommercial License 1.0.0** - see the [LICENSE](LICENSE) file.
+
+You may use, modify and share it for any **noncommercial** purpose, including personal projects, research, education, and use by nonprofits and government. **Commercial use is not permitted** without a separate license from the author.
 
 ## 🙏 Acknowledgments
 
