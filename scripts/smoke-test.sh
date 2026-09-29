@@ -54,6 +54,11 @@ t status 60 ok $CLI status
 t config-show 60 ok $CLI config --show
 t config-get 60 ok $CLI config --get generators.endpoint.frequency
 t init 60 ok $CLI init -o "$OUT/init-config.yaml"
+rm -f "$OUT/cfg/override.yaml"
+t config-set 60 ok $CLI config -c "$OUT/cfg/override.yaml" --set generators.firewall.frequency=120
+t config-set-bad-key 60 fail $CLI config -c "$OUT/cfg/override.yaml" --set __proto__.x=1
+printf 'output:\n  file:\n    path: %s\nstorage:\n  currentPath: %s\n  historicalPath: %s\n' "$OUT/data/partial.json" "$OUT/data/current" "$OUT/data/historical" >> "$OUT/cfg/override.yaml"
+t generate-partial-config 90 ok $CLI generate -c "$OUT/cfg/override.yaml" --duration 5s
 # --- generation
 t generate 90 ok $CLI generate -c "$OUT/cfg/default.yaml" --duration 10s
 t generate-mitre-technique 90 ok $CLI generate -c "$OUT/cfg/default.yaml" --duration 8s --mitre-technique T1110

@@ -22,67 +22,11 @@ import { DEFAULT_SETTINGS, DEFAULT_SETTINGS_PATH, loadSettings, mergeSettingsFil
 import { LogFormatters } from './utils/formatters';
 import { LogEntry } from './types';
 import { ConfigManager } from './config';
-import { InputValidator } from './utils/inputValidator';
+import { getConfigValue, setConfigValueInFile } from './config/configFile';
 import { parseWorkerCount } from './workers/splitGenerators';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as yaml from 'yaml';
 
-// Helper functions for config management
-async function setConfigValue(key: string, value: string): Promise<void> {
-  // Validate and sanitize input
-  const validated = InputValidator.validateConfigKeyValue(key, value);
-  
-  const configPath = InputValidator.validateFilePath('src/config/default.yaml');
-  const configContent = await fs.readFile(configPath, 'utf8');
-  const config = yaml.parse(configContent);
-  
-  // Parse the key path (e.g., "generators.endpoint.frequency")
-  const keyParts = validated.key.split('.');
-  let current = config;
-  
-  // Navigate to the parent object
-  for (let i = 0; i < keyParts.length - 1; i++) {
-    if (!current[keyParts[i]]) {
-      current[keyParts[i]] = {};
-    }
-    current = current[keyParts[i]];
-  }
-  
-  // Set the value (convert to appropriate type)
-  const finalKey = keyParts[keyParts.length - 1];
-  let parsedValue: any = value;
-  
-  // Try to parse as number
-  if (!isNaN(Number(value))) {
-    parsedValue = Number(value);
-  }
-  // Try to parse as boolean
-  else if (value.toLowerCase() === 'true' || value.toLowerCase() === 'false') {
-    parsedValue = value.toLowerCase() === 'true';
-  }
-  
-  current[finalKey] = parsedValue;
-  
-  // Write back to file
-  const newConfigContent = yaml.stringify(config, { indent: 2 });
-  await fs.writeFile(configPath, newConfigContent);
-}
-
-function getConfigValue(config: any, key: string): any {
-  const keyParts = key.split('.');
-  let current = config;
-  
-  for (const part of keyParts) {
-    if (current && typeof current === 'object' && part in current) {
-      current = current[part];
-    } else {
-      return undefined;
-    }
-  }
-  
-  return current;
-}
 
 const program = new Command();
 
@@ -368,18 +312,20 @@ program
   .option('-c, --config <path>', 'Path to configuration file')
   .option('--show', 'Show current configuration')
   .option('--validate', 'Validate configuration file')
-  .option('--set <key=value>', 'Set configuration value (e.g., generators.endpoint.frequency=20)')
+  .option('--set <key=value>', 'Set a value in the -c file, or ./config.yaml (e.g., generators.endpoint.frequency=20)')
   .option('--get <key>', 'Get configuration value (e.g., generators.endpoint.frequency)')
   .action(async (options) => {
     try {
-      const configManager = new ConfigManager(options.config);
-      
+      // Loaded only when needed, so --set can create a new override file
+      const loadConfig = () => new ConfigManager(options.config).getConfig();
+
       if (options.show) {
-        const config = configManager.getConfig();
+        const config = loadConfig();
         console.log(JSON.stringify(config, null, 2));
       }
 
       if (options.validate) {
+        loadConfig();
         console.log('✅ Configuration is valid');
       }
 
@@ -390,12 +336,17 @@ program
           process.exit(1);
         }
         
-        await setConfigValue(key.trim(), value.trim());
-        console.log(`✅ Set ${key} = ${value}`);
+        // Never rewrite the shipped defaults: write to -c, or to ./config.yaml
+        const target = options.config || './config.yaml';
+        setConfigValueInFile(target, key.trim(), value.trim());
+        console.log(`✅ Set ${key.trim()} = ${value.trim()} in ${target}`);
+        if (!options.config) {
+          console.log('   Use it with: -c ./config.yaml (it is merged over the defaults)');
+        }
       }
 
       if (options.get) {
-        const value = getConfigValue(configManager.getConfig(), options.get);
+        const value = getConfigValue(loadConfig(), options.get);
         console.log(value !== undefined ? value : `❌ Key not found: ${options.get}`);
       }
 
@@ -403,7 +354,7 @@ program
       process.exit(0);
 
     } catch (error) {
-      logger.error('Configuration error:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
