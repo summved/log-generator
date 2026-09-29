@@ -24,6 +24,7 @@ import { LogEntry } from './types';
 import { ConfigManager } from './config';
 import { getConfigValue, setConfigValueInFile } from './config/configFile';
 import { parseWorkerCount } from './workers/splitGenerators';
+import { unreachableFilterWarning } from './utils/mitreFilter';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -92,6 +93,10 @@ program
       
       const hasMitreFilter = Object.keys(mitreFilter).length > 0;
       const logGenerator = new LogGeneratorManager(options.config, hasMitreFilter ? mitreFilter : undefined);
+      const unreachable = hasMitreFilter ? unreachableFilterWarning(logGenerator.getConfig().generators, mitreFilter) : undefined;
+      if (unreachable) {
+        console.warn(`⚠️  ${unreachable}`);
+      }
       if (workerCount > 1) {
         logGenerator.enableHighPerformanceMode(workerCount);
       }

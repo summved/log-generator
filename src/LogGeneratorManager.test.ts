@@ -82,6 +82,16 @@ describe('LogGeneratorManager', () => {
     await manager.stop();
   }, 60000);
 
+  it('writes only logs with the filtered technique (and its sub-techniques), never unmapped logs', async () => {
+    const manager = new LogGeneratorManager(configPath, { technique: 'T1110' });
+
+    await runFor(manager, 1500);
+
+    const lines = (await fs.readFile(path.join(dir, 'out', 'logs.json'), 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every(log => log.mitre && (log.mitre.technique === 'T1110' || log.mitre.technique.startsWith('T1110.')))).toBe(true);
+  }, 60000);
+
   it('applies MITRE filters to logs from worker threads', async () => {
     const manager = new LogGeneratorManager(configPath, { enabledOnly: true });
     manager.enableHighPerformanceMode(2);
