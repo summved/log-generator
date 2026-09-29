@@ -1,3 +1,4 @@
+import { HttpPayload } from '../utils/httpPayload';
 export interface LogEntry {
   timestamp: string;
   level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG' | 'CRITICAL';
@@ -109,7 +110,17 @@ export interface Config {
     };
     http?: {
       url: string;
+      /** Default POST */
+      method?: string;
+      /** Request body shape (default batch) */
+      payload?: HttpPayload;
+      /** Index for elasticsearch-bulk (default log-generator) */
+      index?: string;
       headers?: Record<string, string>;
+      /** Per request, in ms (default 10000) */
+      timeout?: number;
+      /** Retries for network errors, 5xx and 429 (default 0) */
+      retries?: number;
     };
   };
   storage: {

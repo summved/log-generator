@@ -1,11 +1,12 @@
 import * as path from 'path';
-const axios = require('axios');
 import { LogEntry, Config } from '../types';
 import { LogFormatters, syslogFacility } from './formatters';
 import { logger } from './logger';
 import { StorageManager } from './storage';
 import { SyslogSender } from './syslogSender';
 import { parseSize, RotatingFileWriter } from './rotatingFile';
+import { buildHttpPayload } from './httpPayload';
+import { HttpSender } from './httpSender';
 
 export class OutputManager {
   private config: Config['output'];
@@ -17,6 +18,7 @@ export class OutputManager {
   private httpBuffer: { log: string; entry: LogEntry }[] = [];
   private syslogBuffer: string[] = [];
   private syslog?: SyslogSender;
+  private http?: HttpSender;
   private flushInterval?: NodeJS.Timeout;
   private readonly maxBatchSize: number;
   private readonly flushIntervalMs: number;
@@ -161,29 +163,31 @@ export class OutputManager {
     }
 
     const logsToSend = this.httpBuffer.splice(0); // Clear buffer atomically
-    
-    try {
-      // Send as a batch to reduce HTTP overhead
-      const batchPayload = logsToSend.map(item => 
-        this.config.format === 'json' ? 
-          JSON.parse(item.log) : 
-          { message: item.log, original: item.entry }
-      );
+    const http = this.config.http;
+    const payload = buildHttpPayload(http.payload || 'batch', logsToSend, this.config.format, http.index);
 
-      await axios.post(this.config.http.url, { 
-        logs: batchPayload,
-        count: batchPayload.length,
-        timestamp: new Date().toISOString()
-      }, {
-        headers: this.config.http.headers || {},
-        timeout: 10000 // Increased timeout for batch operations
-      });
-      
+    try {
+      await this.httpSender().send(payload);
       logger.debug(`Successfully sent batch of ${logsToSend.length} HTTP logs`);
     } catch (error) {
       logger.error(`Failed to send HTTP batch of ${logsToSend.length} logs:`, error);
       throw error;
     }
+  }
+
+  private httpSender(): HttpSender {
+    if (!this.http) {
+      const http = this.config.http!;
+      this.http = new HttpSender({
+        url: http.url,
+        method: http.method,
+        headers: http.headers,
+        timeout: http.timeout,
+        retries: http.retries,
+        checkBulkErrors: http.payload === 'elasticsearch-bulk'
+      });
+    }
+    return this.http;
   }
 
   /** One reused UDP socket or TCP connection for the configured syslog target */
@@ -281,6 +285,7 @@ export class OutputManager {
 
   public updateConfig(config: Config['output']): void {
     this.config = config;
+    this.http = undefined;
     if (this.syslog) {
       const previous = this.syslog;
       this.syslog = undefined;

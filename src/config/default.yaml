@@ -1042,28 +1042,13 @@ output:
   http:
     url: http://localhost:55000/api/events
     method: POST
+    # batch ({logs, count, timestamp}), ndjson, splunk-hec or elasticsearch-bulk
+    payload: batch
     headers:
-      Content-Type: application/json
       Authorization: Bearer your-token
       X-Source: log-generator
     timeout: 5000
     retries: 3
-    batchSize: 100
-  elasticsearch:
-    url: http://localhost:9200
-    index: "log-generator-%{+YYYY.MM.dd}"
-    type: "_doc"
-    username: "elastic"
-    password: "changeme"
-    timeout: 10000
-    batchSize: 500
-  kafka:
-    brokers: ["localhost:9092"]
-    topic: "log-generator"
-    partition: 0
-    compression: "gzip"
-    batchSize: 1000
-    timeout: 5000
 
 storage:
   historicalPath: ./logs/historical
