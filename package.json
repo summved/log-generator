@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest",
+    "test:smoke": "./scripts/smoke-test.sh",
     "generate": "ts-node src/cli.ts generate",
     "replay": "ts-node src/cli.ts replay",
     "validate-config": "ts-node src/cli.ts validate-config",

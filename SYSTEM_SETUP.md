@@ -29,6 +29,7 @@ We provide a cross-platform timeout script that works on all systems:
 npm run test-generate    # 30-second generation test
 npm run test-replay      # 10-second replay test  
 npm run quick-demo       # 15-second demo
+npm run test:smoke       # every command end to end (~6 minutes, local receivers only)
 
 # Or use custom duration scripts
 npm run timed-generate 60    # 60-second generation test

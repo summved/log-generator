@@ -472,7 +472,7 @@ npm run ml-patterns:status
 # Security & Validation
 npm run security:check-deps
 ./scripts/verify-dependencies.sh
-./scripts/comprehensive-test.sh
+npm run test:smoke
 ```
 
 ### 🎯 Execution Modes
