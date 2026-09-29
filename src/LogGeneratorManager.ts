@@ -8,7 +8,10 @@ import { ConfigValidator } from './utils/configValidator';
 import * as cron from 'node-cron';
 import { BaseGenerator } from './generators';
 import { createGenerators } from './generators/createGenerators';
-import { WorkerPoolManager } from './workers/LogGeneratorWorker';
+import { GenerationWorkers } from './workers/GenerationWorkers';
+import { Backpressure } from './workers/backpressure';
+
+const MAX_PENDING_OUTPUTS = 50000;
 import { MetricsCollector } from './utils/metricsCollector';
 import { HttpServer } from './utils/httpServer';
 
@@ -24,12 +27,16 @@ export class LogGeneratorManager {
   private outputManager: OutputManager;
   private replayManager: ReplayManager;
   private generators: Map<string, BaseGenerator> = new Map();
-  private workerPool?: WorkerPoolManager;
+  private generationWorkers?: GenerationWorkers;
+  private workerCount: number = 1;
+  /** Main-thread generators pause while this many logs are still being written, so memory stays bounded */
+  private outputPressure = new Backpressure(MAX_PENDING_OUTPUTS,
+    () => this.generators.forEach(generator => generator.pause()),
+    () => this.generators.forEach(generator => generator.resume()));
   private isRunning: boolean = false;
   private cleanupCron?: cron.ScheduledTask;
   private rotationCron?: cron.ScheduledTask;
   private mitreFilter?: MitreFilterOptions;
-  private useWorkerThreads: boolean = false;
   private metricsCollector: MetricsCollector;
   private httpServer?: HttpServer;
 
@@ -116,23 +123,22 @@ export class LogGeneratorManager {
       }
     }
 
-    // Start generators
-    for (const [name, generator] of this.generators) {
-      this.metricsCollector.setGeneratorActive(name, true);
-      generator.start(async (logEntry) => {
-        try {
-          // Record metrics for each log
-          this.metricsCollector.recordLogGenerated(logEntry);
-          
-          // Apply MITRE filtering if specified
-          if (this.shouldIncludeLogEntry(logEntry)) {
-            await this.outputManager.outputLog(logEntry);
-          }
-        } catch (error) {
-          logger.error(`Failed to output log from ${name}:`, error);
-          this.metricsCollector.recordError();
-        }
-      });
+    // Start generators, in worker threads when high-performance mode is enabled
+    if (this.workerCount > 1) {
+      const workers = new GenerationWorkers(this.workerCount);
+      try {
+        await workers.start(this.configManager.getConfig().generators, logs => Promise.all(logs.map(log => this.handleLog(log))));
+      } catch (error) {
+        this.isRunning = false;
+        throw error;
+      }
+      this.generationWorkers = workers;
+      for (const name of this.enabledGeneratorNames()) this.metricsCollector.setGeneratorActive(name, true);
+    } else {
+      for (const [name, generator] of this.generators) {
+        this.metricsCollector.setGeneratorActive(name, true);
+        generator.start(logEntry => { void this.handleLog(logEntry); });
+      }
     }
 
     // Start cron jobs
@@ -140,6 +146,24 @@ export class LogGeneratorManager {
     this.rotationCron?.start();
 
     logger.info('Log generator started successfully');
+  }
+
+  /**
+   * Metrics, MITRE filtering and output for one generated log (from the main thread or a worker).
+   * Resolves when the log is written; errors are logged and counted, never thrown.
+   */
+  private handleLog(logEntry: LogEntry): Promise<void> {
+    this.metricsCollector.recordLogGenerated(logEntry);
+    if (!this.shouldIncludeLogEntry(logEntry)) return Promise.resolve();
+    return this.outputPressure.track(this.outputManager.outputLog(logEntry)).catch(error => {
+      logger.error(`Failed to output log from ${logEntry.source.name}:`, error);
+      this.metricsCollector.recordError();
+    });
+  }
+
+  private enabledGeneratorNames(): string[] {
+    const generators = this.configManager.getConfig().generators;
+    return [...this.generators.keys()].filter(name => generators[name as keyof Config['generators']]?.enabled);
   }
 
   /**
@@ -180,7 +204,11 @@ export class LogGeneratorManager {
     logger.info('Stopping log generator');
     this.isRunning = false;
 
-    // Stop generators
+    // Stop generators (worker threads first, which hand over their last logs)
+    if (this.generationWorkers) {
+      await this.generationWorkers.stop();
+      this.generationWorkers = undefined;
+    }
     for (const [name, generator] of this.generators) {
       generator.stop();
       this.metricsCollector.setGeneratorActive(name, false);
@@ -280,23 +308,23 @@ export class LogGeneratorManager {
   }
 
   /**
-   * Enable high-performance mode with worker threads
+   * Generate in `workerCount` worker threads from the next start(). Each thread runs every
+   * generator at 1/workerCount of its configured rate, so the total rate stays the same.
    */
   public enableHighPerformanceMode(workerCount: number = 4): void {
-    this.useWorkerThreads = true;
-    this.workerPool = new WorkerPoolManager(workerCount);
-    logger.info(`High-performance mode enabled with ${workerCount} worker threads`);
+    if (this.isRunning) {
+      throw new Error('Stop the log generator before changing the number of worker threads');
+    }
+    this.workerCount = Math.max(1, Math.floor(workerCount));
+    logger.info(`High-performance mode enabled with ${this.workerCount} worker threads`);
   }
 
-  /**
-   * Disable high-performance mode and cleanup worker threads
-   */
+  /** Generate on the main thread again from the next start() */
   public async disableHighPerformanceMode(): Promise<void> {
-    this.useWorkerThreads = false;
-    if (this.workerPool) {
-      await this.workerPool.terminate();
-      this.workerPool = undefined;
+    if (this.isRunning) {
+      throw new Error('Stop the log generator before changing the number of worker threads');
     }
+    this.workerCount = 1;
     logger.info('High-performance mode disabled');
   }
 
@@ -306,19 +334,18 @@ export class LogGeneratorManager {
   public getPerformanceStats(): {
     isHighPerformanceMode: boolean;
     workerThreadsActive: boolean;
+    workerThreads: number;
     generatorCount: number;
     runningGenerators: string[];
   } {
-    const runningGenerators: string[] = [];
-    this.generators.forEach((generator, name) => {
-      if ((generator as any).isRunning) {
-        runningGenerators.push(name);
-      }
-    });
+    const runningGenerators = this.generationWorkers
+      ? this.enabledGeneratorNames()
+      : [...this.generators].filter(([, generator]) => generator.isGeneratorRunning()).map(([name]) => name);
 
     return {
-      isHighPerformanceMode: this.useWorkerThreads,
-      workerThreadsActive: !!this.workerPool,
+      isHighPerformanceMode: this.workerCount > 1,
+      workerThreadsActive: !!this.generationWorkers,
+      workerThreads: this.generationWorkers?.size ?? 0,
       generatorCount: this.generators.size,
       runningGenerators
     };

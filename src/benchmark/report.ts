@@ -34,8 +34,8 @@ export function renderReport(report: BenchmarkReport): string {
       ...(report.mixed ? [row(report.mixed.name, report.mixed)] : [])
     ]));
     if (report.timestampLeadSeconds && report.timestampLeadSeconds > 0) {
-      lines.push(`  ⚠️  Newest generated timestamp was ${report.timestampLeadSeconds}s ahead of the clock: timestamps advance 1 ms per log`);
-      lines.push('      when more than one log is created in the same millisecond, so they drift ahead at high rates.');
+      lines.push(`  ⚠️  Newest generated timestamp was ${report.timestampLeadSeconds}s ahead of the clock: one thread generated more`);
+      lines.push('      than 1,000 logs in a millisecond (1M logs/s), so timestamps had to move ahead to stay unique.');
     }
   }
 

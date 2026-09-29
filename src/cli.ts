@@ -23,6 +23,7 @@ import { LogFormatters } from './utils/formatters';
 import { LogEntry } from './types';
 import { ConfigManager } from './config';
 import { InputValidator } from './utils/inputValidator';
+import { parseWorkerCount } from './workers/splitGenerators';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as yaml from 'yaml';
@@ -99,8 +100,11 @@ program
   .option('--mitre-technique <technique>', 'Generate logs only for specific MITRE technique (e.g., T1110)')
   .option('--mitre-tactic <tactic>', 'Generate logs only for specific MITRE tactic (e.g., TA0006)')
   .option('--mitre-enabled', 'Generate only logs with MITRE technique mapping')
+  .option('--workers <count>', 'Generate in this many worker threads (the configured rates are shared between them)')
   .action(async (options) => {
     try {
+      const workerCount = options.workers ? parseWorkerCount(options.workers) : 1;
+
       // Parse duration if provided
       let durationMs: number | undefined;
       if (options.duration) {
@@ -144,6 +148,9 @@ program
       
       const hasMitreFilter = Object.keys(mitreFilter).length > 0;
       const logGenerator = new LogGeneratorManager(options.config, hasMitreFilter ? mitreFilter : undefined);
+      if (workerCount > 1) {
+        logGenerator.enableHighPerformanceMode(workerCount);
+      }
       
       if (options.daemon) {
         logger.info('Starting log generator in daemon mode');
@@ -2183,7 +2190,7 @@ program
       console.log('🚀 Starting Performance Test...\n');
       
       const { LogGeneratorManager } = await import('./LogGeneratorManager');
-      const workerCount = parseInt(options.workers);
+      const workerCount = parseWorkerCount(options.workers);
       const duration = options.duration;
       
       // Parse duration
@@ -2239,33 +2246,32 @@ program
       const startTime = Date.now();
       console.log(`🏁 Starting performance test at ${new Date().toISOString()}`);
       
+      const { MetricsCollector } = await import('./utils/metricsCollector');
+      const logsBefore = MetricsCollector.getInstance().getMetrics().totalLogsGenerated;
+
       // Start generation
-      logGenerator.start();
-      
+      await logGenerator.start();
+      const stats = logGenerator.getPerformanceStats();
+
       // Run for specified duration
       await new Promise(resolve => setTimeout(resolve, durationMs));
-      
-      // Stop generation
-      logGenerator.stop();
+
+      // Stop generation (waits for the last logs from worker threads and flushes output)
+      await logGenerator.stop();
+      const logsGenerated = MetricsCollector.getInstance().getMetrics().totalLogsGenerated - logsBefore;
       
       const endTime = Date.now();
       const actualDuration = (endTime - startTime) / 1000;
       
       console.log(`\n🏁 Performance test completed in ${actualDuration.toFixed(2)}s`);
       
-      // Get performance stats
-      const stats = logGenerator.getPerformanceStats();
       console.log('\n📊 Performance Statistics:');
-      console.log(`   High-performance mode: ${stats.isHighPerformanceMode ? '✅' : '❌'}`);
-      console.log(`   Worker threads active: ${stats.workerThreadsActive ? '✅' : '❌'}`);
+      console.log(`   Logs generated: ${logsGenerated.toLocaleString('en-US')} (${Math.round(logsGenerated / actualDuration).toLocaleString('en-US')} logs/s)`);
+      console.log(`   Worker threads: ${stats.workerThreads > 0 ? stats.workerThreads : 'none (main thread)'}`);
       console.log(`   Active generators: ${stats.runningGenerators.length}`);
       console.log(`   Generator names: ${stats.runningGenerators.join(', ')}`);
-      
-      // Cleanup
-      if (options.mode === 'worker') {
-        await logGenerator.disableHighPerformanceMode();
-      }
-      
+      console.log('   (Rates follow the config; for maximum throughput run: npm run benchmark)');
+
       console.log('\n✅ Performance test completed successfully!');
       
     } catch (error) {

@@ -15,7 +15,7 @@ Perfect for **SOC analysts**, **penetration testers**, **security researchers**,
 - **🔗 Attack Chain Simulation** - Execute multi-stage scenarios (APT29, Ransomware, Insider Threats)
 - **🤖 AI-Enhanced Attack Chains** - Dynamic, evolving attack scenarios with local AI (NO external APIs)
 - **🧠 ML-Based Pattern Learning** - Generate realistic, behavior-based logs using machine learning
-- **⚡ High-Performance Generation** - ~100,000 logs/second per thread from the generators and ~37,000 logs/second end to end to file or HTTP; measure your own hardware with `npm run benchmark` (see [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md))
+- **⚡ High-Performance Generation** - ~70,000 logs/second written end to end on one thread, ~300,000 with `generate --workers 4`, with flow control keeping memory bounded; measure your own hardware with `npm run benchmark` (see [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md))
 - **📊 Real-time Monitoring** - Built-in Prometheus metrics, Grafana dashboards, and health endpoints
 - **🌐 SIEM Integration** - Direct integration with Splunk, ELK, Wazuh, QRadar via HTTP/Syslog (tested and verified)
 - **🐳 Docker & Kubernetes Ready** - Production-ready containers with complete monitoring stack
@@ -51,6 +51,9 @@ npm run attack-chains:training apt29-cozy-bear --variations 5 --progressive
 
 # Maximum throughput: every generator, format and output (local only), and worker-thread scaling
 npm run benchmark
+
+# Generate in 4 worker threads (for rates beyond one thread; see PERFORMANCE_GUIDE.md)
+npm run generate -- --workers 4
 
 # Test SIEM integrations
 npm run performance-test -- --mode http --duration 10s

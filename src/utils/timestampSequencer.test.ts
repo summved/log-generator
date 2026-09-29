@@ -64,3 +64,41 @@ describe('timestampSequencer.getUniqueTimestamp', () => {
     expect(after > before).toBe(true);
   });
 });
+
+describe('timestampSequencer across worker threads', () => {
+  let clock: jest.SpyInstance<number, []>;
+
+  beforeEach(() => {
+    timestampSequencer.reset();
+    clock = jest.spyOn(Date, 'now').mockReturnValue(NOW);
+  });
+  afterEach(() => {
+    timestampSequencer.useSlots(0, 1);
+    clock.mockRestore();
+  });
+
+  it('gives each thread its own sub-millisecond slots, so timestamps never collide', () => {
+    const all: string[] = [];
+    for (let thread = 0; thread < 4; thread++) {
+      timestampSequencer.reset();
+      timestampSequencer.useSlots(thread, 4);
+      for (let i = 0; i < 2000; i++) all.push(timestampSequencer.getUniqueTimestamp());
+    }
+
+    expect(new Set(all).size).toBe(8000);
+  });
+
+  it('keeps each thread on the clock (250 slots per millisecond with 4 threads)', () => {
+    timestampSequencer.useSlots(3, 4);
+    let last = '';
+    for (let i = 0; i < 250; i++) last = timestampSequencer.getUniqueTimestamp();
+
+    expect(last).toBe('2026-01-01T00:00:00.000999Z');
+    expect(timestampSequencer.getUniqueTimestamp()).toBe('2026-01-01T00:00:00.001003Z');
+  });
+
+  it('rejects an invalid slot split', () => {
+    expect(() => timestampSequencer.useSlots(4, 4)).toThrow(/Invalid timestamp slots/);
+    expect(() => timestampSequencer.useSlots(0, 1001)).toThrow(/Invalid timestamp slots/);
+  });
+});
