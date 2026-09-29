@@ -32,6 +32,13 @@ import * as path from 'path';
 
 const program = new Command();
 
+
+/** A StorageManager using the current/historical paths from the config (defaults when none given) */
+function storageFromConfig(configPath?: string): StorageManager {
+  const storage = new ConfigManager(configPath).getConfig().storage;
+  return new StorageManager(storage.currentPath, storage.historicalPath, storage.retention);
+}
+
 program
   .name('log-generator')
   .description('Multi-source log generator for SIEM solutions with replay functionality')
@@ -394,10 +401,11 @@ program
   .command('analyze')
   .description('Analyze historical log files for timestamp issues')
   .option('-f, --file <filename>', 'Specific historical file to analyze')
+  .option('-c, --config <path>', 'Path to configuration file (for storage paths)')
   .option('--fix', 'Fix duplicate timestamps in historical files')
   .action(async (options) => {
     try {
-      const storageManager = new StorageManager('./logs/current', './logs/historical', 30);
+      const storageManager = storageFromConfig(options.config);
       
       if (options.file) {
         // Analyze specific file
@@ -521,9 +529,10 @@ program
   .command('mitre-coverage')
   .description('Analyze MITRE ATT&CK coverage in historical logs')
   .option('-f, --file <filename>', 'Specific historical file to analyze')
+  .option('-c, --config <path>', 'Path to configuration file (for storage paths)')
   .action(async (options) => {
     try {
-      const storageManager = new StorageManager('./logs/current', './logs/historical', 30);
+      const storageManager = storageFromConfig(options.config);
       
       console.log('\n🔍 MITRE ATT&CK Coverage Analysis\n');
       

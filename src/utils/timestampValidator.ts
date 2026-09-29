@@ -7,6 +7,22 @@ import { LogEntry } from '../types';
 import { logger } from './logger';
 import moment from 'moment';
 
+
+/** ISO 8601 timestamp (3 or 6 fractional digits) -> microseconds since the epoch */
+function toMicros(timestamp: string): number {
+  const match = timestamp.match(/\.(\d+)Z?$/);
+  const fraction = match ? match[1].padEnd(6, '0').slice(0, 6) : '000000';
+  const ms = Date.parse(timestamp);
+  return (Number.isNaN(ms) ? 0 : Math.floor(ms / 1000) * 1000000) + Number(fraction);
+}
+
+/** Microseconds since the epoch -> ISO 8601 with six fractional digits */
+function fromMicros(micros: number): string {
+  const wholeMs = Math.floor(micros / 1000);
+  const microTail = String(micros % 1000000).padStart(6, '0');
+  return new Date(wholeMs).toISOString().replace(/\.\d+Z$/, `.${microTail}Z`);
+}
+
 export class TimestampValidator {
   
   /**
@@ -73,26 +89,24 @@ export class TimestampValidator {
     }
 
     const fixedLogs: LogEntry[] = [];
-    const timestampCounts = new Map<string, number>();
     let fixedCount = 0;
+    let lastMicros = -1;
 
     for (const log of logs) {
       const originalTimestamp = log.timestamp;
-      let newTimestamp = originalTimestamp;
+      let micros = toMicros(originalTimestamp);
 
-      // Check if we've seen this timestamp before
-      if (timestampCounts.has(originalTimestamp)) {
-        const count = timestampCounts.get(originalTimestamp)! + 1;
-        timestampCounts.set(originalTimestamp, count);
+      // Keep timestamps strictly increasing; bump by one microsecond when they would repeat or go back
+      if (micros <= lastMicros) {
+        micros = lastMicros + 1;
+      }
+      lastMicros = micros;
 
-        // Add milliseconds to make it unique (moment.js doesn't support microseconds)
-        const baseMoment = moment(originalTimestamp);
-        newTimestamp = baseMoment.add(count, 'milliseconds').toISOString();
+      const newTimestamp = fromMicros(micros);
+      const changed = newTimestamp !== originalTimestamp;
+      if (changed) {
         fixedCount++;
-
-        logger.debug(`Fixed duplicate timestamp: ${originalTimestamp} -> ${newTimestamp}`);
-      } else {
-        timestampCounts.set(originalTimestamp, 0);
+        logger.debug(`Fixed timestamp: ${originalTimestamp} -> ${newTimestamp}`);
       }
 
       fixedLogs.push({
@@ -100,10 +114,7 @@ export class TimestampValidator {
         timestamp: newTimestamp,
         metadata: {
           ...log.metadata,
-          ...(newTimestamp !== originalTimestamp && {
-            originalTimestamp,
-            timestampFixed: true
-          })
+          ...(changed && { originalTimestamp, timestampFixed: true })
         }
       });
     }

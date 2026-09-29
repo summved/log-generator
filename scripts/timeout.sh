@@ -9,7 +9,7 @@ COMMAND="$@"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS - use Perl-based timeout
-    perl -e "alarm $TIMEOUT_DURATION; exec @ARGV" -- "$@" 2>/dev/null
+    perl -e "alarm $TIMEOUT_DURATION; exec @ARGV" -- "$@"
 elif command -v timeout >/dev/null 2>&1; then
     # Linux - use native timeout command
     timeout "$TIMEOUT_DURATION" "$@"
