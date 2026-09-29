@@ -3,9 +3,9 @@
  * to prevent race conditions and duplicate timestamps in log entries.
  * 
  * Features:
- * - Thread-safe timestamp generation
- * - Microsecond precision simulation
- * - Automatic sequence increment for simultaneous calls
+ * - Unique within one thread (each worker thread has its own sequencer)
+ * - Six fractional digits: up to 1,000 unique timestamps per millisecond
+ * - Stays on the clock at high rates (no drift below 1M logs/s)
  * - Monotonic timestamp guarantee
  */
 
@@ -13,6 +13,7 @@ export class TimestampSequencer {
   private static instance: TimestampSequencer;
   private counter: number = 0;
   private lastTimestamp: number = 0;
+  private subMillisecond: number = 0;
 
   private constructor() {}
 
@@ -24,29 +25,27 @@ export class TimestampSequencer {
   }
 
   /**
-   * Generates a unique timestamp - GUARANTEED uniqueness
-   * Uses monotonic incrementing timestamp to ensure no duplicates
+   * Generates a unique, increasing timestamp with six fractional digits.
+   * Logs in the same millisecond take the next of the 1,000 sub-millisecond slots; the
+   * millisecond only moves ahead of the clock after all 1,000 are used (above 1M logs/s).
    */
   public getUniqueTimestamp(): string {
     const now = Date.now();
-    
-    // Ensure monotonic timestamps - always increment
-    if (now <= this.lastTimestamp) {
-      this.lastTimestamp = this.lastTimestamp + 1;
-    } else {
+
+    if (now > this.lastTimestamp) {
       this.lastTimestamp = now;
+      this.subMillisecond = 0;
+    } else if (++this.subMillisecond >= 1000) {
+      // Same millisecond (or the clock stepped back): stay unique and increasing
+      this.lastTimestamp++;
+      this.subMillisecond = 0;
     }
-    
+
     this.counter++;
-    
-    // Create unique timestamp with microsecond precision
+
+    // 2026-01-01T00:00:00.123Z -> 2026-01-01T00:00:00.123004Z
     const baseIsoString = new Date(this.lastTimestamp).toISOString();
-    const microseconds = String(this.counter % 1000).padStart(3, '0');
-    
-    // Insert microseconds: 2025-09-19T08:20:00.123Z -> 2025-09-19T08:20:00.123456Z
-    const result = baseIsoString.slice(0, -1) + microseconds + 'Z';
-    
-    return result;
+    return baseIsoString.slice(0, -1) + String(this.subMillisecond).padStart(3, '0') + 'Z';
   }
 
   /**
@@ -55,6 +54,7 @@ export class TimestampSequencer {
   public reset(): void {
     this.counter = 0;
     this.lastTimestamp = 0;
+    this.subMillisecond = 0;
   }
 
   /**
