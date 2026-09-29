@@ -60,6 +60,15 @@ export abstract class BaseGenerator {
     logger.info(`Stopped ${this.source.name} generator`);
   }
 
+  /** Generate `count` logs immediately, as fast as possible (no timer; used by the benchmark) */
+  public generateLogs(count: number): LogEntry[] {
+    const logs: LogEntry[] = [];
+    for (let i = 0; i < count; i++) {
+      logs.push(this.generateLogEntry());
+    }
+    return logs;
+  }
+
   protected generateLogEntry(): LogEntry {
     const template = this.selectTemplate();
     const message = TemplateEngine.processTemplate(template.messageTemplate, template.metadata);
