@@ -1,4 +1,4 @@
-import { Config, LogEntry } from './types';
+import { Config, GeneratorConfig, LogEntry } from './types';
 import { matchesMitreFilter, MitreFilterOptions } from './utils/mitreFilter';
 import { ConfigManager } from './config';
 import { StorageManager } from './utils/storage';
@@ -10,6 +10,7 @@ import * as cron from 'node-cron';
 import { BaseGenerator } from './generators';
 import { createGenerators } from './generators/createGenerators';
 import { GenerationWorkers } from './workers/GenerationWorkers';
+import { SecurityOperationsGenerator, SocOptions, SOC_INTENSITY_RATE } from './generators/SecurityOperationsGenerator';
 import { Backpressure } from './workers/backpressure';
 
 const MAX_PENDING_OUTPUTS = 50000;
@@ -34,13 +35,15 @@ export class LogGeneratorManager {
   private cleanupCron?: cron.ScheduledTask;
   private rotationCron?: cron.ScheduledTask;
   private mitreFilter?: MitreFilterOptions;
+  private socOptions?: SocOptions;
   private metricsCollector: MetricsCollector;
   private httpServer?: HttpServer;
 
-  constructor(configPath?: string, mitreFilter?: MitreFilterOptions) {
+  constructor(configPath?: string, mitreFilter?: MitreFilterOptions, socOptions?: SocOptions) {
     this.configManager = new ConfigManager(configPath);
     const config = this.configManager.getConfig();
     this.mitreFilter = mitreFilter;
+    this.socOptions = socOptions;
     
     // Validate configuration - Advisory only, does not block execution
     const validationResult = ConfigValidator.validateConfig(config);
@@ -78,6 +81,13 @@ export class LogGeneratorManager {
   }
 
   private initializeGenerators(): void {
+    if (this.socOptions) {
+      // SOC simulation: one generator producing the scenario's SOC/D3FEND activity
+      const rate = SOC_INTENSITY_RATE[this.socOptions.intensity || 'medium'];
+      const socConfig = { enabled: true, frequency: rate, templates: [] } as unknown as GeneratorConfig;
+      this.generators = new Map([['soc', new SecurityOperationsGenerator(socConfig, this.socOptions)]]);
+      return;
+    }
     this.generators = createGenerators(this.configManager.getConfig().generators);
   }
 

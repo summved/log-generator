@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { LogGeneratorManager, MitreFilterOptions } from './LogGeneratorManager';
+import { SocScenario, SOC_INTENSITY_RATE } from './generators/SecurityOperationsGenerator';
 import { logger } from './utils/logger';
 import { timestampValidator } from './utils/timestampValidator';
 import { StorageManager } from './utils/storage';
@@ -1339,17 +1340,32 @@ program
         durationMs = parsed;
       }
 
+      const analysts = parseInt(options.analysts);
+      if (!(analysts >= 1 && analysts <= 6)) {
+        console.error('❌ --analysts must be a number from 1 to 6');
+        process.exit(1);
+      }
+      const intensity = options.intensity;
+      if (!['low', 'medium', 'high'].includes(intensity)) {
+        console.error('❌ --intensity must be low, medium or high');
+        process.exit(1);
+      }
+
       console.log(`🛡️ Starting SOC Simulation: ${scenario}`);
-      console.log(`   Analysts: ${options.analysts}`);
-      console.log(`   Intensity: ${options.intensity}`);
+      console.log(`   Analysts: ${analysts}`);
+      console.log(`   Intensity: ${intensity} (${SOC_INTENSITY_RATE[intensity as 'low' | 'medium' | 'high']} logs/min)`);
       if (durationMs) {
         console.log(`   Duration: ${options.duration}`);
       }
       console.log();
 
-      // Create a specialized configuration for SOC simulation
-      const logGenerator = new LogGeneratorManager(options.config);
-      
+      // SOC mode: generate the chosen scenario's SOC/D3FEND activity
+      const logGenerator = new LogGeneratorManager(options.config, undefined, {
+        scenario: scenario as SocScenario,
+        analysts,
+        intensity: intensity as 'low' | 'medium' | 'high'
+      });
+
       // Start SOC simulation
       await logGenerator.start();
       
