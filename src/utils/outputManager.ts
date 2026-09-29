@@ -1,4 +1,3 @@
-import * as fs from 'fs-extra';
 import * as path from 'path';
 const axios = require('axios');
 import { LogEntry, Config } from '../types';
@@ -6,11 +5,12 @@ import { LogFormatters } from './formatters';
 import { logger } from './logger';
 import { StorageManager } from './storage';
 import { SyslogSender } from './syslogSender';
+import { parseSize, RotatingFileWriter } from './rotatingFile';
 
 export class OutputManager {
   private config: Config['output'];
   private storageManager: StorageManager;
-  private fileStream?: fs.WriteStream;
+  private fileWriter?: RotatingFileWriter;
   
   // Phase 1 Optimization: Batching and Buffer Management
   private logBuffer: string[] = [];
@@ -40,22 +40,18 @@ export class OutputManager {
 
   private initializeOutput(): void {
     if (this.config.destination === 'file' && this.config.file) {
-      const logDir = path.dirname(this.config.file.path);
-      fs.ensureDirSync(logDir);
-      
-      // Phase 1: Enhanced stream configuration for better performance
-      this.fileStream = fs.createWriteStream(this.config.file.path, { 
-        flags: 'a',
-        highWaterMark: 64 * 1024, // 64KB buffer for better performance
-        autoClose: false // Keep stream open for better performance
-      });
-      
-      // Handle stream errors
-      this.fileStream.on('error', (error) => {
-        logger.error('File stream error:', error);
+      const file = this.config.file;
+      // rotation defaults to on when maxSize is set; rotation: false means one ever-growing file
+      const rotate = file.rotation !== false && file.maxSize !== undefined;
+      this.fileWriter = new RotatingFileWriter({
+        path: file.path,
+        maxSize: rotate ? parseSize(file.maxSize!) : undefined,
+        maxFiles: file.maxFiles,
+        compress: file.compression === true
       });
     }
   }
+
 
   public async outputLog(entry: LogEntry): Promise<void> {
     try {
@@ -126,24 +122,17 @@ export class OutputManager {
 
   // Phase 1: Enhanced streaming file operations
   private async flushFileBuffer(): Promise<void> {
-    if (this.logBuffer.length === 0 || !this.fileStream) {
+    if (this.logBuffer.length === 0 || !this.fileWriter) {
       return;
     }
 
     const logsToWrite = this.logBuffer.splice(0); // Clear buffer atomically
-    const batchData = logsToWrite.join('\n') + '\n';
-
-    return new Promise((resolve, reject) => {
-      this.fileStream!.write(batchData, (error) => {
-        if (error) {
-          logger.error(`Failed to write batch of ${logsToWrite.length} logs:`, error);
-          reject(error);
-        } else {
-          logger.debug(`Successfully wrote batch of ${logsToWrite.length} logs`);
-          resolve();
-        }
-      });
-    });
+    try {
+      await this.fileWriter.write(logsToWrite.join('\n') + '\n');
+    } catch (error) {
+      logger.error(`Failed to write batch of ${logsToWrite.length} logs:`, error);
+      throw error;
+    }
   }
 
   // Phase 1: Batched syslog operations
@@ -238,8 +227,9 @@ export class OutputManager {
 
 
   public async rotateLogFile(): Promise<void> {
-    if (this.config.destination === 'file' && this.fileStream) {
-      this.fileStream.end();
+    if (this.config.destination === 'file' && this.fileWriter) {
+      await this.flushFileBuffer();
+      await this.fileWriter.close();
       
       // Rotate current logs to historical
       await this.storageManager.rotateCurrentLogs();
@@ -279,14 +269,11 @@ export class OutputManager {
       this.syslog = undefined;
     }
     
-    // Close file stream
-    if (this.fileStream) {
-      return new Promise((resolve) => {
-        this.fileStream!.end(() => {
-          logger.info('File stream closed successfully');
-          resolve();
-        });
-      });
+    // Close the output file
+    if (this.fileWriter) {
+      await this.fileWriter.close();
+      this.fileWriter = undefined;
+      logger.info('File output closed successfully');
     }
   }
 
@@ -297,8 +284,10 @@ export class OutputManager {
       this.syslog = undefined;
       previous.close().catch(error => logger.error('Failed to close syslog connection:', error));
     }
-    if (this.fileStream) {
-      this.fileStream.end();
+    if (this.fileWriter) {
+      const previous = this.fileWriter;
+      this.fileWriter = undefined;
+      previous.close().catch(error => logger.error('Failed to close the output file:', error));
     }
     this.initializeOutput();
   }

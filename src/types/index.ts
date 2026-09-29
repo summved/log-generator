@@ -85,9 +85,14 @@ export interface Config {
     destination: 'file' | 'syslog' | 'http' | 'stdout';
     file?: {
       path: string;
-      rotation: boolean;
-      maxSize: string;
-      maxFiles: number;
+      /** Rotate by size (default on when maxSize is set) */
+      rotation?: boolean;
+      /** e.g. "100MB"; rotate before a write would pass it */
+      maxSize?: string;
+      /** Rotated files to keep (default 10) */
+      maxFiles?: number;
+      /** Gzip rotated files */
+      compression?: boolean;
     };
     syslog?: {
       host: string;
@@ -103,6 +108,8 @@ export interface Config {
     historicalPath: string;
     currentPath: string;
     retention: number; // days
+    /** Also keep a JSON-lines copy of every log in currentPath (default true) */
+    history?: boolean;
   };
 }
 

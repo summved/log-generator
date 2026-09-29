@@ -59,7 +59,8 @@ export class LogGeneratorManager {
     this.storageManager = new StorageManager(
       config.storage.currentPath,
       config.storage.historicalPath,
-      config.storage.retention
+      config.storage.retention,
+      { history: config.storage.history }
     );
     
     this.outputManager = new OutputManager(config.output, this.storageManager);

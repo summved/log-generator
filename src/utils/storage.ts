@@ -4,17 +4,24 @@ import { LogEntry, HistoricalLogFile } from '../types';
 import { logger } from './logger';
 import moment from 'moment';
 
+export interface StorageOptions {
+  /** Keep a JSON-lines history copy of every log handed to storeLog (default true) */
+  history?: boolean;
+}
+
 export class StorageManager {
   private currentPath: string;
   private historicalPath: string;
   private retentionDays: number;
+  private readonly history: boolean;
   private pending?: { lines: string[]; done: Promise<string>; resolve: (file: string) => void; reject: (error: unknown) => void };
   private writeChain: Promise<void> = Promise.resolve();
 
-  constructor(currentPath: string, historicalPath: string, retentionDays: number = 30) {
+  constructor(currentPath: string, historicalPath: string, retentionDays: number = 30, options: StorageOptions = {}) {
     this.currentPath = currentPath;
     this.historicalPath = historicalPath;
     this.retentionDays = retentionDays;
+    this.history = options.history !== false;
     this.ensureDirectories();
   }
 
@@ -36,6 +43,9 @@ export class StorageManager {
   public storeLog(log: LogEntry, filename?: string): Promise<string> {
     if (filename) {
       return this.storeLogs([log], filename);
+    }
+    if (!this.history) {
+      return Promise.resolve('');
     }
     if (!this.pending) {
       let resolve!: (file: string) => void;
@@ -77,8 +87,9 @@ export class StorageManager {
     }
   }
 
+  /** One history file per hour; the name keeps the YYYY-MM-DD_HH-mm-ss pattern that listing and replay read */
   private defaultFilename(): string {
-    return `logs_${moment().format('YYYY-MM-DD_HH-mm-ss')}.jsonl`;
+    return `logs_${moment().format('YYYY-MM-DD_HH')}-00-00.jsonl`;
   }
 
   public async rotateCurrentLogs(): Promise<void> {

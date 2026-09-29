@@ -50,3 +50,39 @@ describe('OutputManager with file output', () => {
     expect((await lines(history)).map(line => JSON.parse(line).message)).toEqual(expected);
   });
 });
+
+describe('OutputManager file rotation', () => {
+  let dir: string;
+
+  beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'output-rotation-')); });
+  afterEach(async () => { await fs.remove(dir); });
+
+  const fileOutput = (file: Record<string, unknown>) => ({
+    format: 'json',
+    destination: 'file',
+    batching: { enabled: true, maxBatchSize: 50, flushIntervalMs: 50 },
+    file: { path: path.join(dir, 'out', 'logs.json'), ...file }
+  }) as Config['output'];
+
+  it('rotates by maxSize and keeps maxFiles rotated files, without losing logs', async () => {
+    const output = new OutputManager(fileOutput({ rotation: true, maxSize: '8KB', maxFiles: 50 }), new StorageManager(path.join(dir, 'h'), path.join(dir, 'hh'), 1, { history: false }));
+
+    for (let i = 0; i < 1000; i++) void output.outputLog(log(i));
+    await output.close();
+
+    const files = await fs.readdir(path.join(dir, 'out'));
+    expect(files.length).toBeGreaterThan(5);
+    expect(files.every(file => /^logs\.json(\.\d+)?$/.test(file))).toBe(true);
+    expect((await lines(path.join(dir, 'out'))).length).toBe(1000);
+    for (const file of files) expect((await fs.stat(path.join(dir, 'out', file))).size).toBeLessThanOrEqual(8192);
+  });
+
+  it('writes a single file when rotation is off', async () => {
+    const output = new OutputManager(fileOutput({ rotation: false, maxSize: '1KB' }), new StorageManager(path.join(dir, 'h'), path.join(dir, 'hh'), 1, { history: false }));
+
+    for (let i = 0; i < 200; i++) void output.outputLog(log(i));
+    await output.close();
+
+    expect(await fs.readdir(path.join(dir, 'out'))).toEqual(['logs.json']);
+  });
+});
