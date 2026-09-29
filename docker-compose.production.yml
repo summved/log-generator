@@ -18,8 +18,7 @@ services:
       - ./logs:/app/logs
       - log-generator-models:/app/models
     ports:
-      - "3000:3000"  # HTTP API
-      - "8080:8080"  # Metrics
+      - "3000:3000"  # HTTP: /health, /ready, /metrics, /status
     networks:
       - log-network
     healthcheck:
