@@ -1,194 +1,94 @@
-# Security Guidelines
+# Security Policy
 
-## Dependency Security
+This is a developer tool that generates **synthetic** SIEM logs for testing and lab use.
+It is not a hosted service and stores no user accounts or credentials. This policy covers
+how to report a vulnerability, what is supported, the supply-chain practices the build
+actually enforces, and the known limitations you should account for before running it
+anywhere sensitive.
 
-This project follows strict security practices to ensure **ALL** dependencies are downloaded from authentic sources across all package managers and systems.
+## Reporting a vulnerability
 
-### 1. NPM Dependencies (Node.js Packages)
+Please report security issues **privately** — do not open a public GitHub issue.
 
-All Node.js dependencies are configured to be downloaded exclusively from the official npm registry (`registry.npmjs.org`).
+Use GitHub's private vulnerability reporting:
 
-### 2. Docker Base Images
+1. Go to <https://github.com/summved/log-generator>
+2. Open the **Security** tab → **Report a vulnerability**
+3. Include a clear description, affected version/commit, reproduction steps, and impact
 
-All Docker images use official, verified base images with SHA256 digests for immutable builds:
-- **Node.js**: Official `node:20-alpine` from Docker Hub
-- **Prometheus**: Official `prom/prometheus` from Docker Hub  
-- **Grafana**: Official `grafana/grafana` from Docker Hub
-- **Elasticsearch**: Official images from `docker.elastic.co`
-- **Wazuh**: Official `wazuh/wazuh-manager` from Docker Hub
+You'll get a response through that private advisory thread. Please allow time for
+assessment and a fix before any public disclosure.
 
-### 3. GitHub Actions Dependencies
+## Supported versions
 
-All GitHub Actions use official, verified actions:
-- **actions/checkout@v4**: Official GitHub action
-- **actions/setup-node@v4**: Official GitHub action
-- **docker/setup-buildx-action@v3**: Official Docker action
-- **aquasecurity/trivy-action@master**: Official Trivy security scanner
+| Version            | Supported |
+| ------------------ | --------- |
+| Current `main`     | Yes       |
+| Older tags/commits | No        |
 
-### 4. System Package Dependencies
+Fixes land on the current `main` line. The project requires **Node.js >= 22.12**
+(`engines` in `package.json`); CI runs the test suite on Node 22.x and 24.x.
 
-Alpine Linux packages (used in Docker containers) are installed from official Alpine repositories:
-- **apk packages**: Only from official Alpine package repository
-- **dumb-init**: Official Alpine package for proper signal handling
+## Supply-chain and build practices
 
-#### Configuration Files
+These are enforced by the repo and CI (`.github/workflows/ci-cd.yml`,
+`Dockerfile`, `Dockerfile.production`, `.npmrc`):
 
-1. **`.npmrc`** - Project-level npm configuration that enforces:
-   - Official npm registry usage
-   - Package signature verification when available
-   - Security audit level settings
-   - Exact version saving for better security
+- **Pinned base image.** Both Dockerfiles pin `node:22-alpine` by SHA256 digest, so the
+  base image is immutable across builds.
+- **Non-root, minimal production image.** `Dockerfile.production` runs as a dedicated
+  non-root user (`loggen`, uid 1001) and removes `npm`/`npx` after install — the app runs
+  with plain `node`, reducing the image's attack surface. CI asserts this: it runs the CLI
+  in the image and verifies `npm`/`npx` are absent.
+- **Reproducible installs.** Dependencies are installed with `npm ci` against a committed
+  lockfile. `.npmrc` sets `save-exact=true` (exact versions), forces the official npm
+  registry (`registry.npmjs.org`) for all scopes, and disables install-time funding output.
+- **Dependency auditing.** CI runs `npm audit --audit-level=high` and fails on high or
+  critical advisories. You can run the same check locally with `npm audit` (or
+  `npm run security:audit`).
+- **Vulnerability scanning.** CI runs Trivy in two modes and uploads SARIF to the GitHub
+  **code scanning** tab: a filesystem scan of the repo, and an image scan of the built
+  production image (pull requests build and scan the image locally so results compare
+  against `main`).
+- **GitHub Actions pinning.** The Trivy action is pinned by commit **SHA**
+  (`aquasecurity/trivy-action@ed142fd…`). The other actions
+  (`actions/checkout`, `actions/setup-node`, `docker/*`, `github/codeql-action`,
+  `actions/upload-artifact`) are pinned by **major tag** (e.g. `@v4`), not by digest.
 
-2. **`package.json`** - Contains security-related configurations:
-   - `publishConfig.registry` - Ensures publishing to official registry
-   - `config.registry` - Fallback registry configuration
-   - Security-related scripts for auditing and checking dependencies
+## Known limitations (read before production use)
 
-### Security Scripts
+Be honest with yourself about these — the tool does **not** implement rate limiting,
+security headers, HTTPS enforcement, authentication, or SSRF protection. Specifically:
 
-The following npm scripts are available for comprehensive security management:
+- **The metrics HTTP server is unauthenticated.** When monitoring is enabled, an HTTP
+  server listens on `HTTP_PORT` (default **3000**) and serves `/health`, `/ready`,
+  `/metrics` (Prometheus), and `/status`. It is **read-only** (GET/HEAD only; other methods
+  get `405`), has **no CORS headers and no authentication**, and is intended for local/lab
+  use. If you expose it in a shared or production environment, front it with your own
+  controls (reverse proxy, network policy, authenticating gateway). Set
+  `ENABLE_MONITORING=false` to disable it entirely.
+- **Minimal environment surface.** The code reads only three environment variables:
+  `HTTP_PORT`, `ENABLE_MONITORING`, and `CONFIG_PATH`. There is no `.env` loader; no secrets
+  are read from the environment. (Config files may reference other variables via `${VAR}`
+  syntax only if you write them in.)
+- **Data goes only where you point it.** The tool sends generated logs to the
+  destination configured in your config file (file, HTTP, syslog, or stdout) and nothing
+  else — no telemetry, no external AI/LLM calls. HTTP output batches that keep failing are
+  logged and dropped rather than retried indefinitely.
 
-```bash
-# Run security audit
-npm run security:audit
+## Using it safely
 
-# Automatically fix security vulnerabilities
-npm run security:audit-fix
+- It generates **synthetic** data. Point outputs (HTTP, syslog, files) only at systems you
+  own or are authorized to test.
+- Do not send generated traffic to production SIEM/logging pipelines you don't control.
+- Keep dependencies current and re-run `npm audit` after updates.
 
-# Check installed dependencies
-npm run security:check-deps
+## License note
 
-# Check for outdated packages
-npm run security:outdated
+This project is licensed under **PolyForm Noncommercial 1.0.0** — noncommercial use only;
+commercial use requires a separate license. See [LICENSE](LICENSE).
 
-# Comprehensive dependency verification (all sources)
-npm run security:verify
-```
+## Related docs
 
-### Verification Process
-
-#### 1. NPM Registry Verification
-All dependencies in `package-lock.json` are verified to come from `https://registry.npmjs.org/`.
-
-#### 2. Docker Image Verification
-- All Docker images use SHA256 digests for immutable builds
-- Base images are from official, verified sources
-- Container security scanning with Trivy
-
-#### 3. GitHub Actions Verification
-- All actions use official, verified sources
-- Actions are pinned to specific versions
-- Security scanning integrated into CI/CD pipeline
-
-#### 4. System Package Verification
-- Alpine packages from official repositories only
-- Package integrity verification during installation
-
-#### 5. Dependency Audit
-Regular security audits are performed using multiple tools:
-- `npm audit` for Node.js dependencies
-- `trivy` for container and filesystem scanning
-- GitHub Security Advisories integration
-
-#### 6. Version Management
-- Exact versions are used where possible to prevent unexpected updates
-- SHA256 digests for Docker images ensure immutable builds
-- Regular updates are performed in a controlled manner
-- Dependencies are reviewed before updates
-
-### Best Practices
-
-1. **Always use official npm registry**
-   - Never use third-party or private registries for public packages
-   - Verify registry URLs in package-lock.json
-
-2. **Regular Security Audits**
-   - Run `npm audit` regularly
-   - Address high and critical vulnerabilities immediately
-   - Keep dependencies up to date
-
-3. **Version Control**
-   - Use exact versions for critical dependencies
-   - Review dependency updates before applying
-   - Test thoroughly after dependency updates
-
-4. **Monitoring**
-   - Monitor security advisories for used packages
-   - Subscribe to security notifications
-   - Use automated security scanning tools
-
-### Comprehensive Verification
-
-To verify all dependencies are from authentic sources:
-
-```bash
-# Comprehensive verification script (all dependency types)
-npm run security:verify
-
-# Manual verification commands:
-
-# 1. Check NPM packages
-grep "resolved" package-lock.json | grep -v "registry.npmjs.org" || echo "All NPM packages from official registry"
-
-# 2. Check Docker images
-docker images --digests | grep log-generator
-
-# 3. Run security audit
-npm audit
-
-# 4. Check for outdated packages
-npm outdated
-
-# 5. Scan containers for vulnerabilities
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image log-generator:latest
-```
-
-### Incident Response
-
-If a security vulnerability is discovered:
-
-1. **Immediate Assessment**
-   - Determine the severity and impact
-   - Check if the vulnerability affects the project
-
-2. **Remediation**
-   - Update the affected package to a secure version
-   - If no secure version exists, consider alternatives
-   - Test the application after updates
-
-3. **Documentation**
-   - Document the vulnerability and remediation steps
-   - Update security guidelines if necessary
-
-### Supply Chain Security
-
-To protect against supply chain attacks:
-
-1. **Package Integrity**
-   - Verify package signatures when available
-   - Use package-lock.json to ensure consistent installs
-   - Monitor for unexpected changes in dependencies
-
-2. **Dependency Analysis**
-   - Regularly review direct and transitive dependencies
-   - Remove unused dependencies
-   - Prefer well-maintained packages with good security records
-
-3. **Build Security**
-   - Use secure build environments
-   - Verify build artifacts
-   - Implement security scanning in CI/CD pipelines
-
-### Reporting Security Issues
-
-If you discover a security vulnerability in this project:
-
-1. **Do not** create a public issue
-2. Contact the maintainers privately
-3. Provide detailed information about the vulnerability
-4. Allow time for assessment and remediation before public disclosure
-
----
-
-**Last Updated:** September 2025
-**Review Schedule:** Quarterly security review and update of this document
+- [DevOps guide](DEVOPS_GUIDE.md) — deployment, Docker, and monitoring details
+- [Configuration reference](CONFIGURATION.md) — output destinations and config options
