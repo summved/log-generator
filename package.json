@@ -43,6 +43,7 @@
     "d3fend-list": "ts-node src/cli.ts d3fend-list",
     "d3fend-coverage": "ts-node src/cli.ts d3fend-coverage",
     "performance-test": "ts-node src/cli.ts performance-test",
+    "benchmark": "ts-node src/cli.ts benchmark",
     "test-generate": "./scripts/timeout.sh 30 sh -c 'npm run generate'",
     "test-replay": "./scripts/timeout.sh 10 sh -c 'npm run replay'",
     "quick-demo": "./scripts/timeout.sh 15 sh -c 'node examples/basic-usage.js'",

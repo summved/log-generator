@@ -49,6 +49,9 @@ jobs:
         
         # Test performance commands
         timeout 10s npm run performance-test -- --mode disk --duration 3s || echo "Performance test completed"
+
+        # Benchmark: every phase, briefly
+        ENABLE_MONITORING=false timeout 120s npm run benchmark -- --duration 300ms --workers 1,2
         
     - name: Test Docker build
       run: |
@@ -218,7 +221,13 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Run performance benchmarks
-      run: |
-        timeout 60s npm run performance-test -- --mode disk --duration 10s
-        timeout 60s npm run performance-test -- --mode worker --workers 4 --duration 10s
+    - name: Run benchmark
+      run: timeout 300s npm run benchmark -- --duration 2s --json benchmark.json
+      env:
+        ENABLE_MONITORING: 'false'
+
+    - name: Upload benchmark report
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-report
+        path: benchmark.json

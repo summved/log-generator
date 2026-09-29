@@ -1,7 +1,25 @@
-import { LogEntry } from '../types';
+import { Config, LogEntry } from '../types';
 import moment from 'moment';
 
+export type LogFormat = Config['output']['format'];
+
+export const LOG_FORMATS: LogFormat[] = ['json', 'syslog', 'cef', 'wazuh'];
+
 export class LogFormatters {
+  /** Format a log for the configured output format (JSON for anything unknown) */
+  public static format(format: LogFormat, entry: LogEntry): string {
+    switch (format) {
+      case 'syslog':
+        return LogFormatters.formatAsSyslog(entry);
+      case 'cef':
+        return LogFormatters.formatAsCEF(entry);
+      case 'wazuh':
+        return LogFormatters.formatForWazuh(entry);
+      default:
+        return LogFormatters.formatAsJSON(entry);
+    }
+  }
+
   public static formatAsJSON(entry: LogEntry): string {
     return JSON.stringify(entry);
   }

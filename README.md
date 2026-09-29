@@ -15,7 +15,7 @@ Perfect for **SOC analysts**, **penetration testers**, **security researchers**,
 - **🔗 Attack Chain Simulation** - Execute multi-stage scenarios (APT29, Ransomware, Insider Threats)
 - **🤖 AI-Enhanced Attack Chains** - Dynamic, evolving attack scenarios with local AI (NO external APIs)
 - **🧠 ML-Based Pattern Learning** - Generate realistic, behavior-based logs using machine learning
-- **⚡ High-Performance Generation** - 6,000+ logs/second native, up to 20,000+ with worker threads and memory-first approach
+- **⚡ High-Performance Generation** - ~100,000 logs/second per thread from the generators and ~37,000 logs/second end to end to file or HTTP; measure your own hardware with `npm run benchmark` (see [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md))
 - **📊 Real-time Monitoring** - Built-in Prometheus metrics, Grafana dashboards, and health endpoints
 - **🌐 SIEM Integration** - Direct integration with Splunk, ELK, Wazuh, QRadar via HTTP/Syslog (tested and verified)
 - **🐳 Docker & Kubernetes Ready** - Production-ready containers with complete monitoring stack
@@ -49,8 +49,8 @@ npm run attack-chains:execute apt29-cozy-bear
 npm run attack-chains:execute-ai ransomware-ryuk --mode enhanced --ai-level medium
 npm run attack-chains:training apt29-cozy-bear --variations 5 --progressive
 
-# High-performance generation with worker threads
-npm run performance-test -- --mode worker --workers 4 --duration 30s
+# Maximum throughput: every generator, format and output (local only), and worker-thread scaling
+npm run benchmark
 
 # Test SIEM integrations
 npm run performance-test -- --mode http --duration 10s
@@ -106,7 +106,8 @@ kubectl get services -n log-generator
 | **Category** | **Command** | **Description** |
 |---|---|---|
 | **Generation** | `npm run generate` | Generate logs from all configured sources |
-| **Performance** | `npm run performance-test` | High-performance testing with worker threads |
+| **Benchmark** | `npm run benchmark` | Measure maximum throughput per generator, format, output and worker-thread count |
+| **Performance** | `npm run performance-test` | Run the configured generators for a set time (disk, http, syslog, worker configs) |
 | **MITRE ATT&CK** | `npm run mitre-list` | List supported MITRE techniques |
 | **Attack Chains** | `npm run attack-chains:list` | List available attack scenarios |
 | **AI Attack Chains** | `npm run attack-chains:execute-ai <name>` | Execute with AI enhancements |

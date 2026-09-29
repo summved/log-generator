@@ -256,19 +256,9 @@ export class OutputManager {
   }
 
   private formatLog(entry: LogEntry): string {
-    switch (this.config.format) {
-      case 'json':
-        return LogFormatters.formatAsJSON(entry);
-      case 'syslog':
-        return LogFormatters.formatAsSyslog(entry);
-      case 'cef':
-        return LogFormatters.formatAsCEF(entry);
-      case 'wazuh':
-        return LogFormatters.formatForWazuh(entry);
-      default:
-        return LogFormatters.formatAsJSON(entry);
-    }
+    return LogFormatters.format(this.config.format, entry);
   }
+
 
   public async rotateLogFile(): Promise<void> {
     if (this.config.destination === 'file' && this.fileStream) {

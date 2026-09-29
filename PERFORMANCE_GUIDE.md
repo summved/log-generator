@@ -4,16 +4,46 @@ This comprehensive guide covers performance analysis, benchmarking, and optimiza
 
 ## 📊 Performance Overview
 
-### Current Performance Capabilities
+### Measure it on your machine: `npm run benchmark`
 
-| **Mode** | **Performance** | **Use Case** | **Hardware Requirements** |
-|---|---|---|---|
-| **Native Generation** | 6,000-7,150 logs/sec | Development, production | Standard hardware |
-| **Docker Container** | 6,000+ logs/sec | Containerized deployment | Standard hardware |
-| **Network Output (HTTP)** | 100+ logs/sec (tested) | Production SIEM integration | Standard server |
-| **Network Output (Syslog)** | 60+ logs/sec (tested) | Traditional SIEM systems | Standard server |
-| **Worker Threads** | 20,000+ logs/sec (target) | High-volume scenarios | Multi-core CPU, 8GB+ RAM |
-| **Combined (Network + Workers)** | 50,000+ logs/sec (target) | Enterprise scenarios | High-end server hardware |
+```bash
+npm run benchmark                                  # everything, 3s per measurement (~1.5 minutes)
+npm run benchmark -- --duration 1s                 # quicker
+npm run benchmark -- --phases workers --workers 1,2,4,8 --format cef
+npm run benchmark -- --json benchmark.json         # also save the full report
+```
+
+The benchmark uses the real generators, formatters and `OutputManager`, running flat out with no timers:
+
+| Phase | What it measures |
+|---|---|
+| `generators` | Each of the 12 generators on one thread, then all of them together |
+| `formats` | `json`, `syslog`, `cef` and `wazuh` formatting on the same sample |
+| `outputs` | The full output path (generate, format, send, per-log history copy) to a temporary file, and to HTTP and UDP syslog receivers on 127.0.0.1. It counts how many logs arrived. Nothing leaves the machine. |
+| `workers` | All generators plus formatting on 1, 2, 4… worker threads, up to the CPU count |
+
+### Measured results
+
+Apple M4 Pro, 14 CPUs, Node 26, 3s per measurement:
+
+| Measurement | Logs/second |
+|---|---|
+| One generator, one thread | 85,000–159,000 (depends on the log type) |
+| All 12 generators, one thread | ~99,000 |
+| Formatting: json / cef / wazuh / syslog | 1,133,000 / 1,719,000 / 782,000 / 300,000 |
+| Output to file (incl. history copy) | ~37,000 (100% delivered) |
+| Output to HTTP, local receiver | ~36,000 (100% delivered) |
+| Output to UDP syslog, local receiver | ~16,000 |
+| History copy on its own | ~38,000 |
+| Worker threads (generate + JSON): 1 / 4 / 8 / 14 workers | 85,000 / 304,000 / 579,000 / 655,000 |
+
+What this shows:
+- **The generators aren't the limit.** One thread makes about 100k logs/s, and worker threads scale almost linearly, to about 655k logs/s on 14 CPUs.
+- **The output path is the limit.** File and HTTP output top out at the speed of the per-log history copy (`StorageManager.storeLog`, one `appendFile` per log). UDP syslog is slower because every message opens a new socket.
+- **`generate` doesn't use worker threads yet.** The 655k/s figure is what the generators can reach, not what `generate` produces today.
+- **Timestamps drift at high rates.** When two logs are created in the same millisecond, the timestamp moves ahead by 1 ms. Above about 1,000 logs/s, timestamps therefore run ahead of the clock, and the benchmark prints a warning.
+
+`performance-test` runs the configured generators at their configured rates for a set time. It shows which generators ran; for maximum throughput, use `benchmark`.
 
 ## ⚡ High-Performance Worker Threads
 

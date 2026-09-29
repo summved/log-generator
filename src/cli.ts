@@ -2274,4 +2274,35 @@ program
     }
   });
 
+program
+  .command('benchmark')
+  .description('Measure maximum throughput: every generator, format and output (local only), and worker-thread scaling')
+  .option('-c, --config <path>', 'Configuration file whose generator templates are used')
+  .option('-d, --duration <time>', 'Time per measurement (e.g. 500ms, 3s, 1m)', '3s')
+  .option('--phases <list>', 'Phases to run: generators,formats,outputs,workers', 'generators,formats,outputs,workers')
+  .option('--workers <list>', 'Worker thread counts to try, e.g. 1,2,4 (default: doubling up to the CPU count)')
+  .option('--format <format>', 'Format the worker threads produce: json, syslog, cef, wazuh', 'json')
+  .option('--json <file>', 'Also save the full report as JSON')
+  .action(async (raw) => {
+    try {
+      const { parseBenchmarkOptions } = await import('./benchmark/options');
+      const { runBenchmark } = await import('./benchmark/runBenchmark');
+      const { renderReport } = await import('./benchmark/report');
+      const options = parseBenchmarkOptions(raw);
+
+      console.log(`⏱️  Benchmark: ${options.phases.join(', ')} (${options.durationMs / 1000}s per measurement)\n`);
+      const report = await runBenchmark({ ...options, onProgress: message => console.log(`   … ${message}`) });
+      console.log(`\n${renderReport(report)}`);
+
+      if (raw.json) {
+        await fs.outputFile(raw.json, JSON.stringify(report, null, 2));
+        console.log(`\n💾 Report saved to ${raw.json}`);
+      }
+      process.exit(0);
+    } catch (error) {
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
 program.parse();

@@ -6,21 +6,8 @@ import { ReplayManager } from './replay';
 import { logger } from './utils/logger';
 import { ConfigValidator } from './utils/configValidator';
 import * as cron from 'node-cron';
-import {
-  EndpointGenerator,
-  ApplicationGenerator,
-  ServerGenerator,
-  FirewallGenerator,
-  CloudGenerator,
-  AuthenticationGenerator,
-  DatabaseGenerator,
-  WebServerGenerator,
-  EmailGenerator,
-  BackupGenerator,
-  MicroservicesGenerator,
-  IoTGenerator,
-  BaseGenerator
-} from './generators';
+import { BaseGenerator } from './generators';
+import { createGenerators } from './generators/createGenerators';
 import { WorkerPoolManager } from './workers/LogGeneratorWorker';
 import { MetricsCollector } from './utils/metricsCollector';
 import { HttpServer } from './utils/httpServer';
@@ -86,44 +73,7 @@ export class LogGeneratorManager {
   }
 
   private initializeGenerators(): void {
-    const config = this.configManager.getConfig();
-    
-    // Original generators
-    this.generators.set('endpoint', new EndpointGenerator(config.generators.endpoint));
-    this.generators.set('application', new ApplicationGenerator(config.generators.application));
-    this.generators.set('server', new ServerGenerator(config.generators.server));
-    this.generators.set('firewall', new FirewallGenerator(config.generators.firewall));
-    this.generators.set('cloud', new CloudGenerator(config.generators.cloud));
-    
-    // New generators
-    this.generators.set('authentication', new AuthenticationGenerator(
-      { type: 'authentication', name: 'auth-service', host: 'auth-01' }, 
-      config.generators.authentication
-    ));
-    this.generators.set('database', new DatabaseGenerator(
-      { type: 'database', name: 'postgres-primary', host: 'db-01' }, 
-      config.generators.database
-    ));
-    this.generators.set('webserver', new WebServerGenerator(
-      { type: 'webserver', name: 'nginx-proxy', host: 'web-01' }, 
-      config.generators.webserver
-    ));
-    this.generators.set('email', new EmailGenerator(
-      { type: 'email', name: 'mail-server', host: 'mail-01' }, 
-      config.generators.email
-    ));
-    this.generators.set('backup', new BackupGenerator(
-      { type: 'backup', name: 'backup-service', host: 'backup-01' }, 
-      config.generators.backup
-    ));
-    this.generators.set('microservices', new MicroservicesGenerator(
-      { type: 'microservices', name: 'service-mesh', host: 'k8s-01' }, 
-      config.generators.microservices
-    ));
-    this.generators.set('iot', new IoTGenerator(
-      { type: 'iot', name: 'iot-hub', host: 'iot-01' }, 
-      config.generators.iot
-    ));
+    this.generators = createGenerators(this.configManager.getConfig().generators);
   }
 
   private setupCronJobs(): void {
