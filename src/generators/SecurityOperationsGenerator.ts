@@ -1,7 +1,22 @@
 import { BaseGenerator } from './BaseGenerator';
-import { LogEntry, LogSource } from '../types';
+import { GeneratorConfig, LogEntry, LogSource } from '../types';
 import { d3fendMapper } from '../utils/d3fendMapper';
 import { timestampSequencer } from '../utils/timestampSequencer';
+
+export type SocScenario = 'incident-response' | 'threat-hunting' | 'network-defense' | 'malware-analysis' | 'compliance-audit';
+export type SocIntensity = 'low' | 'medium' | 'high';
+
+export interface SocOptions {
+  /** Which SOC activities to generate (default: all) */
+  scenario?: SocScenario;
+  /** Size of the analyst pool used in the logs (default: all 6) */
+  analysts?: number;
+  /** Activity rate: low 60, medium 300, high 1200 logs/min (default medium) */
+  intensity?: SocIntensity;
+}
+
+export const SOC_SCENARIOS: SocScenario[] = ['incident-response', 'threat-hunting', 'network-defense', 'malware-analysis', 'compliance-audit'];
+export const SOC_INTENSITY_RATE: Record<SocIntensity, number> = { low: 60, medium: 300, high: 1200 };
 
 /**
  * Security Operations Center (SOC) Generator
@@ -17,10 +32,37 @@ export class SecurityOperationsGenerator extends BaseGenerator {
     component: 'siem'
   };
 
-  private readonly socAnalysts = [
-    'alice.security', 'bob.analyst', 'charlie.soc', 'diana.defender', 
+  private readonly allAnalysts = [
+    'alice.security', 'bob.analyst', 'charlie.soc', 'diana.defender',
     'eve.investigator', 'frank.responder'
   ];
+
+  private readonly socAnalysts: string[];
+  private readonly activities: (() => LogEntry)[];
+
+  constructor(config: GeneratorConfig, options: SocOptions = {}) {
+    super({ type: 'application', name: 'soc-platform', host: 'soc-01.enterprise.local', service: 'security-operations', component: 'siem' }, config);
+    const count = Math.max(1, Math.min(options.analysts ?? this.allAnalysts.length, this.allAnalysts.length));
+    this.socAnalysts = this.allAnalysts.slice(0, count);
+    this.activities = this.activitiesForScenario(options.scenario);
+  }
+
+  /** The generate* methods each SOC scenario runs (all of them when no scenario is given) */
+  private activitiesForScenario(scenario?: SocScenario): (() => LogEntry)[] {
+    const byScenario: Record<SocScenario, (() => LogEntry)[]> = {
+      'incident-response': [this.generateIncidentResponse, this.generateForensicAnalysis, this.generateThreatDetection],
+      'threat-hunting': [this.generateThreatHunting, this.generateThreatDetection],
+      'network-defense': [this.generateNetworkDefense, this.generateThreatDetection],
+      'malware-analysis': [this.generateMalwareDefense, this.generateForensicAnalysis],
+      'compliance-audit': [this.generateComplianceCheck, this.generateAccessControl]
+    };
+    const methods = scenario ? byScenario[scenario] : [
+      this.generateThreatDetection, this.generateIncidentResponse, this.generateNetworkDefense,
+      this.generateAccessControl, this.generateMalwareDefense, this.generateForensicAnalysis,
+      this.generateThreatHunting, this.generateComplianceCheck
+    ];
+    return methods.map(method => method.bind(this));
+  }
 
   private readonly threatSources = [
     '192.168.100.45', '10.0.0.89', '172.16.1.234', '192.168.50.12',
@@ -33,19 +75,7 @@ export class SecurityOperationsGenerator extends BaseGenerator {
   ];
 
   protected generateLogEntry(): LogEntry {
-    const scenarios = [
-      this.generateThreatDetection,
-      this.generateIncidentResponse,
-      this.generateNetworkDefense,
-      this.generateAccessControl,
-      this.generateMalwareDefense,
-      this.generateForensicAnalysis,
-      this.generateThreatHunting,
-      this.generateComplianceCheck
-    ];
-
-    const scenario = this.getRandomElement(scenarios);
-    return scenario.call(this);
+    return this.getRandomElement(this.activities)();
   }
 
   /**

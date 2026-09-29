@@ -102,4 +102,21 @@ describe('LogGeneratorManager', () => {
     expect(lines.length).toBeGreaterThan(0);
     expect(lines.every(line => JSON.parse(line).mitre)).toBe(true);
   }, 60000);
+
+  it('SOC mode writes SOC-platform logs for the chosen scenario', async () => {
+    const manager = new LogGeneratorManager(configPath, undefined, { scenario: 'incident-response', analysts: 2, intensity: 'high' });
+
+    await manager.start();
+    const running = manager.getPerformanceStats();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    await manager.stop();
+
+    expect(running.runningGenerators).toEqual(['soc']);
+    const logs = (await fs.readFile(path.join(dir, 'out', 'logs.json'), 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line));
+    expect(logs.length).toBeGreaterThan(0);
+    expect(logs.every(log => log.source.name === 'soc-platform')).toBe(true);
+    expect(logs.some(log => log.d3fend)).toBe(true);
+    const analysts = new Set(logs.map(log => log.metadata.analyst).filter(Boolean));
+    expect(analysts.size).toBeLessThanOrEqual(2);
+  }, 60000);
 });
