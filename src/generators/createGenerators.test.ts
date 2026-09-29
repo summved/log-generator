@@ -33,3 +33,40 @@ describe('createGenerators', () => {
     }
   });
 });
+
+describe('generated logs', () => {
+  const config = new ConfigManager().getConfig().generators;
+
+  it('carry the full source identity, including the component, for all 12 generators', () => {
+    for (const [name, generator] of createGenerators(config)) {
+      const [log] = generator.generateLogs(1);
+      expect({ name, component: log.source.component, host: log.source.host }).toEqual({
+        name,
+        component: expect.any(String),
+        host: expect.any(String)
+      });
+    }
+  });
+
+  it('report the source host in metadata.host', () => {
+    for (const generator of createGenerators(config).values()) {
+      for (const log of generator.generateLogs(5)) {
+        expect(log.metadata.host).toBe(log.source.host);
+      }
+    }
+  });
+
+  it('never contain an unfilled {placeholder} in the message or metadata', () => {
+    for (const generator of createGenerators(config).values()) {
+      for (const log of generator.generateLogs(200)) {
+        expect(`${log.message} ${JSON.stringify(log.metadata)}`).not.toMatch(/\{\w+\}/);
+      }
+    }
+  });
+
+  it('default to 238 logs per minute across all generators', () => {
+    const total = Object.values(config).reduce((sum, generator) => sum + (generator.enabled ? generator.frequency : 0), 0);
+
+    expect(total).toBe(238);
+  });
+});

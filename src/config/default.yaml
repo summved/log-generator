@@ -3,7 +3,7 @@
 generators:
   endpoint:
     enabled: true
-    frequency: 10000
+    frequency: 10
     templates:
       - level: INFO
         messageTemplate: "HTTP {method} {path} - {status} {responseTime}ms - IP: {clientIP} - User: {userId}"

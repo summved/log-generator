@@ -54,3 +54,50 @@ describe('BaseGenerator pause and resume', () => {
     expect(logs.length).toBe(total);
   });
 });
+
+describe('BaseGenerator rate', () => {
+  beforeEach(() => jest.useFakeTimers({ now: Date.parse('2026-01-01T00:00:00Z') }));
+  afterEach(() => jest.useRealTimers());
+
+  const generatorAt = (perMinute: number) => {
+    const config = new ConfigManager().getConfig().generators;
+    return createGenerators({ ...config, firewall: { ...config.firewall, enabled: true, frequency: perMinute } }).get('firewall')!;
+  };
+
+  it.each([8, 25, 40, 100, 300, 899, 1000, 10000, 60000])('produces %d logs per minute', perMinute => {
+    const generator = generatorAt(perMinute);
+    let count = 0;
+    generator.start(() => { count++; });
+    jest.advanceTimersByTime(60000);
+    generator.stop();
+
+    expect(Math.abs(count - perMinute)).toBeLessThanOrEqual(Math.max(1, perMinute * 0.01));
+  });
+
+  it('keeps the rate over several minutes, without drift', () => {
+    const generator = generatorAt(250);
+    let count = 0;
+    generator.start(() => { count++; });
+    jest.advanceTimersByTime(5 * 60000);
+    generator.stop();
+
+    expect(Math.abs(count - 1250)).toBeLessThanOrEqual(2);
+  });
+
+  it('does not burst to catch up after a pause', () => {
+    const generator = generatorAt(6000);
+    let count = 0;
+    generator.start(() => { count++; });
+    jest.advanceTimersByTime(10000);
+    generator.pause();
+    jest.advanceTimersByTime(30000);
+    generator.resume();
+    const atResume = count;
+    jest.advanceTimersByTime(1000);
+    generator.stop();
+
+    // 6,000/min = 100/s: one second after resuming adds about 100 logs, not the 3,000 missed while paused
+    expect(atResume).toBeGreaterThanOrEqual(990);
+    expect(count - atResume).toBeLessThanOrEqual(110);
+  });
+});
