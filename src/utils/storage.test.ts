@@ -100,3 +100,26 @@ describe('StorageManager.storeLog (history copy)', () => {
     expect(await storedMessages(path.join(dir, 'current'))).toEqual(['log 1', 'log 2']);
   });
 });
+
+describe('StorageManager history copy files', () => {
+  let dir: string;
+  beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'storage-hourly-')); });
+  afterEach(async () => { await fs.remove(dir); });
+
+  it('writes one history file per hour, not one per second', async () => {
+    const storage = new StorageManager(path.join(dir, 'current'), path.join(dir, 'historical'), 1);
+
+    const file = await storage.storeLog(log(1));
+
+    expect(path.basename(file)).toMatch(/^logs_\d{4}-\d{2}-\d{2}_\d{2}-00-00\.jsonl$/);
+  });
+
+  it('writes nothing when the history copy is turned off', async () => {
+    const storage = new StorageManager(path.join(dir, 'current'), path.join(dir, 'historical'), 1, { history: false });
+
+    await storage.storeLog(log(1));
+    await storage.flush();
+
+    expect(await fs.readdir(path.join(dir, 'current'))).toEqual([]);
+  });
+});

@@ -50,7 +50,8 @@ function outputConfig(base: Config['output'], destination: OutputDestination, di
   return {
     ...base,
     destination,
-    file: { ...(base.file || { rotation: false, maxSize: '100MB', maxFiles: 1 }), path: path.join(dir, 'output.log') },
+    // One file (no size rotation), so the delivered count is simply its line count
+    file: { ...(base.file || {}), path: path.join(dir, 'output.log'), rotation: false },
     http: { ...(base.http || {}), url: receivers.httpUrl },
     syslog: { ...(base.syslog || { protocol: 'udp' }), host: '127.0.0.1', port: receivers.syslogPort, protocol: 'udp' }
   };
