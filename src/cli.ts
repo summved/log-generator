@@ -1092,74 +1092,40 @@ program
 // AI-Enhanced Attack Chain Commands
 program
   .command('attack-chains:execute-ai')
-  .description('Execute attack chain with AI enhancements')
+  .description('Run an attack chain with timing and log-rate variation (no AI model; see --mode/--ai-level)')
   .argument('<name>', 'Attack chain name or ID')
-  .option('--mode <mode>', 'Enhancement mode: static, enhanced, dynamic', 'static')
-  .option('--ai-level <level>', 'AI level: basic, medium, high, advanced', 'basic')
-  .option('--variations <count>', 'Number of variations to generate', '1')
-  .option('--enable-evasion', 'Enable evasion tactics')
-  .option('--adaptive-delays', 'Enable adaptive timing delays')
-  .option('--full-execution', 'Run full attack chain execution (may take 45+ minutes)')
-  .option('--simulation', 'Run in simulation mode (instant; describes the enhancements, writes no logs)', true)
+  .option('--mode <mode>', 'Variation mode: static, enhanced, dynamic', 'enhanced')
+  .option('--ai-level <level>', 'Variation level: basic, medium, high, advanced', 'medium')
+  .option('--full-execution', 'Write real logs (default: simulate, writing none)')
+  .option('--simulation', 'Describe the run without writing logs (default)', true)
   .option('-c, --config <path>', 'Path to log generator configuration file')
   .action(async (name, options) => {
     try {
-      console.log(`🤖 Starting AI-Enhanced Attack Chain: ${name}\n`);
-      
       const enhancedManager = new EnhancedAttackChainManager();
-      
-      // Determine execution mode
       const useFullExecution = options.fullExecution || !options.simulation;
-      
-      const enhancementOptions = {
+
+      const execution = await enhancedManager.executeEnhancedChain(name, {
         mode: options.mode,
         aiLevel: options.aiLevel,
-        variations: parseInt(options.variations),
-        enableEvasion: options.enableEvasion,
-        adaptiveDelays: options.adaptiveDelays,
         simulation: !useFullExecution,
         config: options.config
-      };
+      });
 
-      console.log(`⚙️ Enhancement Configuration:`);
-      console.log(`   Execution Mode: ${useFullExecution ? '⚡ FULL EXECUTION (may take 45+ minutes)' : '🚀 SIMULATION (instant, writes no logs)'}`);
-      console.log(`   AI Mode: ${enhancementOptions.mode}`);
-      console.log(`   AI Level: ${enhancementOptions.aiLevel}`);
-      console.log(`   Variations: ${enhancementOptions.variations}`);
-      console.log(`   Evasion Tactics: ${enhancementOptions.enableEvasion ? 'Enabled' : 'Disabled'}`);
-      console.log(`   Adaptive Delays: ${enhancementOptions.adaptiveDelays ? 'Enabled' : 'Disabled'}`);
-      
-      if (useFullExecution) {
-        console.log(`\n⚠️  WARNING: Full execution mode selected!`);
-        console.log(`   This will run the complete attack chain simulation which may take 45+ minutes.`);
-        console.log(`   Use --simulation for an instant preview that writes no logs.`);
-      }
-      console.log();
-
-      const execution = await enhancedManager.executeEnhancedChain(name, enhancementOptions);
-
-      console.log(`\n✅ AI-Enhanced Execution Completed!`);
-      console.log(`   Execution Mode: ${execution.executionMode === 'simulation' ? '🚀 SIMULATION' : '⚡ FULL EXECUTION'}`);
-      console.log(`   Execution ID: ${execution.executionId || 'N/A'}`);
-      console.log(`   Status: ${execution.status || 'completed'}`);
+      console.log(`🤖 Attack chain: ${execution.chainName}`);
+      console.log(`   Mode/level: ${execution.mode}/${execution.aiLevel} (+/-${Math.round(execution.variationSpread * 100)}% timing and log-rate variation)`);
+      console.log(`   Execution ID: ${execution.executionId}`);
+      console.log(`   Status: ${execution.status}`);
       if (execution.executionMode === 'simulation') {
-        console.log(`   Logs Written: 0 (simulation writes no logs; a full run of this chain writes ~${execution.stats.estimatedLogs})`);
-        console.log(`   For real logs: npm run attack-chains:execute ${name} -- --duration 5m`);
+        console.log(`   Logs written: 0 (simulation; a full run of this chain writes ~${execution.estimatedLogs})`);
+        console.log(`   For real logs: npm run attack-chains:execute-ai ${name} -- --full-execution`);
       } else {
-        console.log(`   Logs Generated: ${execution.stats.logsGenerated}`);
+        console.log(`   Logs written: ${execution.logsGenerated}`);
       }
-      console.log(`   Steps: ${execution.stats.stepsCompleted}`);
-      console.log(`   Planned changes for this mode/level: ${execution.stats.enhancementsApplied || 0}`);
-
-      if (execution.aiEnhancements && execution.aiEnhancements.length > 0) {
-        console.log(`\n🔧 Planned Enhancements:`);
-        execution.aiEnhancements.forEach((enhancement: any, index: number) => {
-          console.log(`   ${index + 1}. ${enhancement.description} [${enhancement.type}]`);
-        });
-      }
+      console.log(`\n🔧 What this mode/level does:`);
+      execution.plannedChanges.forEach((change, index) => console.log(`   ${index + 1}. ${change.description}`));
 
     } catch (error) {
-      console.error('❌ Error executing AI-enhanced attack chain:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
@@ -1168,50 +1134,44 @@ program
   .command('attack-chains:training')
   .description('Execute multiple attack chain variations for training')
   .argument('<name>', 'Attack chain name or ID')
-  .option('--variations <count>', 'Number of variations to execute', '5')
-  .option('--progressive', 'Use progressive difficulty (basic to advanced)', true)
+  .option('--variations <count>', 'Number of variations to run', '5')
+  .option('--no-progressive', 'Cycle the level instead of stepping basic to advanced')
+  .option('--full-execution', 'Write real logs (default: simulate, writing none)')
   .option('--delay <ms>', 'Delay between variations in milliseconds', '30000')
   .option('-c, --config <path>', 'Path to log generator configuration file')
   .action(async (name, options) => {
     try {
-      console.log('🎓 Starting AI-Enhanced Training Session\n');
-      
       const enhancedManager = new EnhancedAttackChainManager();
-      const variationCount = parseInt(options.variations);
+      const variationCount = parseWorkerCount(options.variations); // 1-256 whole number
       const delayBetweenVariations = parseInt(options.delay);
 
-      console.log(`📋 Training Configuration:`);
-      console.log(`   Chain: ${name}`);
-      console.log(`   Variations: ${variationCount}`);
-      console.log(`   Progressive Mode: ${options.progressive}`);
-      console.log(`   Delay Between Variations: ${delayBetweenVariations}ms`);
-      console.log();
+      console.log(`🎓 Training: ${variationCount} variation(s) of ${name}`);
+      console.log(`   Level: ${options.progressive ? 'progressive (basic to advanced)' : 'cycling'}`);
+      console.log(`   Mode: ${options.fullExecution ? 'full execution (writes logs)' : 'simulation (writes no logs)'}\n`);
 
       const executions = await enhancedManager.executeTrainingSession(name, {
         variationCount,
-        progressiveMode: options.progressive,
+        progressive: options.progressive,
         delayBetweenVariations,
-        logGeneratorConfig: options.config
+        simulation: !options.fullExecution,
+        config: options.config
       });
 
-      console.log('✅ Training Session Completed\n');
-      console.log(`📊 Training Results:`);
-      console.log(`   Total Variations Executed: ${executions.length}`);
       const simulated = executions.every(exec => exec.executionMode === 'simulation');
-      console.log(`   Total Logs ${simulated ? 'Written: 0 (simulation writes no logs)' : `Generated: ${executions.reduce((sum, exec) => sum + exec.stats.logsGenerated, 0)}`}`);
-      if (simulated && executions.length > 0) {
-        console.log(`   A full run of this chain writes ~${executions[0].stats.estimatedLogs} logs (npm run attack-chains:execute ${name})`);
+      console.log(`✅ Ran ${executions.length} variation(s)`);
+      if (simulated) {
+        console.log(`   Logs written: 0 (simulation). A full run of this chain writes ~${executions[0]?.estimatedLogs ?? 0} logs each.`);
+      } else {
+        console.log(`   Logs written: ${executions.reduce((sum, exec) => sum + exec.logsGenerated, 0)}`);
       }
-      console.log();
-
-      console.log(`📈 Variation Breakdown:`);
+      console.log(`\n📈 Variations:`);
       executions.forEach((execution, index) => {
-        const changes = (execution.aiEnhancements || []).map((change: { type: string }) => change.type).join(', ');
-        console.log(`   Variation ${index + 1}: ${execution.enhancementConfig.mode}/${execution.enhancementConfig.aiLevel} - ${simulated ? `planned: ${changes}` : `${execution.stats.logsGenerated} logs`}`);
+        const detail = simulated ? `+/-${Math.round(execution.variationSpread * 100)}%` : `${execution.logsGenerated} logs`;
+        console.log(`   ${index + 1}. ${execution.mode}/${execution.aiLevel} - ${detail}`);
       });
 
     } catch (error) {
-      console.error('❌ Error executing training session:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
@@ -1260,38 +1220,18 @@ program
   .argument('<name>', 'Attack chain name or ID')
   .action(async (name) => {
     try {
-      console.log('🤖 AI Enhancement Options\n');
-      
       const enhancedManager = new EnhancedAttackChainManager();
       const options = enhancedManager.getEnhancementOptions(name);
 
-      console.log(`📋 Chain: ${options.template.name}`);
-      console.log(`   Category: ${options.template.category}`);
-      console.log(`   Difficulty: ${options.template.difficulty}`);
-      console.log();
-
-      console.log(`🎛️ Available Enhancement Modes:`);
-      options.availableModes.forEach((mode: any) => {
-        console.log(`   ${mode.mode.toUpperCase()}:`);
-        console.log(`     Description: ${mode.description}`);
-        console.log(`     Requirements: ${mode.requirements.join(', ')}`);
-        console.log();
-      });
-
-      console.log(`🎯 Available AI Levels:`);
-      options.availableLevels.forEach((level: any) => {
-        console.log(`   ${level.level.toUpperCase()}:`);
-        console.log(`     Description: ${level.description}`);
-        console.log(`     Features: ${level.features.join(', ')}`);
-        console.log();
-      });
-
-      console.log(`💡 Recommendations:`);
-      console.log(`   Beginner: --mode ${options.recommendations.beginnerMode} --ai-level ${options.recommendations.beginnerLevel}`);
-      console.log(`   Expert: --mode ${options.recommendations.expertMode} --ai-level ${options.recommendations.expertLevel}`);
+      console.log(`🤖 Variation options for ${options.chain.name} (${options.chain.category}, ${options.chain.difficulty})\n`);
+      console.log(`   Modes: ${options.modes.join(', ')}`);
+      console.log(`\n🎯 Levels (variation on step duration, delay and log rate):`);
+      options.levels.forEach(level => console.log(`   ${level.level.padEnd(9)} ${level.description}`));
+      console.log(`\n   ${options.note}`);
+      console.log(`\n   Example: npm run attack-chains:execute-ai ${name} -- --mode dynamic --ai-level high --full-execution`);
 
     } catch (error) {
-      console.error('❌ Error showing AI options:', error);
+      console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
   });
@@ -1309,8 +1249,7 @@ program
 
       const { totalExecutions, modeDistribution, levelDistribution } = history.statistics;
       if (totalExecutions === 0) {
-        console.log('No AI-enhanced executions recorded yet.');
-        console.log('   Execution history is kept in memory for the current process only and is not saved between runs.');
+        console.log('No AI-enhanced executions recorded yet. Run attack-chains:execute-ai or :training first.');
         return;
       }
 
@@ -1334,7 +1273,7 @@ program
 
       console.log(`🕒 Recent Executions:`);
       history.executions.forEach(execution => {
-        console.log(`   ${execution.startTime.toISOString()}  ${execution.chainName}  ${execution.mode}/${execution.aiLevel}  ${execution.status} (${execution.executionMode})`);
+        console.log(`   ${execution.startTime}  ${execution.chainName}  ${execution.mode}/${execution.aiLevel}  ${execution.status} (${execution.executionMode})`);
       });
 
     } catch (error) {

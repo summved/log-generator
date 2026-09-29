@@ -226,6 +226,20 @@ export class AttackChainManager {
   }
 
   /**
+   * Execute a chain definition directly (e.g. a copy of a template with varied timing)
+   */
+  public async executeChainDefinition(
+    chain: AttackChain,
+    config?: Partial<AttackChainExecutionConfig>,
+    logGeneratorConfig?: string
+  ): Promise<AttackChainExecution> {
+    if (config) {
+      this.engine = new AttackChainEngine(config);
+    }
+    return await this.engine.executeChain(chain, logGeneratorConfig);
+  }
+
+  /**
    * Execute an attack chain by name
    */
   public async executeChainByName(
