@@ -42,13 +42,13 @@ jobs:
     - name: Run integration tests
       run: |
         # Test basic functionality
-        timeout 30s npm run generate -- --duration 5s || echo "Generation test completed"
+        npm run generate -- --duration 5s
         
         # Test configuration validation
         npm run validate-config
         
         # Test performance commands
-        timeout 10s npm run performance-test -- --mode disk --duration 3s || echo "Performance test completed"
+        npm run performance-test -- --mode disk --duration 3s
 
         # Benchmark: every phase, briefly
         ENABLE_MONITORING=false timeout 120s npm run benchmark -- --duration 300ms --workers 1,2

@@ -21,7 +21,7 @@ spec:
         app.kubernetes.io/version: "1.0.0"
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
+        prometheus.io/port: "3000"
         prometheus.io/path: "/metrics"
     spec:
       securityContext:
@@ -31,14 +31,14 @@ spec:
         fsGroup: 1001
       containers:
       - name: log-generator
-        image: ghcr.io/your-org/log-generator:latest
+        image: ghcr.io/summved/log-generator:main  # CI pushes this tag on merges to main
         imagePullPolicy: Always
         ports:
         - name: http
           containerPort: 3000
           protocol: TCP
         - name: metrics
-          containerPort: 8080
+          containerPort: 3000
           protocol: TCP
         env:
         - name: NODE_ENV

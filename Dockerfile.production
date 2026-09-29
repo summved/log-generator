@@ -56,14 +56,14 @@ RUN mkdir -p logs/current logs/historical models/ml-patterns && \
 USER loggen
 
 # Expose port for HTTP output and health checks
-EXPOSE 3000 8080
+EXPOSE 3000
 
 # Add labels for better container management
 LABEL maintainer="log-generator-team" \
       version="1.0.0" \
       description="Enterprise SIEM Log Generator with MITRE ATT&CK integration" \
-      org.opencontainers.image.source="https://github.com/your-org/log-generator" \
-      org.opencontainers.image.documentation="https://github.com/your-org/log-generator/blob/main/README.md"
+      org.opencontainers.image.source="https://github.com/summved/log-generator" \
+      org.opencontainers.image.documentation="https://github.com/summved/log-generator/blob/main/README.md"
 
 # Health check that actually tests functionality
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

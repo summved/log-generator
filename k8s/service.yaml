@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: service
   annotations:
     prometheus.io/scrape: "true"
-    prometheus.io/port: "8080"
+    prometheus.io/port: "3000"
     prometheus.io/path: "/metrics"
 spec:
   type: ClusterIP
@@ -18,8 +18,8 @@ spec:
     targetPort: 3000
     protocol: TCP
   - name: metrics
-    port: 8080
-    targetPort: 8080
+    port: 3000
+    targetPort: 3000
     protocol: TCP
   selector:
     app.kubernetes.io/name: log-generator
