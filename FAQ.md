@@ -14,12 +14,12 @@ Our log generator is unique because it:
 - **SIEM Ready**: Direct integration with Wazuh, Splunk, ELK Stack
 
 ### Is this tool free to use?
-Yes! This is completely open-source under the GPL v3 license. You can use it for:
-- ✅ Commercial purposes
+Yes, for **noncommercial** use. It is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Permitted uses include:
+- ✅ Personal projects, hobby and amateur use
+- ✅ Research, experimentation and testing
 - ✅ Educational institutions
-- ✅ Personal projects
-- ✅ Enterprise environments
-- ✅ Research and development
+- ✅ Nonprofits, public research, public safety/health and government
+- ❌ Commercial use (selling it, or building it into a commercial product or service) requires a separate license from the author
 
 ## 🛡️ SIEM Integration Questions
 

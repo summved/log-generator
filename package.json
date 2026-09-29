@@ -120,7 +120,7 @@
     "cis-controls"
   ],
   "author": "Security Team",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "dependencies": {
     "@faker-js/faker": "10.6.0",
     "axios": "^1.12.2",
