@@ -16,7 +16,12 @@ Only three are read by the app:
 | `ENABLE_MONITORING` | Set to `false` to disable the HTTP server |
 | `CONFIG_PATH` | Config file for the service entry (`node dist/index.js`) |
 
-Other variables (e.g. a SIEM URL/token) only take effect if a mounted config references them with `${VAR}` — see [CONFIGURATION.md](CONFIGURATION.md). To send to a SIEM from a container, mount a config with `output.http`/`output.syslog` and point `CONFIG_PATH` at it (or pass `-c`).
+To send logs to a SIEM from a container, use a config whose output references the environment with `${VAR}`. The shipped `src/config/siem.yaml` does this (`output.http.url: ${SIEM_HTTP_URL}`, `Authorization: Bearer ${SIEM_API_TOKEN}`):
+
+- **Docker Compose**: `docker-compose.production.yml` already points `CONFIG_PATH` at `siem.yaml` and defaults `SIEM_HTTP_URL` to the bundled `mock-siem`, so `docker compose up` demonstrates SIEM delivery. Set `SIEM_HTTP_URL`/`SIEM_API_TOKEN` for a real SIEM, or `CONFIG_PATH=/app/src/config/default.yaml` to write files.
+- **Kubernetes**: the ConfigMap (`k8s/configmap.yaml`) mounts a config with `destination: http` and the same `${VAR}` references; `SIEM_HTTP_URL`/`SIEM_API_TOKEN` come from the Secret.
+
+`LOG_LEVEL` and `NODE_ENV` in the manifests are not read by the app.
 
 ## Docker
 

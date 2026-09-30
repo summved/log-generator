@@ -1,0 +1,21 @@
+# SIEM output config: send generated logs to an HTTP SIEM endpoint.
+#
+# This is a partial config — it is merged over the built-in defaults, so it only sets the output.
+# Use it with:  generate -c src/config/siem.yaml   (or set CONFIG_PATH to it)
+# and provide the endpoint via environment variables:
+#   SIEM_HTTP_URL   - the ingest URL (required)
+#   SIEM_API_TOKEN  - bearer token (optional)
+#
+# For Splunk HEC set payload: splunk-hec; for Elasticsearch set payload: elasticsearch-bulk.
+# See SIEM_INTEGRATION.md for the payload shapes.
+output:
+  destination: http
+  format: json
+  http:
+    url: "${SIEM_HTTP_URL}"
+    method: POST
+    payload: batch
+    headers:
+      Authorization: "Bearer ${SIEM_API_TOKEN:-}"
+    timeout: 10000
+    retries: 3
