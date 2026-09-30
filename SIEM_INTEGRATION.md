@@ -36,6 +36,9 @@ output:
 
 ## HTTP (Splunk, Elasticsearch, generic)
 
+A ready-made **`src/config/siem.yaml`** sends JSON over HTTP to `${SIEM_HTTP_URL}` (bearer `${SIEM_API_TOKEN}`); use it with `generate -c src/config/siem.yaml` after setting those variables, or copy it and set `payload` for Splunk/Elasticsearch.
+
+
 ```yaml
 output:
   destination: http

@@ -44,13 +44,45 @@ describe('ConfigManager with a partial config file', () => {
 
   it('still loads every shipped config file', () => {
     const dir = __dirname;
-    for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.yaml'))) {
-      expect(() => new ConfigManager(path.join(dir, file))).not.toThrow();
+    // siem.yaml intentionally requires SIEM_HTTP_URL (it fails loudly otherwise)
+    process.env.SIEM_HTTP_URL = 'https://siem.example.test/ingest';
+    try {
+      for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.yaml'))) {
+        expect(() => new ConfigManager(path.join(dir, file))).not.toThrow();
+      }
+    } finally {
+      delete process.env.SIEM_HTTP_URL;
     }
   });
 
   it('reports a clear error for a file that is not valid YAML', () => {
     expect(() => new ConfigManager(writeConfig('output: [unclosed'))).toThrow(/Configuration loading failed/);
+  });
+});
+
+describe('the shipped siem.yaml', () => {
+  const saved = { ...process.env };
+  afterEach(() => { process.env = { ...saved }; });
+
+  it('sends to the SIEM_HTTP_URL over HTTP, merged over the defaults', () => {
+    process.env.SIEM_HTTP_URL = 'https://siem.example.test/ingest';
+    process.env.SIEM_API_TOKEN = 'secret-token';
+    const config = new ConfigManager(path.join(__dirname, 'siem.yaml')).getConfig();
+
+    expect(config.output.destination).toBe('http');
+    expect(config.output.http?.url).toBe('https://siem.example.test/ingest');
+    expect(config.output.http?.headers?.Authorization).toBe('Bearer secret-token');
+    // storage and generators come from the defaults (partial config merged)
+    expect(config.storage.currentPath).toBeDefined();
+    expect(Object.keys(config.generators)).toHaveLength(12);
+  });
+
+  it('works with no token set (empty bearer)', () => {
+    process.env.SIEM_HTTP_URL = 'https://siem.example.test/ingest';
+    delete process.env.SIEM_API_TOKEN;
+    const config = new ConfigManager(path.join(__dirname, 'siem.yaml')).getConfig();
+
+    expect(config.output.http?.headers?.Authorization).toBe('Bearer ');
   });
 });
 

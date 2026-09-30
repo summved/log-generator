@@ -10,10 +10,12 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - CONFIG_PATH=/app/src/config/default.yaml
-      - LOG_LEVEL=info
-      - SIEM_HTTP_URL=${SIEM_HTTP_URL}
-      - SIEM_API_TOKEN=${SIEM_API_TOKEN}
+      # Send logs to a SIEM over HTTP (src/config/siem.yaml). Defaults to the bundled mock-siem;
+      # set SIEM_HTTP_URL (and optionally SIEM_API_TOKEN) to point at a real SIEM, or set
+      # CONFIG_PATH=/app/src/config/default.yaml to write to files instead.
+      - CONFIG_PATH=${CONFIG_PATH:-/app/src/config/siem.yaml}
+      - SIEM_HTTP_URL=${SIEM_HTTP_URL:-http://mock-siem/post}
+      - SIEM_API_TOKEN=${SIEM_API_TOKEN:-}
     volumes:
       - ./logs:/app/logs
       - log-generator-models:/app/models
