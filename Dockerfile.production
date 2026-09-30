@@ -37,7 +37,7 @@ COPY package*.json ./
 
 # Install only production dependencies, then remove npm/npx: the app runs with
 # plain `node`, and the bundled npm only adds packages to the image's attack surface
-RUN npm ci --only=production && npm cache clean --force && \
+RUN npm ci --omit=dev && npm cache clean --force && \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Copy built application from builder stage
@@ -59,7 +59,7 @@ USER loggen
 EXPOSE 3000
 
 # Add labels for better container management
-LABEL maintainer="log-generator-team" \
+LABEL org.opencontainers.image.authors="summved" \
       version="1.0.0" \
       description="Enterprise SIEM Log Generator with MITRE ATT&CK integration" \
       org.opencontainers.image.source="https://github.com/summved/log-generator" \

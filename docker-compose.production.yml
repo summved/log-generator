@@ -45,7 +45,7 @@ services:
 
   # Prometheus for monitoring (official Prometheus image)
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0  # LTS; pin to a digest for full reproducibility
     container_name: prometheus
     restart: unless-stopped
     ports:
@@ -65,7 +65,7 @@ services:
 
   # Grafana for visualization (official Grafana image)
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.0.0  # pin to a digest for full reproducibility
     container_name: grafana
     restart: unless-stopped
     ports:
@@ -83,7 +83,7 @@ services:
 
   # Example SIEM endpoint for testing (official httpbin image)
   mock-siem:
-    image: kennethreitz/httpbin:latest
+    image: kennethreitz/httpbin:latest  # local mock SIEM; publishes no version tags
     container_name: mock-siem
     restart: unless-stopped
     ports:

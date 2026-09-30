@@ -15,7 +15,7 @@ COPY . .
 RUN npm run build
 
 # Remove dev dependencies after build
-RUN npm prune --production
+RUN npm prune --omit=dev
 
 # Create logs directory
 RUN mkdir -p logs/current logs/historical
@@ -33,9 +33,9 @@ USER loggen
 # Expose port (if using HTTP output)
 EXPOSE 3000
 
-# Health check
+# Probe the running service's /health endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD node -e "console.log('Health check passed')" || exit 1
+  CMD node -e "require('http').get({host:'127.0.0.1',port:process.env.HTTP_PORT||3000,path:'/health',timeout:5000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 # Default command
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
