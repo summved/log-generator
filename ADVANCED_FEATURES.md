@@ -43,7 +43,11 @@ npm run attack-chains:execute ransomware-ryuk -- --duration 5m     # or --speed 
 npm run attack-chains:coverage
 ```
 
-`attack-chains:execute` is what writes real chain logs. Options include `-c`, `--speed`, `--duration`, `--output-dir`, `--continue-on-failure`, `--no-randomize-timing`, `--no-progress-logging`, `--no-report`. A running execution lives in its process, so a separate `attack-chains:status`/`:abort` invocation won't see it — stop a run with Ctrl+C.
+`attack-chains:execute` is what writes real chain logs. By default it writes a correlated JSONL file (and a report) to `logs/attack-chains/`; pass **`-c <config>`** to send the chain's logs to that config's output instead (destination and format — e.g. straight to a SIEM over HTTP or syslog), the same delivery path `generate` uses. Other options: `--speed`, `--duration`, `--output-dir`, `--continue-on-failure`, `--no-randomize-timing`, `--no-progress-logging`, `--no-report`. A running execution lives in its process, so a separate `attack-chains:status`/`:abort` invocation won't see it — stop a run with Ctrl+C.
+
+```bash
+npm run attack-chains:execute ransomware-ryuk -- -c siem.yaml --duration 5m   # deliver to your SIEM
+```
 
 ### "AI" attack-chain commands (honest description)
 
