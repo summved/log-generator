@@ -77,6 +77,33 @@ describe('AttackChainEngine', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it('with a config path, sends step logs to the configured destination instead of a JSONL file', async () => {
+    const configDir = mkdtempSync(path.join(tmpdir(), 'chain-cfg-'));
+    const outFile = path.join(configDir, 'out', 'chain.json');
+    require('fs').writeFileSync(path.join(configDir, 'config.yaml'), [
+      'output:',
+      '  format: json',
+      '  destination: file',
+      '  file:',
+      `    path: ${outFile}`,
+      'storage:',
+      `  currentPath: ${path.join(configDir, 'current')}`,
+      `  historicalPath: ${path.join(configDir, 'historical')}`,
+      '  retention: 1',
+      '  history: false'
+    ].join('\n'));
+
+    // No injected sink: the engine builds an OutputManager sink from the config
+    const configEngine = new AttackChainEngine({ randomize_timing: false, output_directory: dir, generate_execution_report: false }, { sleep: async () => undefined });
+    const execution = await configEngine.executeChain(makeChain([makeStep('one', 'T1566'), makeStep('two', 'T1059')]), path.join(configDir, 'config.yaml'));
+
+    const lines = readFileSync(outFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    expect(lines.length).toBe(execution.stats.logsGenerated);
+    expect(lines.every(log => log.mitre)).toBe(true);
+    expect(new Set(lines.map(log => log.mitre.technique))).toEqual(new Set(['T1566', 'T1059']));
+    rmSync(configDir, { recursive: true, force: true });
+  });
+
   it('emits technique-tagged logs for every step, correlated to the execution', async () => {
     const chain = makeChain([makeStep('one', 'T1566'), makeStep('two', 'T1059'), makeStep('three', 'T1003')]);
 

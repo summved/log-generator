@@ -54,3 +54,40 @@ describe('StorageLogSink', () => {
     expect(existsSync(path.join(dir, 'historical'))).toBe(true);
   });
 });
+
+describe('OutputManagerLogSink', () => {
+  let dir: string;
+
+  beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), 'chain-om-sink-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  function writeConfig(): string {
+    const config = [
+      'output:',
+      '  format: json',
+      '  destination: file',
+      `  file:`,
+      `    path: ${path.join(dir, 'out', 'chain.json')}`,
+      'storage:',
+      `  currentPath: ${path.join(dir, 'current')}`,
+      `  historicalPath: ${path.join(dir, 'historical')}`,
+      '  retention: 1',
+      '  history: false'
+    ].join('\n');
+    const file = path.join(dir, 'config.yaml');
+    require('fs').writeFileSync(file, config);
+    return file;
+  }
+
+  it('sends entries to the config-defined destination and flushes on close', async () => {
+    const { OutputManagerLogSink } = require('./StepLogSink');
+    const sink = new OutputManagerLogSink(writeConfig());
+
+    const where = await sink.write('exec-1', [makeEntry('a'), makeEntry('b')]);
+    await sink.close();
+
+    expect(where).toBe('file output');
+    const lines = readFileSync(path.join(dir, 'out', 'chain.json'), 'utf8').trim().split('\n');
+    expect(lines.map(line => JSON.parse(line).message)).toEqual(['a', 'b']);
+  });
+})

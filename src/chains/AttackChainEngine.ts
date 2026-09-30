@@ -16,7 +16,7 @@ import {
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { buildStepLogs } from './StepLogFactory';
-import { StepLogSink, StorageLogSink } from './StepLogSink';
+import { StepLogSink, StorageLogSink, OutputManagerLogSink } from './StepLogSink';
 
 type StepResult = AttackChainReport['step_results'][number];
 
@@ -83,12 +83,16 @@ export class AttackChainEngine extends EventEmitter {
 
   /**
    * Execute an attack chain
-   * @param _logGeneratorConfig Unused; kept for signature compatibility with existing callers
+   * @param logGeneratorConfig Optional log-generator config file: when given, step logs are sent
+   *   through its configured output (file/HTTP/syslog/stdout) and format instead of a JSONL file.
    */
   public async executeChain(
     chain: AttackChain,
-    _logGeneratorConfig?: string
+    logGeneratorConfig?: string
   ): Promise<AttackChainExecution> {
+    if (logGeneratorConfig && !this.sink) {
+      this.sink = new OutputManagerLogSink(logGeneratorConfig);
+    }
     const executionId = uuidv4();
     const execution: AttackChainExecution = {
       chainId: chain.id,
@@ -200,6 +204,12 @@ export class AttackChainEngine extends EventEmitter {
       
       this.emit('chain.failed', execution, error instanceof Error ? error : new Error(String(error)));
     } finally {
+      // Flush and close the sink (e.g. an HTTP/syslog output opened from a config file)
+      try {
+        await this.sink?.close?.();
+      } catch (error) {
+        logger.error('Failed to close attack chain output:', error);
+      }
       this.stepResults.delete(executionId);
       this.logFiles.delete(executionId);
 

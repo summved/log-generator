@@ -799,7 +799,7 @@ program
   .command('attack-chains:execute')
   .description('Execute an attack chain simulation')
   .argument('<name>', 'Attack chain name or ID')
-  .option('-c, --config <path>', 'Path to log generator configuration file')
+  .option('-c, --config <path>', 'Send chain logs to the output configured in this file (destination/format, e.g. a SIEM) instead of a JSONL file')
   .option('--speed <multiplier>', 'Speed multiplier (0.5 = half speed, 2.0 = double speed; default 1)')
   .option('--duration <time>', 'Fit the whole chain into this wall-clock time, e.g. 10m or 90s (instead of --speed)')
   .option('--output-dir <path>', 'Output directory for logs and reports')
