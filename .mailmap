@@ -1,0 +1,7 @@
+# Map every commit identity to a single canonical author.
+# Affects local git tooling (git shortlog, git log, git blame).
+# Note: GitHub's contributor graph ignores .mailmap.
+#
+# Format: Canonical Name <canonical-email> <commit-email-to-map>
+Summved Jain <summved@gmail.com> <summved@Summveds-MacBook-Pro.local>
+Summved Jain <summved@gmail.com> summved <summved@gmail.com>
